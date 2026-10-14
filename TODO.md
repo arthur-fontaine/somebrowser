@@ -86,10 +86,10 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
 
 ## 7. Privacy & ads (B, U)
-- [ ] adblock-rust (Brave engine) via Rust staticlib + Swift bridge
-- [ ] Brave default lists, cosmetic filtering, scriptlets
-- [ ] Per-site allow toggle in site controls
-- [ ] Creator-friendly mode: honour a site-declared ad policy (opt-in), "support creators" setting
+- [x] adblock-rust (Brave engine) via Rust staticlib + C API crate (`forkctl` builds `"cargo"` crates); real lists verified in the app
+- [~] Brave default lists, cosmetic filtering (page-specific + generic), URL cleaning — scriptlets/redirect resources todo
+- [x] Per-site allow toggle in site controls (with blocked counter)
+- [x] Creator-friendly mode: sites declaring Web Monetization keep their ads ("support creators", on by default); trackers stay blocked
 - [ ] Security Core: log/inspect every outbound connection made by the browser itself; permission broker (R)
 
 ## 8. Extensions (U)
