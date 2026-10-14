@@ -24,6 +24,8 @@ public final class BrowserWindowState: Identifiable {
     public var flags: Set<String> = []
     /// Features that need the traffic lights visible while the sidebar is hidden (toolbar, peek…).
     public var titlebarRequests: Set<String> = []
+    /// Web content area in window coordinates (top-left origin), kept by the shell for overlays.
+    public var contentFrame: CGRect = .zero
 
     /// Most-recently-used tabs, newest first (Ctrl-Tab, selection after close).
     @ObservationIgnored public internal(set) var mru: [NodeID] = []

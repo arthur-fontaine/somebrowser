@@ -60,6 +60,15 @@ public struct EngineCapabilities: OptionSet, Sendable {
     public static let reparentableViews = EngineCapabilities(rawValue: 1 << 5)
     /// Developer tools.
     public static let devTools = EngineCapabilities(rawValue: 1 << 6)
+    /// Pages live in child windows above the browser window (CEF Chrome style): the shell must draw
+    /// anything that floats over web content in overlay windows (see `ShellOverlay`).
+    public static let childWindowContent = EngineCapabilities(rawValue: 1 << 7)
+}
+
+/// Contract between the shell and child-window engines.
+public enum ShellOverlay {
+    /// Identifier of shell overlay windows; engines keep them above page windows after re-ordering.
+    public static let windowIdentifier = NSUserInterfaceItemIdentifier("browser.overlay")
 }
 
 /// Shows one tab at a time inside a shell-owned container view.

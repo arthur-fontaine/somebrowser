@@ -89,6 +89,11 @@ public final class EngineHooks {
     /// Chooses where a download is saved. Default: ~/Downloads with a unique name.
     public var downloadDestination: ((URL?, String) -> URL)?
 
+    // MARK: Engine-initiated pages
+
+    /// The engine opened a page on its own (e.g. an extension called `chrome.tabs.create`). The runtime opens it as a tab.
+    public var onEngineOpenedURL: ((URL) -> Void)?
+
     // MARK: User agent
 
     /// Brand token appended to the engine's user agent (from `Brand.userAgentBrand` by default).

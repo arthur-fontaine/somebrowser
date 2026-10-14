@@ -56,6 +56,10 @@ public final class BrowserRuntime {
         tabs.onTabsRemoved = { [weak self] removed in self?.tabsRemoved(removed) }
         tabs.onChange = { [weak self] in self?.persistence?.scheduleSave { self?.sessionSnapshot() } }
         engine.hooks.userAgentBrand = Brand.userAgentBrand
+        engine.hooks.onEngineOpenedURL = { [weak self] url in
+            guard let self, let window = self.keyWindow else { return }
+            self.openTab(url, in: window)
+        }
     }
 
     // MARK: Features
