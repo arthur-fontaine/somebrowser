@@ -1,0 +1,11 @@
+{
+  "id": "webkit",
+  "name": "WebKit",
+  "summary": "System WKWebView: lowest memory, native media/codecs, no Chrome extensions.",
+  "module": "EngineWebKit",
+  "entry": "WebKitEngine",
+  "bundler": "plain",
+  "targets": [
+    { "name": "EngineWebKit", "path": "Engines/WebKit/Sources", "language": "swift", "dependencies": ["BrowserCore"], "frameworks": ["WebKit"] }
+  ]
+}
