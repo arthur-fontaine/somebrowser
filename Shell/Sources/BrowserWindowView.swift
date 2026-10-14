@@ -7,6 +7,8 @@ import SwiftUI
 struct BrowserWindowView: View {
     @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
+    /// Engines with page child windows get overlays from `OverlayLayer` in a separate window.
+    var overlaysInline = true
 
     static let contentInset: CGFloat = 6
     static let contentCornerRadius: CGFloat = 10
@@ -28,7 +30,7 @@ struct BrowserWindowView: View {
                 .padding([.top, .bottom, .trailing], Self.contentInset)
                 .padding(.leading, window.isSidebarVisible ? 0 : Self.contentInset)
             }
-            SlotHost(.overlay, window: window)
+            if overlaysInline { SlotHost(.overlay, window: window) }
         }
         .ignoresSafeArea()
         .animation(.spring(duration: 0.32, bounce: 0.12), value: window.isSidebarVisible)
@@ -55,7 +57,7 @@ struct BrowserWindowView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(.background)
             }
-            SlotHost(.contentOverlay, window: window)
+            if overlaysInline { SlotHost(.contentOverlay, window: window) }
         }
         .clipShape(RoundedRectangle(cornerRadius: Self.contentCornerRadius, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
@@ -91,7 +93,15 @@ struct ContentArea: NSViewRepresentable {
                 viewport.present(runtime.live(tab))
             }
         }
-        v.onLayout = { [weak window] in window?.viewport?.layoutDidChange() }
+        v.onLayout = { [weak window, weak v] in
+            guard let window, let v else { return }
+            window.viewport?.layoutDidChange()
+            if let host = v.window?.contentView {
+                let r = v.convert(v.bounds, to: host)
+                let frame = CGRect(x: r.minX, y: host.bounds.height - r.maxY, width: r.width, height: r.height)
+                if window.contentFrame != frame { window.contentFrame = frame }
+            }
+        }
         return v
     }
 

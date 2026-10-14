@@ -22,6 +22,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private let runtime: BrowserRuntime
     private weak var shell: ShellController?
     private var hosting: NSHostingView<AnyView>?
+    private var overlay: OverlayWindow?
 
     init(state: BrowserWindowState, runtime: BrowserRuntime, shell: ShellController) {
         self.state = state
@@ -42,12 +43,21 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if state.frameDescriptor == nil { window.center() }
         super.init(window: window)
         window.delegate = self
-        let root = BrowserWindowView(window: state)
+        let childWindows = runtime.engine.capabilities.contains(.childWindowContent)
+        let root = BrowserWindowView(window: state, overlaysInline: !childWindows)
             .environment(BrowserEnvironment(runtime: runtime))
         let hosting = NSHostingView(rootView: AnyView(root))
         hosting.sizingOptions = []
         window.contentView = hosting
         self.hosting = hosting
+        // Keep the shell looking active while a page or overlay child window has keyboard focus.
+        window.childKeyWindowProvider = { [weak window] in window?.childWindows?.contains { $0.isKeyWindow } ?? false }
+        if childWindows {
+            let overlay = OverlayWindow(state: state, runtime: runtime)
+            self.overlay = overlay
+            window.addChildWindow(overlay, ordered: .above)
+            layoutOverlay()
+        }
         observeChrome()
     }
 
@@ -100,14 +110,20 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func windowDidResignKey(_ notification: Notification) {
         state.isKeyWindow = (window as? ShellWindow)?.childKeyWindowProvider?() ?? false
     }
-    func windowDidResize(_ notification: Notification) { state.viewport?.layoutDidChange(); persistFrame() }
+    func windowDidResize(_ notification: Notification) { state.viewport?.layoutDidChange(); layoutOverlay(); persistFrame() }
+
+    private func layoutOverlay() {
+        guard let overlay, let window else { return }
+        overlay.setFrame(window.convertToScreen(window.contentLayoutRect.union(window.contentView?.frame ?? .zero)), display: true)
+    }
     func windowDidMove(_ notification: Notification) { state.viewport?.layoutDidChange(); persistFrame() }
-    func windowDidEnterFullScreen(_ notification: Notification) { state.isFullscreen = true; state.viewport?.layoutDidChange() }
-    func windowDidExitFullScreen(_ notification: Notification) { state.isFullscreen = false; state.viewport?.layoutDidChange() }
+    func windowDidEnterFullScreen(_ notification: Notification) { state.isFullscreen = true; state.viewport?.layoutDidChange(); layoutOverlay() }
+    func windowDidExitFullScreen(_ notification: Notification) { state.isFullscreen = false; state.viewport?.layoutDidChange(); layoutOverlay() }
     func windowDidChangeScreen(_ notification: Notification) { state.viewport?.layoutDidChange() }
 
     func windowWillClose(_ notification: Notification) {
         persistFrame()
+        if let overlay { window?.removeChildWindow(overlay); overlay.orderOut(nil) }
         state.viewport?.tearDown()
         shell?.windowDidClose(self)
     }
