@@ -97,13 +97,20 @@ public final class AdBlockFeature: BrowserFeature {
 
     func navigated(_ event: TabNavigated) {
         guard ["http", "https"].contains(event.url.scheme) else { return }
-        updateLists()
+        // Local servers (development) aren't the web: they don't start list downloads.
+        if !Self.isLocal(event.url) { updateLists() }
         guard let tab = context.runtime.tabs.tab(event.tabID)?.engineTab else { return }
         exceptions[ObjectIdentifier(tab)] = nil
         guard context.settings.bool("adblock.cosmetic"), shield.shouldFilter(page: event.url),
               let resources = shield.cosmetic(for: event.url, ads: shield.blocksAds(on: event.url)) else { return }
         exceptions[ObjectIdentifier(tab)] = resources.exceptions
         tab.evaluateJavaScript(AdBlockScripts.inject(selectors: resources.hide_selectors, script: resources.injected_script))
+    }
+
+    static func isLocal(_ url: URL) -> Bool {
+        guard let host = url.host()?.lowercased() else { return true }
+        return host == "localhost" || host.hasSuffix(".localhost") || host.hasSuffix(".local") || host == "::1" || host == "[::1]"
+            || host.hasPrefix("127.") || host.hasPrefix("10.") || host.hasPrefix("192.168.")
     }
 
     func genericHide(_ tab: EngineTab, _ body: [String: Any]) {

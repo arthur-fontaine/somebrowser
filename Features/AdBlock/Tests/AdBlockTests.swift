@@ -150,6 +150,13 @@ struct FeatureTests {
         #expect(h.engine.simulateRequest(URL(string: "https://ads.example/x.js")!, documentURL: URL(string: "https://www.blog.example/")) == .allow)
     }
 
+    @Test func localServersDontTriggerListDownloads() {
+        #expect(AdBlockFeature.isLocal(URL(string: "http://127.0.0.1:8080/")!))
+        #expect(AdBlockFeature.isLocal(URL(string: "http://localhost:3000/")!))
+        #expect(AdBlockFeature.isLocal(URL(string: "http://printer.local/")!))
+        #expect(!AdBlockFeature.isLocal(URL(string: "https://news.example/")!))
+    }
+
     @Test func navigationInjectsCosmeticFilters() throws {
         let h = try TestHarness(features: [AdBlockFeature.self], manifestDirectory: #filePath)
         let feature = try #require(h.runtime.feature(AdBlockFeature.self))
