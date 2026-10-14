@@ -19,7 +19,7 @@ public final class SiteSettingsStore {
     }
 
     /// Normalized key for a URL or host: lowercase host without `www.`.
-    public static func site(for url: URL?) -> String? {
+    nonisolated public static func site(for url: URL?) -> String? {
         guard var host = url?.host()?.lowercased() else { return nil }
         if host.hasPrefix("www.") { host.removeFirst(4) }
         return host
