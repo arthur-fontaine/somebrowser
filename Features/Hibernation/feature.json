@@ -1,0 +1,15 @@
+{
+  "id": "hibernation",
+  "name": "Tab Hibernation",
+  "summary": "Background tabs you haven't looked at for a while free their page; they wake when selected.",
+  "entry": "HibernationFeature",
+  "provides": [],
+  "requires": [],
+  "commands": [
+    { "id": "hibernation.hibernate-background", "title": "Hibernate Background Tabs", "menu": "Tabs", "group": "clear", "order": 4, "keywords": ["memory", "sleep", "discard", "free"] }
+  ],
+  "settings": [
+    { "key": "hibernation.after", "title": "Hibernate background tabs after", "type": "choice", "default": "1h", "options": ["5m", "15m", "30m", "1h", "4h", "never"] },
+    { "key": "hibernation.memoryPressure", "title": "Free background tabs when memory runs low", "type": "bool", "default": true }
+  ]
+}

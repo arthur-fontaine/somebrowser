@@ -71,6 +71,38 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// A hibernated tab wakes on its page with its back/forward history.
+    @Test func hibernatedTabsWakeWithTheirHistory() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        try app.navigate(server.url("/three"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Three" }
+        try app.open(server.url("/two"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Two" }
+        let loaded = { (suffix: String) throws -> Bool? in
+            var found: Bool?
+            func walk(_ t: [String: Any]) {
+                if (t["url"] as? String)?.hasSuffix(suffix) == true { found = t["loaded"] as? Bool }
+                for c in t["children"] as? [[String: Any]] ?? [] { walk(c) }
+            }
+            for space in try app.state()["spaces"] as? [[String: Any]] ?? [] {
+                for t in (space["pinned"] as? [[String: Any]] ?? []) + (space["today"] as? [[String: Any]] ?? []) { walk(t) }
+            }
+            return found
+        }
+        try app.run("hibernation.hibernate-background")
+        #expect(try loaded("/three") == false)
+        #expect(try loaded("/two") == true)
+        try app.run("tabs.select-last")
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Three" }
+        try app.run("navigation.back")
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        try app.run("navigation.forward")
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Three" }
+        try app.quit()
+    }
+
     @Test func closeAndReopenTabs() throws {
         let (app, server) = try launch()
         try app.open(server.url("/one"))
