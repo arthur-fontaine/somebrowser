@@ -60,6 +60,8 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @property (weak, nullable) id<CEFRuntimeDelegate> delegate;
 /// Scripts injected in every frame's main world at context creation: {source, documentStart (BOOL), mainFrameOnly (BOOL)}.
 @property (copy) NSArray<NSDictionary<NSString *, id> *> *userScripts;
+/// Profile preferences applied when the default request context is initialized (bool, number or string values).
+@property (copy) NSDictionary<NSString *, id> *profilePreferences;
 /// Loads the framework (main process). Call before anything else.
 - (BOOL)loadLibrary;
 - (BOOL)initializeWithRootCachePath:(NSString *)path

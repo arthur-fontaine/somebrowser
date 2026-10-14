@@ -538,6 +538,20 @@ public:
     explicit BrowserApp(NSDictionary<NSString *, NSString *> *switches) : switches_(switches), adopting_(new AdoptingClient) {}
     CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
     CefRefPtr<CefClient> GetDefaultClient() override { return adopting_; }
+    void OnContextInitialized() override {
+        CefRefPtr<CefRequestContext> context = CefRequestContext::GetGlobalContext();
+        NSDictionary<NSString *, id> *prefs = [CEFRuntime shared].profilePreferences;
+        for (NSString *name in prefs) {
+            id v = prefs[name];
+            CefRefPtr<CefValue> value = CefValue::Create();
+            if ([v isKindOfClass:NSString.class]) value->SetString(CS(v));
+            else if (CFGetTypeID((__bridge CFTypeRef)v) == CFBooleanGetTypeID()) value->SetBool([v boolValue]);
+            else if (strcmp([v objCType], @encode(double)) == 0 || strcmp([v objCType], @encode(float)) == 0) value->SetDouble([v doubleValue]);
+            else value->SetInt([v intValue]);
+            CefString error;
+            if (!context->SetPreference(CS(name), value, error)) NSLog(@"CEF preference %@ not set: %s", name, error.ToString().c_str());
+        }
+    }
     void OnBeforeCommandLineProcessing(const CefString &process_type, CefRefPtr<CefCommandLine> command_line) override {
         for (NSString *key in switches_) {
             NSString *value = switches_[key];
@@ -579,6 +593,7 @@ private:
         _tabs = [NSHashTable weakObjectsHashTable];
         _retained = [NSMutableSet set];
         _userScripts = @[];
+        _profilePreferences = @{};
     }
     return self;
 }

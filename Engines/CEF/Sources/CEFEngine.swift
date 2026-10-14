@@ -21,10 +21,21 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
         hooks.onUserScriptsChanged = { [weak self] in self?.syncScripts() }
     }
 
+    static let deadEndpoint = "http://127.0.0.1:9"
+
     /// Runtime switches that keep Chromium quiet: no Google background services, pings or crash uploads.
+    /// Not `disable-background-networking`: it also stops extension updates. Each Google endpoint an idle
+    /// profile contacted is switched off by name instead (audit: `--log-net-log=<file>`, see TODO.md).
     static let privacySwitches: [String: String] = [
-        "disable-background-networking": "",
         "disable-component-update": "",
+        "allow-browser-signin": "false",
+        // Chromium's own Google endpoints (account checks, AI-mode eligibility, Optimization Guide's component,
+        // which ignores disable-component-update) point at a closed local port. Pages on Google sites and
+        // Web Store installs/updates use their own URLs and are unaffected.
+        "gaia-url": CEFEngine.deadEndpoint,
+        "google-base-url": CEFEngine.deadEndpoint,
+        "google-apis-url": CEFEngine.deadEndpoint,
+        "component-updater": "url-source=\(CEFEngine.deadEndpoint)",
         "disable-domain-reliability": "",
         "disable-breakpad": "",
         "disable-client-side-phishing-detection": "",
@@ -38,7 +49,20 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
         "disable-search-engine-choice-screen": "",
         "enable-blink-features": "DocumentPictureInPictureCefOptions",
         // Chromium's own notification center instead of asking macOS for notification rights at launch.
-        "disable-features": "NativeNotifications,MediaRouter,OptimizationHints,AutofillServerCommunication,Translate",
+        "disable-features": [
+            "NativeNotifications", "MediaRouter", "AutofillServerCommunication", "Translate",
+            "OptimizationHints", "OptimizationGuideManifestBroker", "OptimizationGuideModelExecution",
+            "OnDeviceModelBackgroundDownload", "OnDeviceModelPerformanceParams",
+            "NetworkTimeServiceQuerying", "AimServerEligibilityEnabled", "AimServerRequestOnStartupEnabled",
+        ].joined(separator: ","),
+    ]
+
+    /// Chrome's own search engine is never used for the omnibox (search is a feature); disabling it stops
+    /// the Google-specific services that hang off it.
+    static let privacyPreferences: [String: Any] = [
+        "default_search_provider.enabled": false,
+        "search.suggest_enabled": false,
+        "alternate_error_pages.enabled": false,
     ]
 
     public func bootstrap(profileDirectory: URL) throws {
@@ -56,6 +80,7 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
         for (key, value) in options where key.hasPrefix("switch.") {
             switches[String(key.dropFirst(7))] = value.stringValue ?? ""
         }
+        runtime.profilePreferences = Self.privacyPreferences
         try runtime.initialize(withRootCachePath: profileDirectory.path, switches: switches)
     }
 
