@@ -13,6 +13,7 @@ public final class FeatureContext {
     public var featureID: String { manifest.id }
     public var commands: CommandRegistry { runtime.commands }
     public var settings: SettingsStore { runtime.settings }
+    public var siteSettings: SiteSettingsStore { runtime.siteSettings }
     public var events: EventBus { runtime.events }
     public var capabilities: CapabilityRegistry { runtime.capabilities }
     public var tabs: TabStore { runtime.tabs }

@@ -35,6 +35,13 @@ public extension BrowserEngine {
     static var applicationClass: NSApplication.Type { NSApplication.self }
 }
 
+/// Optional: engines that can report and clear per-site data (cookies, storage, cache).
+public protocol EngineSiteData: AnyObject {
+    /// Approximate bytes stored for a site (nil when the engine cannot tell).
+    func dataSize(for site: String) async -> Int64?
+    func clearData(for site: String) async
+}
+
 public struct EngineCapabilities: OptionSet, Sendable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }

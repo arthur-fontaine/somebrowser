@@ -25,6 +25,7 @@ public final class BrowserRuntime {
     @ObservationIgnored public let capabilities = CapabilityRegistry()
     public let tabs = TabStore()
     public let ui = UIRegistry()
+    @ObservationIgnored public let siteSettings: SiteSettingsStore
     @ObservationIgnored public let dataDirectory: URL
     @ObservationIgnored public let manifests: [FeatureManifest]
     public private(set) var windows: [BrowserWindowState] = []
@@ -50,6 +51,7 @@ public final class BrowserRuntime {
             settings.register(m.settings, overrides: settingOverrides)
         }
         try? FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
+        siteSettings = SiteSettingsStore(url: persistSession ? dataDirectory.appendingPathComponent("site-settings.json") : nil)
         if persistSession { persistence = SessionPersistence(url: dataDirectory.appendingPathComponent("session.json")) }
         tabs.onTabsRemoved = { [weak self] removed in self?.tabsRemoved(removed) }
         tabs.onChange = { [weak self] in self?.persistence?.scheduleSave { self?.sessionSnapshot() } }
