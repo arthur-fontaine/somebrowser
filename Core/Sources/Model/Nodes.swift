@@ -48,6 +48,7 @@ public final class BrowserTab: Identifiable {
 
     public var displayTitle: String {
         if let customTitle, !customTitle.isEmpty { return customTitle }
+        if let live = engineTab?.state.title, !live.isEmpty { return live }
         if !title.isEmpty { return title }
         if let host = url?.host() { return host }
         return "New Tab"
