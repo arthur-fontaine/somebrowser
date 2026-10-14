@@ -87,8 +87,10 @@ change; tabs are pushed while your iPhone is locked". No write-up was published;
     `SafariTabs.db` (Tab Groups, iOS-style `bookmarks` table with `server_id`).
 - Bookmarks.plist on macOS 27 carries no CloudKit state (`CloudKitMigrationState` 0, no per-item `ServerID`): the
   agent keeps its own record and hears about local edits from Safari (`_userDidUpdateBookmarkDatabase`, over the
-  entitled XPC connection). When it uploads edits made by another app is still to verify with a live round trip
-  to the iPhone. Tabs and history stay read-only.
+  entitled XPC connection). Live round trip (2026-10-15, Safari running): a favorite added to the file reached the
+  iPhone in under two minutes — Safari watches the file and reports additions. A favorite removed from the file
+  did not: Safari rewrote the file without it, but the agent takes deletions from Safari's change log
+  (`copyDeletedBookmarkSyncDataWithChange:`), so the iPhone kept it. Tabs and history stay read-only.
 - Implemented as `Features/Safari`.
 
 ## 4. System-wide PiP
