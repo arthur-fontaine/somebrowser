@@ -170,3 +170,15 @@ private final class ScriptMessageProxy: NSObject, WKScriptMessageHandler {
         engine?.handleScriptMessage(message)
     }
 }
+
+extension WebKitEngine: EngineSiteData {
+    /// WebKit exposes records but not their size publicly; report nil so the UI shows "Clear" only.
+    public func dataSize(for site: String) async -> Int64? { nil }
+
+    public func clearData(for site: String) async {
+        let types = WKWebsiteDataStore.allWebsiteDataTypes()
+        let records = await dataStore.dataRecords(ofTypes: types)
+        let matching = records.filter { $0.displayName == site || $0.displayName.hasSuffix("." + site) || site.hasSuffix($0.displayName) }
+        await dataStore.removeData(ofTypes: types, for: matching)
+    }
+}
