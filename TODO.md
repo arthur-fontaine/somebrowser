@@ -69,8 +69,8 @@ to check that the feature still works (`forkctl test <feature>`).
 - [~] Find in page, zoom, devtools, view source (done) · print, reader mode (todo) (A, H)
 - [x] History panel ⌘Y (A, H) · Copy URL / as Markdown (A)
 - [~] Import from Arc, Atlas, Chrome, Dia, Helium (+ Brave, Edge, Vivaldi): bookmarks → pinned folder, history,
-      Web Store extensions with one-click Add — verified with this Mac's Chrome profiles. Safari (needs Full Disk
-      Access) and Arc's own sidebar (`StorableSidebar.json`, no data here) todo; Atlas path is community-reported (R)
+      Web Store extensions with one-click Add — verified with this Mac's Chrome profiles. Safari importer and Arc's
+      own sidebar (`StorableSidebar.json`, no data here) todo; Atlas path is community-reported (R)
 - [ ] Split view (A) — gated on engine capability, later
 - [ ] Air Traffic Control link routing rules (A) — later
 - [ ] Boosts (per-site CSS/JS) (A) — later
@@ -87,7 +87,8 @@ to check that the feature still works (`forkctl test <feature>`).
 - [~] Passkeys via platform authenticator: Chromium uses `ASAuthorizationWebBrowserPublicKeyCredentialManager` by itself
       once the build carries the entitlement — no code of ours; verify with a signed build
 - [x] Touch ID: the system's own prompts inside Apple Passwords (helper) and Sign in with Apple (AppSSO), as in the tweets
-- [ ] Safari sync: favorites/bookmarks, iCloud Tabs, history — read side; write-back experimental (needs Full Disk Access)
+- [~] Safari sync without Full Disk Access (two open-panel grants): Favorites on the start page, iCloud Tabs, history in
+      the command bar — verified with real data; Favorites write-back into Bookmarks.plist done, upload to iCloud unverified
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
 
 ## 7. Privacy & ads (B, U)

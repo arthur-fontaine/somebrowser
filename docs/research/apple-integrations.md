@@ -9,7 +9,7 @@ Apple Passwords, native Sign in with Apple and iCloud-Keychain passkeys all depe
 entitlement **`com.apple.developer.web-browser.public-key-credential`** (Apple grants it; Chrome
 ships with it **[BIN]**). Request it in the developer portal ("Web Browser Public Key Credential
 Requests"). Without it these features fall back (see each section). The app must not be
-sandboxed (Safari sync needs Full Disk Access anyway).
+sandboxed.
 
 ## 1. Apple Passwords (autofill, save, generation)
 
@@ -64,18 +64,32 @@ sandboxed (Safari sync needs Full Disk Access anyway).
 
 ## 3. Safari ⇄ iPhone sync
 
-- Data needs **Full Disk Access** (deep-link
-  `x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles`).
-- `~/Library/Safari/Bookmarks.plist` (Favorites = `BookmarksBar`, `BookmarksMenu`, Reading List;
-  `WebBookmarkUUID`, per-item `Sync`), `History.db` (`history_items`, `history_visits`,
-  `history_tombstones`), `Containers/com.apple.Safari/Data/Library/Safari/CloudTabs.db`
-  (`cloud_tab_devices`, `cloud_tabs`), `SafariTabs.db` (profiles, tab groups).
-- Read: FSEvents on directories (atomic replace), SQLite read-only/immutable or copy with
-  WAL, debounce + diff by UUID/URL. Optional AppleScript `sync all plist to disk`.
-- Write (mandatory, Radian does it): only AppleScript `add reading list item` is a documented route.
-  Bookmark/favorite write-back goes through `Bookmarks.plist` edits coordinated with
-  `SafariBookmarksSyncAgent` (backups first, verify round-trip to iPhone experimentally and lock
-  the working recipe into an integration test).
+Radian (08-07 thread): "no Full Disk Access – uses iCloud for sync – setup takes 2 clicks; bookmarks sync on
+change; tabs are pushed while your iPhone is locked". No write-up was published; what follows was established here.
+
+- Every system route needs a private entitlement **[BIN]**: `SafariBookmarksSyncAgent` rejects XPC clients without
+  `com.apple.private.safari.can-use-bookmarks-sync-agent`; `SafariServices`' `_SFBookmarkCollection` goes through
+  `com.apple.SafariServices.xpc`, which wants `com.apple.private.safari.can-read-bookmarks`. No public API in the
+  Xcode 27 SDK **[SDK]**.
+- iCloud directly is out for tabs and history: Apple lists Safari History, Tab Groups and iCloud Tabs as end-to-end
+  encrypted under standard data protection, keys on trusted devices only; only Bookmarks are "in transit & on server"
+  ([iCloud data security overview](https://support.apple.com/en-us/102651)).
+- So the data comes from the files Safari's agents keep decrypted, and Safari's own sync carries it ("the sync is
+  handled by iCloud, so it works the way Safari would"). **No Full Disk Access needed**: choosing the folder in an
+  `NSOpenPanel` is explicit consent that macOS honors for Safari's protected data, and a security-scoped bookmark
+  keeps it across launches — verified on macOS 27 with a probe app and in the browser **[BIN]**. Two folders, two
+  clicks:
+  - `~/Library/Safari`: `Bookmarks.plist` (Favorites = `BookmarksBar`, Reading List), `History.db`
+    (`history_items`, `history_visits`). The `CloudTabs.db` there is an empty leftover.
+  - `~/Library/Containers/com.apple.Safari/Data/Library/Safari`: `CloudTabs.db` (`cloud_tab_devices`: one row per
+    device, this Mac included, by computer name; `cloud_tabs`: `position` is zlib JSON
+    `{"sortValues":[{"changeID","sortValue","deviceIdentifier"}]}`, `is_pinned`; `cloud_tab_close_requests`),
+    `SafariTabs.db` (Tab Groups, iOS-style `bookmarks` table with `server_id`).
+- Bookmarks.plist on macOS 27 carries no CloudKit state (`CloudKitMigrationState` 0, no per-item `ServerID`): the
+  agent keeps its own record and hears about local edits from Safari (`_userDidUpdateBookmarkDatabase`, over the
+  entitled XPC connection). When it uploads edits made by another app is still to verify with a live round trip
+  to the iPhone. Tabs and history stay read-only.
+- Implemented as `Features/Safari`.
 
 ## 4. System-wide PiP
 
