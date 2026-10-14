@@ -37,6 +37,9 @@ when Chrome replaces those files.
   `PreloadTopChromeWebUI` / `WebUIOmniboxPopup` (each would preload a WebUI renderer).
 - Keyboard: Tab never leaves the page for the toolbar, and ⌘L is ours (the command bar); verified manually.
 - The installed list lags Chrome by its preference write interval (~10 s).
+- Teardown: Chrome's browser view keeps a pointer to its toolbar, so before a page window closes the toolbar
+  is moved back into that window (hidden) and the overlay destroyed; otherwise the toolbar dies with the
+  overlay widget first and closing the window is a use-after-free. E2E quits fail on any crash.
 - Rejected: a reserved toolbar row (costs the "almost fullscreen" layout); ordering the overlay below the page
   (Chrome's bubbles then need re-parenting, and non-key bubbles stay hidden).
 - Forks: `"engineOptions": { "chromeToolbar": "none" }` removes the toolbar (no actions, menu falls back to
