@@ -97,6 +97,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Extension actions + popups via an invisible Chrome toolbar (ADR-0003): pinned buttons + menu in the sidebar,
       Chrome's own popups/permissions, `activeTab` proven by E2E (`extensionActionGetsActiveTab`)
 - [ ] Badges on the sidebar buttons (read from the toolbar's accessibility tree)
+- [ ] Drop the hidden omnibox's AI-mode popup renderer (46 MB, ADR-0003): find its gate or patch it in a source build
 - [x] `chrome://extensions` management reachable (Tools menu, command bar: `extensions.manage`)
 
 ## 9. Performance (U)
