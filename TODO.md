@@ -12,20 +12,20 @@ to check that the feature still works (`forkctl test <feature>`).
 
 ## 0. Foundation (U)
 - [x] Repo scaffold: `Core/`, `Shell/`, `Engines/`, `Features/`, `Defaults/`, `Tools/forkctl/`, `docs/`
-- [x] `forkctl generate`: scans `feature.yml` + `Fork/`, emits `Package.swift`, `project.yml`, registry, branding
+- [x] `forkctl generate`: scans `feature.json` + `Fork/`, emits `Package.swift`, registry, branding, `main.swift`
 - [x] `forkctl validate` (ids, defaults, shortcut collisions, capability graph, brand literals, no cross-feature imports)
 - [x] `forkctl` verbs: init, rename, icon, feature add/remove/disable, engine use, test, sync, doctor
-- [x] Fork overlay `Fork/fork.yml` never touched upstream; merge-conflict-free customization
+- [x] Fork overlay `Fork/fork.json` never touched upstream; merge-conflict-free customization
 - [x] Branding in one place (name, bundle id, URL scheme, UA brand, icon)
 - [x] AGENTS.md + per-feature README template + ADRs
 - [ ] CI: build, unit tests, engine conformance suite, fork smoke test
 
 ## 1. Engines (U)
-- [~] `cef-chrome`: Chrome-style CEF 154, SwiftUI overlay inside the CEF window, parked tabs (ADR-0002)
-- [ ] CEF app bundle: 5 helpers, versioned framework layout, `CefAppProtocol`, signing
+- [x] `cef-chrome`: Chrome-style CEF 154, page child windows + shell overlay window (ADR-0002); real clicks, typing, tree, clean quit verified
+- [x] CEF app bundle: 5 helpers, versioned framework layout, `CefAppProtocol`, ad-hoc signing (`forkctl build`)
 - [x] `webkit`: WKWebView engine behind the same protocols (fork option, fast tests)
-- [~] Engine conformance test suite (fake engine contract tests done; real-engine suite todo)
-- [ ] De-googled runtime defaults: no Google services/pings, switches + policies (U)
+- [x] Engine conformance test suite: `./forkctl test --e2e` (Chromium + WebKit, `FORKCTL_ENGINE=…`)
+- [~] De-googled runtime defaults: privacy switches (no background networking, pings, sync, component updates, breakpad, translate, autofill server) — policies todo (U)
 - [ ] Remote-CI recipe for a source build with ungoogled patches + H.264/AAC (U, documented)
 - [-] `cef-alloy` engine (deferred; no extensions)
 
