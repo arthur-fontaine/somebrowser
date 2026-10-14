@@ -288,6 +288,7 @@ struct SidebarPeekOverlay: View {
                             guard inside else { return }
                             hideTask?.cancel()
                             withAnimation(.spring(duration: 0.28, bounce: 0.1)) { window.isSidebarPeeking = true }
+                            window.titlebarRequests.insert("sidebar.peek")
                         }
                 }
                 Spacer(minLength: 0)
@@ -301,6 +302,7 @@ struct SidebarPeekOverlay: View {
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
             withAnimation(.spring(duration: 0.28, bounce: 0.05)) { window.isSidebarPeeking = false }
+            window.titlebarRequests.remove("sidebar.peek")
         }
     }
 }
