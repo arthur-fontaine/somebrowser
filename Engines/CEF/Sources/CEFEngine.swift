@@ -144,8 +144,14 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
 
     public func makeTab(_ request: EngineTabRequest) -> EngineTab {
         let page = CEFPage(engine: self)
-        page.attach(CEFTab(url: request.url?.absoluteString, delegate: page))
-        if request.url == nil { page.attachBlank() }
+        let restored = request.restorationData.flatMap(RestoredHistory.decode)
+        let url = restored?.current.url ?? request.url
+        if let restored {
+            page.restored = restored.history
+            page.restoring = restored.current
+        }
+        page.attach(CEFTab(url: url?.absoluteString, delegate: page))
+        if url == nil { page.attachBlank() }
         return page
     }
 

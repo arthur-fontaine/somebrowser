@@ -472,6 +472,20 @@ private:
 
 // MARK: - CEFTab
 
+/// Collects the back/forward list (CEF calls it synchronously on the UI thread, which is the main thread here).
+class EntryCollector : public CefNavigationEntryVisitor {
+public:
+    NSMutableArray<NSDictionary<NSString *, NSString *> *> *entries = [NSMutableArray array];
+    NSInteger current = -1;
+    bool Visit(CefRefPtr<CefNavigationEntry> entry, bool isCurrent, int index, int) override {
+        [entries addObject:@{@"url": [NSString stringWithUTF8String:entry->GetURL().ToString().c_str()] ?: @"",
+                             @"title": [NSString stringWithUTF8String:entry->GetTitle().ToString().c_str()] ?: @""}];
+        if (isCurrent) current = index;
+        return true;
+    }
+    IMPLEMENT_REFCOUNTING(EntryCollector);
+};
+
 @implementation CEFTab {
     CefRefPtr<TabClient> _client;
     CefRefPtr<ViewDelegate> _viewDelegate;
@@ -713,6 +727,15 @@ static id AXButtonNamed(id e, NSString *name, int depth) {
 
 - (void)goBack { if (_browser) _browser->GoBack(); }
 - (void)goForward { if (_browser) _browser->GoForward(); }
+
+- (NSArray<NSDictionary<NSString *, NSString *> *> *)navigationEntriesWithCurrentIndex:(NSInteger *)currentIndex {
+    *currentIndex = -1;
+    if (!_browser) return @[];
+    CefRefPtr<EntryCollector> collector = new EntryCollector();
+    _browser->GetHost()->GetNavigationEntries(collector, false);
+    *currentIndex = collector->current;
+    return collector->entries;
+}
 - (void)reloadIgnoringCache:(BOOL)ignore { if (_browser) { ignore ? _browser->ReloadIgnoreCache() : _browser->Reload(); } }
 - (void)stopLoad { if (_browser) _browser->StopLoad(); }
 

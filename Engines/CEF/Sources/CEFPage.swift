@@ -14,6 +14,13 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
     /// Bumped on every main-frame commit: scripts sent to a document that went away never answer.
     private var generation = 0
     private var lastFind = ""
+    /// History from before a restore (see `RestoredHistory`), and the entry being restored until the browser exists.
+    var restored = RestoredHistory()
+    var restoring: NavigationEntry?
+    private var nativeCanGoBack = false
+    private var nativeCanGoForward = false
+    /// Commits that move through history rather than start a new one (a new one drops the restored forward list).
+    private var historyStepPending = false
 
     init(engine: CEFEngine) {
         self.engine = engine
@@ -44,8 +51,35 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
                   statusText: HTTPURLResponse.localizedString(forStatusCode: response.statusCode), headers: headers, body: body)
     }
 
-    func goBack() { tab?.goBack() }
-    func goForward() { tab?.goForward() }
+    func goBack() {
+        historyStepPending = true
+        if nativeCanGoBack { tab?.goBack(); return }
+        guard let current = currentEntry, let previous = restored.stepBack(from: current) else { historyStepPending = false; return }
+        replace(with: previous.url)
+    }
+
+    func goForward() {
+        historyStepPending = true
+        if nativeCanGoForward { tab?.goForward(); return }
+        guard let current = currentEntry, let next = restored.stepForward(from: current) else { historyStepPending = false; return }
+        replace(with: next.url)
+    }
+
+    private var currentEntry: NavigationEntry? { state.url.map { NavigationEntry(url: $0, title: state.title) } }
+
+    /// Shows `url` in place of the current entry; a page that runs no script (error pages) loads it instead.
+    private func replace(with url: URL) {
+        updateHistoryFlags()
+        let literal = String(data: (try? JSONEncoder().encode(url.absoluteString)) ?? Data(), encoding: .utf8) ?? "\"\""
+        evaluateJavaScript("location.replace(\(literal))") { [weak self] result in
+            if case .failure = result { self?.load(url) }
+        }
+    }
+
+    private func updateHistoryFlags() {
+        state.canGoBack = nativeCanGoBack || !restored.back.isEmpty
+        state.canGoForward = nativeCanGoForward || !restored.forward.isEmpty
+    }
     func reload(bypassingCache: Bool) { tab?.reloadIgnoringCache(bypassingCache) }
     func stopLoading() { tab?.stopLoad() }
 
@@ -93,7 +127,15 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         completion(image)
     }
 
-    func restorationData() -> Data? { nil }
+    func restorationData() -> Data? {
+        var index = -1
+        let native = (tab?.navigationEntries(withCurrentIndex: &index) ?? []).compactMap { entry in
+            URL(string: entry["url"] ?? "").map { NavigationEntry(url: $0, title: entry["title"] ?? "") }
+        }
+        if native.indices.contains(index) { return RestoredHistory.encode(native: native, index: index, around: restored) }
+        // Not created yet: what it was restored with.
+        return restoring.flatMap { RestoredHistory.encode(native: [$0], index: 0, around: restored) }
+    }
 
     func close() {
         tab?.close()
@@ -122,8 +164,9 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
 
     func cefTab(_ tab: CEFTab, loadingChanged loading: Bool, canGoBack: Bool, canGoForward: Bool) {
         state.isLoading = loading
-        state.canGoBack = canGoBack
-        state.canGoForward = canGoForward
+        nativeCanGoBack = canGoBack
+        nativeCanGoForward = canGoForward
+        updateHistoryFlags()
         if !loading { state.estimatedProgress = 1 }
     }
 
@@ -138,6 +181,10 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         // Evaluations still pending from the previous document will never answer.
         for (id, entry) in evalCallbacks where entry.generation == generation { _ = id; failEval(id, "page navigated") }
         generation += 1
+        if !historyStepPending && restoring == nil { restored.forward = [] }
+        restoring = nil
+        historyStepPending = false
+        updateHistoryFlags()
         state.isCrashed = false
         state.findResult = nil
         if let u = URL(string: url) { delegate?.engineTab(self, didCommit: u) }
