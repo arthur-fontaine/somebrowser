@@ -164,22 +164,58 @@ func waitUntil(_ condition: () -> Bool) async throws {
 
 @MainActor
 struct FeatureTests {
-    @Test func focusShowsLoginsAndChoosingFills() async throws {
-        let helper = FakeHelper()
-        helper.logins["example.com"] = [("ada", "s3cret")]
+    let rect: [String: Any] = ["x": 10, "y": 20, "width": 200, "height": 30]
+
+    func setUp(_ helper: FakeHelper) async throws -> (TestHarness, ApplePasswordsFeature) {
         let client = PasswordsClient(makeTransport: { helper })
         await client.connect()
         try await client.pair(code: Fixed.code)
         let h = try TestHarness(features: [ApplePasswordsFeature.self], manifestDirectory: #filePath, activate: false)
         let feature = ApplePasswordsFeature(context: h.context, client: client)
         feature.activate()
+        return (h, feature)
+    }
+
+    @Test func focusShowsLoginsAndChoosingFills() async throws {
+        let helper = FakeHelper()
+        helper.logins["example.com"] = [("ada", "s3cret")]
+        let (h, feature) = try await setUp(helper)
         let tab = h.fakeTab(h.openTab("https://example.com/login"))
-        feature.focus(tab, ["kind": "login", "host": "example.com", "url": "https://example.com", "rect": ["x": 10, "y": 20, "width": 200, "height": 30]])
+        tab.simulateScriptMessage("passwords.focus", body: ["kind": "login", "rect": rect])
         try await waitUntil { !feature.model.logins.isEmpty }
         #expect(feature.model.rows == [.login(PasswordsLogin(username: "ada", sites: ["example.com"])), .openApp])
         #expect(feature.model.field?.rect == CGRect(x: 10, y: 20, width: 200, height: 30))
-        feature.key(tab, "Enter")
+        tab.simulateScriptMessage("passwords.key", body: ["key": "Enter"])
         try await waitUntil { tab.evaluatedScripts.contains { $0.contains("s3cret") && $0.contains("ada") } }
+    }
+
+    /// A page can post anything: the site must come from the tab, or evil.example could read bank.example's logins.
+    @Test func pagesCannotClaimAnotherSite() async throws {
+        let helper = FakeHelper()
+        helper.logins["evil.example"] = [("mallory", "x")]
+        helper.logins["bank.example"] = [("ada", "s3cret")]
+        let (h, feature) = try await setUp(helper)
+        let tab = h.fakeTab(h.openTab("https://evil.example/"))
+        tab.simulateScriptMessage("passwords.focus", body: ["kind": "login", "rect": rect, "host": "bank.example", "url": "https://bank.example"])
+        try await waitUntil { !feature.model.logins.isEmpty }
+        #expect(feature.model.field?.host == "evil.example")
+        #expect(feature.model.logins.map(\.username) == ["mallory"])
+        tab.simulateScriptMessage("passwords.submit", body: ["username": "ada", "password": "attacker", "url": "https://bank.example"])
+        try await waitUntil { !helper.saved.isEmpty }
+        #expect(helper.saved.first?.url == "https://evil.example")
+    }
+
+    @Test func iframesAreIgnored() async throws {
+        let helper = FakeHelper()
+        helper.logins["example.com"] = [("ada", "s3cret")]
+        let (h, feature) = try await setUp(helper)
+        let tab = h.fakeTab(h.openTab("https://example.com/"))
+        tab.simulateScriptMessage("passwords.focus", body: ["kind": "login", "rect": rect], mainFrame: false,
+                                  frameURL: URL(string: "https://ads.example/frame"))
+        tab.simulateScriptMessage("passwords.submit", body: ["username": "a", "password": "b"], mainFrame: false)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(feature.model.field == nil)
+        #expect(helper.saved.isEmpty)
     }
 
     @Test func newPasswordFieldsOfferApplesStrongPassword() throws {

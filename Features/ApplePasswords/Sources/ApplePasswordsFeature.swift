@@ -27,10 +27,18 @@ public final class ApplePasswordsFeature: BrowserFeature {
         model.state = client.state
         client.onStateChange = { [weak self] in self?.model.state = $0 }
         context.hooks.addUserScript(UserScript(source: PasswordsScripts.observer, injectionTime: .documentEnd, mainFrameOnly: true, world: .isolated))
-        context.hooks.handleMessages(named: "passwords.focus") { [weak self] tab, body in self?.focus(tab, body as? [String: Any] ?? [:]) }
-        context.hooks.handleMessages(named: "passwords.blur") { [weak self] tab, _ in self?.blur(tab) }
-        context.hooks.handleMessages(named: "passwords.key") { [weak self] tab, body in self?.key(tab, (body as? [String: Any])?["key"] as? String) }
-        context.hooks.handleMessages(named: "passwords.submit") { [weak self] _, body in self?.submit(body as? [String: Any] ?? [:]) }
+        // Any page script can post these: only the top document counts, and the site always comes from the
+        // tab's committed URL, never from the message (or evil.example could ask for bank.example's logins).
+        context.hooks.handleFrameMessages(named: "passwords.focus") { [weak self] tab, m in
+            if m.isMainFrame { self?.focus(tab, m.body as? [String: Any] ?? [:]) }
+        }
+        context.hooks.handleFrameMessages(named: "passwords.blur") { [weak self] tab, m in if m.isMainFrame { self?.blur(tab) } }
+        context.hooks.handleFrameMessages(named: "passwords.key") { [weak self] tab, m in
+            if m.isMainFrame { self?.key(tab, (m.body as? [String: Any])?["key"] as? String) }
+        }
+        context.hooks.handleFrameMessages(named: "passwords.submit") { [weak self] tab, m in
+            if m.isMainFrame { self?.submit(tab, m.body as? [String: Any] ?? [:]) }
+        }
 
         context.commands.handle("passwords.open-app") { _ in Self.openPasswordsApp() }
         context.commands.handle("passwords.connect") { [weak self] _ in self?.model.showPairing = true; Task { await self?.client.connect() } }
@@ -46,13 +54,19 @@ public final class ApplePasswordsFeature: BrowserFeature {
 
     // MARK: Page events
 
+    /// The site a tab's page belongs to, from the engine's committed URL.
+    static func site(of tab: EngineTab) -> (host: String, origin: String)? {
+        guard let url = tab.state.url, url.scheme == "https" || url.scheme == "http", let host = url.host(), !host.isEmpty else { return nil }
+        return (host, "\(url.scheme!)://\(host)\(url.port.map { ":\($0)" } ?? "")")
+    }
+
     func focus(_ tab: EngineTab, _ body: [String: Any]) {
-        guard let host = body["host"] as? String, !host.isEmpty, let r = body["rect"] as? [String: Any] else { return }
+        guard let (host, origin) = Self.site(of: tab), let r = body["rect"] as? [String: Any] else { return }
         let n = { (key: String) in (r[key] as? NSNumber)?.doubleValue ?? 0 }
         let rect = CGRect(x: n("x"), y: n("y"), width: n("width"), height: n("height"))
         let kind: PasswordsModel.Field.Kind = body["kind"] as? String == "new" ? .newPassword : .login
         let field = PasswordsModel.Field(tab: ObjectIdentifier(tab), kind: kind, rect: rect.applying(.init(scaleX: tab.zoomFactor, y: tab.zoomFactor)),
-                                         host: host, origin: body["url"] as? String ?? "https://\(host)")
+                                         host: host, origin: origin)
         model.field = field
         model.logins = []
         model.selection = 0
@@ -123,10 +137,10 @@ public final class ApplePasswordsFeature: BrowserFeature {
         }
     }
 
-    func submit(_ body: [String: Any]) {
-        guard context.settings.bool("passwords.offerToSave"), client.state == .ready,
-              let password = body["password"] as? String, !password.isEmpty, let origin = body["url"] as? String else { return }
-        if let host = body["host"] as? String { generated[host] = nil }
+    func submit(_ tab: EngineTab, _ body: [String: Any]) {
+        guard context.settings.bool("passwords.offerToSave"), client.state == .ready, let (host, origin) = Self.site(of: tab),
+              let password = body["password"] as? String, !password.isEmpty else { return }
+        generated[host] = nil
         // The helper decides (already saved? never for this site?) and shows the native "Save Password?" sheet.
         Task { try? await client.save(url: origin, username: body["username"] as? String ?? "", password: password) }
     }

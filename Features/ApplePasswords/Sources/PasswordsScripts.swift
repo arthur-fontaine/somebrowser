@@ -43,8 +43,7 @@ enum PasswordsScripts {
         document.querySelectorAll('[data-browser-pw]').forEach(x => x.removeAttribute('data-browser-pw'));
         current.setAttribute('data-browser-pw', '');
         const r = current.getBoundingClientRect();
-        post('passwords.focus', { kind, rect: { x: r.left, y: r.top, width: r.width, height: r.height },
-                                  host: location.hostname, url: location.origin });
+        post('passwords.focus', { kind, rect: { x: r.left, y: r.top, width: r.width, height: r.height } });
       }, true);
       document.addEventListener('focusout', e => {
         if (e.target === current) { current = null; post('passwords.blur', {}); }
@@ -56,8 +55,7 @@ enum PasswordsScripts {
         lastCapture = Date.now();
         const isNew = pwIsNew(filled);
         const user = pwUsername(root, filled[0]);
-        post('passwords.submit', { host: location.hostname, url: location.origin, isNew,
-                                   username: user ? user.value : '', password: filled[filled.length - 1].value });
+        post('passwords.submit', { isNew, username: user ? user.value : '', password: filled[filled.length - 1].value });
       };
       document.addEventListener('keydown', e => {
         if (menuOpen() && e.target === current && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
