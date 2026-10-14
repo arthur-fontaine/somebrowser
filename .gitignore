@@ -11,3 +11,4 @@
 /Native/*/target/
 
 .DS_Store
+.build/

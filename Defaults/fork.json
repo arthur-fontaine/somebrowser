@@ -1,0 +1,15 @@
+{
+  "brand": {
+    "name": "Somebrowser",
+    "bundleId": "dev.somebrowser.browser",
+    "urlScheme": "somebrowser",
+    "userAgentBrand": "Somebrowser",
+    "homepage": "https://github.com/arthur-fontaine/somebrowser",
+    "repository": "arthur-fontaine/somebrowser",
+    "copyright": "Open source. Fork it."
+  },
+  "engine": "webkit",
+  "features": { "enable": [], "disable": [] },
+  "shortcuts": {},
+  "settings": {}
+}

@@ -1,0 +1,10 @@
+#!/bin/sh
+# Builds (once) and runs Tools/forkctl. Usage: ./forkctl help
+set -e
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+TOOL="$ROOT/Tools/forkctl"
+BIN="$TOOL/.build/release/forkctl"
+if [ ! -x "$BIN" ] || [ -n "$(find "$TOOL/Sources" "$TOOL/Package.swift" -newer "$BIN" 2>/dev/null | head -1)" ]; then
+  swift build --package-path "$TOOL" -c release >&2
+fi
+exec "$BIN" --root "$ROOT" "$@"
