@@ -7,6 +7,7 @@ import Foundation
 ///
 ///     {"op":"run","command":"tabs.new","args":{}}
 ///     {"op":"open","url":"https://example.com"}
+///     {"op":"navigate","url":"https://example.com/next"}
 ///     {"op":"state"}
 ///     {"op":"eval","js":"document.title"}
 ///     {"op":"setting","key":"adblock.enabled","value":false}
@@ -95,6 +96,13 @@ final class AutomationServer {
             guard let s = req["url"] as? String, let url = URL(string: s), let window else { return reply(["ok": false, "error": "bad url or no window"]) }
             let tab = runtime.openTab(url, in: window)
             reply(["ok": true, "tab": tab.id.uuidString])
+        case "navigate":
+            // Browser-initiated navigation of the selected tab (like typing in the address bar).
+            guard let s = req["url"] as? String, let url = URL(string: s), let window, let tab = runtime.selectedTab(in: window) else {
+                return reply(["ok": false, "error": "bad url or no tab"])
+            }
+            runtime.navigate(tab, to: url)
+            reply(["ok": true])
         case "state":
             reply(["ok": true, "state": stateJSON()])
         case "eval":
