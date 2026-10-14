@@ -1,0 +1,15 @@
+{
+  "id": "passwords",
+  "name": "Apple Passwords",
+  "summary": "Apple Passwords as the password manager: AutoFill dropdown with Touch ID, Apple-generated strong passwords, native Save Password.",
+  "entry": "ApplePasswordsFeature",
+  "commands": [
+    { "id": "passwords.open-app", "title": "Open Passwords", "menu": "Tools", "group": "passwords", "order": 1 },
+    { "id": "passwords.connect", "title": "Connect to Passwords…", "menu": "Tools", "group": "passwords", "order": 2 }
+  ],
+  "settings": [
+    { "key": "passwords.enabled", "title": "Use Apple Passwords", "type": "bool", "default": true },
+    { "key": "passwords.offerToSave", "title": "Offer to save passwords", "type": "bool", "default": true },
+    { "key": "passwords.suggestStrong", "title": "Suggest strong passwords", "type": "bool", "default": true }
+  ]
+}
