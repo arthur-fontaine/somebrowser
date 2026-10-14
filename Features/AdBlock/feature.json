@@ -1,0 +1,16 @@
+{
+  "id": "adblock",
+  "name": "Ad Blocking",
+  "summary": "Brave's ad blocker (adblock-rust, Brave's default lists), with a per-site switch and a creator-friendly mode.",
+  "entry": "AdBlockFeature",
+  "cargo": "Native",
+  "commands": [
+    { "id": "adblock.toggle-site", "title": "Toggle Ad Blocking for This Site", "menu": "Tools", "group": "adblock", "order": 1 },
+    { "id": "adblock.update-lists", "title": "Update Ad Blocking Lists", "menu": "Tools", "group": "adblock", "order": 2 }
+  ],
+  "settings": [
+    { "key": "adblock.enabled", "title": "Block ads and trackers", "type": "bool", "default": true },
+    { "key": "adblock.supportCreators", "title": "Allow ads on sites that ask for support (Web Monetization); trackers stay blocked", "type": "bool", "default": true },
+    { "key": "adblock.cosmetic", "title": "Hide ad placeholders", "type": "bool", "default": true }
+  ]
+}

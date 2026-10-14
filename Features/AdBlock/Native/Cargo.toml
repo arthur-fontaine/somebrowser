@@ -1,0 +1,17 @@
+[package]
+name = "adblock_bridge"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+adblock = { version = "0", default-features = false, features = ["full-regex-handling", "embedded-domain-resolver", "content-blocking"] }
+serde_json = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

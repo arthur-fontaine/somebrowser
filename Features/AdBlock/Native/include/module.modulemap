@@ -1,0 +1,5 @@
+module FeatureAdblockNative [system] {
+    header "adblock_bridge.h"
+    link "adblock_bridge"
+    export *
+}
