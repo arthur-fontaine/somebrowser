@@ -20,6 +20,24 @@ struct HistoryTests {
         #expect(service.recent(limit: 1).first?.url.host() == "swiftui.example")
     }
 
+    @Test func importMergesWithExistingHistory() throws {
+        let h = try harness()
+        let service = try #require(h.runtime.capabilities.history)
+        h.openTab("https://swift.org/")
+        let old = Date(timeIntervalSince1970: 1_000_000)
+        service.importEntries([
+            HistoryEntry(url: URL(string: "https://swift.org/")!, title: "Old title", lastVisit: old, visitCount: 5),
+            HistoryEntry(url: URL(string: "https://imported.example/a")!, title: "Imported", lastVisit: old, visitCount: 3),
+            HistoryEntry(url: URL(string: "chrome://settings")!, title: "Settings", lastVisit: old, visitCount: 1),
+        ])
+        let swift = try #require(service.search("swift.org", limit: 5).first)
+        #expect(swift.visitCount == 6)
+        #expect(swift.lastVisit > old)  // the newer local visit wins
+        let imported = try #require(service.search("imported", limit: 5).first)
+        #expect(imported.title == "Imported" && imported.visitCount == 3 && imported.lastVisit == old)
+        #expect(service.search("settings", limit: 5).isEmpty)
+    }
+
     @Test func privateTabsAndDisabledHistoryAreNotRecorded() throws {
         let h = try harness()
         let service = try #require(h.runtime.capabilities.history)

@@ -48,6 +48,27 @@ final class HistoryStore: HistoryService {
         sqlite3_finalize(stmt)
     }
 
+    func importEntries(_ entries: [HistoryEntry]) {
+        exec("BEGIN")
+        let stmt = prepare("""
+        INSERT INTO pages(url, title, host, last_visit, visit_count) VALUES(?1, ?2, ?3, ?4, ?5)
+        ON CONFLICT(url) DO UPDATE SET visit_count = visit_count + excluded.visit_count,
+          title = CASE WHEN excluded.last_visit > last_visit AND excluded.title != '' THEN excluded.title ELSE title END,
+          last_visit = max(last_visit, excluded.last_visit)
+        """) { _ in }
+        for entry in entries where ["http", "https", "file"].contains(entry.url.scheme ?? "") {
+            sqlite3_reset(stmt)
+            sqlite3_bind_text(stmt, 1, entry.url.absoluteString, -1, transient)
+            sqlite3_bind_text(stmt, 2, entry.title, -1, transient)
+            sqlite3_bind_text(stmt, 3, entry.url.host() ?? "", -1, transient)
+            sqlite3_bind_double(stmt, 4, entry.lastVisit.timeIntervalSince1970)
+            sqlite3_bind_int64(stmt, 5, Int64(max(entry.visitCount, 1)))
+            sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+        exec("COMMIT")
+    }
+
     func updateTitle(url: URL, title: String) {
         guard !title.isEmpty else { return }
         let stmt = prepare("UPDATE pages SET title = ?2 WHERE url = ?1") { s in

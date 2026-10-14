@@ -22,6 +22,8 @@ public protocol HistoryService: AnyObject {
     func recent(limit: Int) -> [HistoryEntry]
     func remove(url: URL)
     func clear(since date: Date?)
+    /// Merges history from another browser: keeps the latest visit and title, adds visit counts.
+    func importEntries(_ entries: [HistoryEntry])
 }
 
 public struct HistoryEntry: Identifiable, Hashable, Sendable {
