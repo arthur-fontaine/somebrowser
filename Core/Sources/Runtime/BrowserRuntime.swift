@@ -4,7 +4,7 @@ import Observation
 import os
 
 /// Where a new tab goes in the tree.
-public enum TabPlacement {
+public enum NewTabPlacement {
     /// Top of the window's space "Today" list.
     case automatic
     /// Child of a tab (Horse tree).
@@ -154,7 +154,7 @@ public final class BrowserRuntime {
 
     /// Creates a tab (and its live page when `url` is given) and optionally selects it.
     @discardableResult
-    public func openTab(_ url: URL?, in window: BrowserWindowState, placement: TabPlacement = .automatic, select shouldSelect: Bool = true) -> BrowserTab {
+    public func openTab(_ url: URL?, in window: BrowserWindowState, placement: NewTabPlacement = .automatic, select shouldSelect: Bool = true) -> BrowserTab {
         let tab = BrowserTab(url: url, isPrivate: window.isPrivate)
         insert(tab, placement: placement, window: window)
         events.publish(TabOpened(tabID: tab.id, openerID: nil, disposition: nil))
@@ -162,7 +162,7 @@ public final class BrowserRuntime {
         return tab
     }
 
-    private func insert(_ tab: BrowserTab, placement: TabPlacement, window: BrowserWindowState) {
+    private func insert(_ tab: BrowserTab, placement: NewTabPlacement, window: BrowserWindowState) {
         switch placement {
         case .automatic: tabs.insert(tab, into: .section(window.spaceID, .today), at: 0)
         case .childOf(let parent): tabs.insertChild(tab, of: parent)
@@ -170,6 +170,22 @@ public final class BrowserRuntime {
         case .container(let c, let i): tabs.insert(tab, into: c, at: i)
         }
     }
+
+    /// Turns an already-running page (e.g. a Peek preview) into a tab without reloading it.
+    @discardableResult
+    public func adopt(_ engineTab: EngineTab, in window: BrowserWindowState, placement: NewTabPlacement = .automatic,
+                      select shouldSelect: Bool = true) -> BrowserTab {
+        let tab = BrowserTab(url: engineTab.state.url, title: engineTab.state.title, isPrivate: window.isPrivate)
+        insert(tab, placement: placement, window: window)
+        attach(engineTab, to: tab)
+        events.publish(TabOpened(tabID: tab.id, openerID: nil, disposition: nil))
+        if shouldSelect { select(tab.id, in: window) }
+        return tab
+    }
+
+    /// Links coming from other apps. The first handler returning true takes the URL (e.g. a mini window);
+    /// otherwise the shell opens it as a tab.
+    @ObservationIgnored public var externalURLHandlers: [(URL) -> Bool] = []
 
     /// Shows a tab in a window, waking it if discarded.
     public func select(_ id: NodeID?, in window: BrowserWindowState) {

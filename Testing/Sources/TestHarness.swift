@@ -68,7 +68,7 @@ public final class TestHarness {
     }
 
     @discardableResult
-    public func openTab(_ string: String, placement: TabPlacement = .automatic, select: Bool = true) -> BrowserTab {
+    public func openTab(_ string: String, placement: NewTabPlacement = .automatic, select: Bool = true) -> BrowserTab {
         runtime.openTab(URL(string: string)!, in: window, placement: placement, select: select)
     }
 

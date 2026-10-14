@@ -61,9 +61,10 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
     }
 
     private func open(_ urls: [URL]) {
-        guard !urls.isEmpty else { return }
+        let remaining = urls.filter { url in !runtime.externalURLHandlers.contains { $0(url) } }
+        guard !remaining.isEmpty else { return }
         let window = keyWindowState ?? openWindow(spaceID: nil, isPrivate: false, initialURL: nil)
-        for url in urls {
+        for url in remaining {
             // Links from other apps reuse an existing tab for the same URL (Horse).
             if let existing = runtime.tabs.tabs(matching: url, in: window.spaceID).first {
                 runtime.select(existing.id, in: window)
