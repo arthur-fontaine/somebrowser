@@ -20,7 +20,8 @@ in the feature's data folder. Both folders are watched, so changes show up live.
 **Access, no Full Disk Access** — "Connect to Safari…" (or the start page button) opens an open panel on each
 folder; clicking Allow is explicit consent, which macOS honors for Safari's protected data. `SafariAccess` keeps the
 grants as security-scoped bookmarks (`Grants/` in the feature's data folder), so it's two clicks once. Cancelling the
-second panel keeps Favorites and history. "Disconnect from Safari" forgets the grants.
+second panel keeps Favorites and history. "Disconnect from Safari" stops using Safari's folders and deletes the
+stored grants.
 
 **Status** — Reading is verified on macOS 27 with real data. Favorites written here land in Bookmarks.plist (tested);
 when Safari's sync agent uploads such external edits to iCloud is not verified yet. The agent learns about local edits
