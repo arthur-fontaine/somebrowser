@@ -52,4 +52,15 @@ public final class CapabilityRegistry {
     public func resolve<T>(_ type: T.Type) -> T? {
         services[ObjectIdentifier(type)] as? T
     }
+
+    private var collections: [ObjectIdentifier: [Any]] = [:]
+
+    /// Adds one member to a many-providers capability (e.g. `OmniboxProvider`).
+    public func contribute<T>(_ type: T.Type, _ instance: T) {
+        collections[ObjectIdentifier(type), default: []].append(instance)
+    }
+
+    public func all<T>(_ type: T.Type) -> [T] {
+        (collections[ObjectIdentifier(type)] ?? []).compactMap { $0 as? T }
+    }
 }
