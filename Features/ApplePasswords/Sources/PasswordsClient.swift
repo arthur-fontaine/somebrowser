@@ -117,8 +117,9 @@ final class PasswordsClient {
         state = .connecting
         do {
             let transport = try makeTransport()
-            transport.onMessage = { [weak self] in self?.deliver($0) }
-            transport.onClose = { [weak self] refused in self?.closed(refused: refused) }
+            // Events of a replaced helper (closed after a wrong code) must not touch the current one.
+            transport.onMessage = { [weak self, weak transport] in if self?.transport === transport { self?.deliver($0) } }
+            transport.onClose = { [weak self, weak transport] refused in if self?.transport === transport { self?.closed(refused: refused) } }
             self.transport = transport
             let hello = try await request(.capabilities, [:])
             let caps = hello["capabilities"] as? [String: Any] ?? [:]
@@ -141,8 +142,8 @@ final class PasswordsClient {
             try session.verifyServerProof(try Self.pake(reply))
             state = .ready
         } catch PasswordsSession.SessionError.wrongCode {
-            // A new handshake: the helper shows a fresh code.
-            state = .idle
+            // A new handshake with a new helper: it shows a fresh code.
+            disconnect()
             await connect()
             throw PasswordsSession.SessionError.wrongCode
         }
@@ -173,6 +174,8 @@ final class PasswordsClient {
     }
 
     func disconnect() {
+        transport?.onMessage = nil
+        transport?.onClose = nil
         transport?.close()
         transport = nil
         session = nil
