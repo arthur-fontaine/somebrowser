@@ -68,7 +68,9 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Downloads: fly-to-toolbar animation + toast + panel (R) — [-] no AI renaming (U)
 - [~] Find in page, zoom, devtools, view source (done) · print, reader mode (todo) (A, H)
 - [x] History panel ⌘Y (A, H) · Copy URL / as Markdown (A)
-- [ ] Import from Arc, Atlas, Chrome, Dia, Helium, Safari (bookmarks, history, extensions) (R)
+- [~] Import from Arc, Atlas, Chrome, Dia, Helium (+ Brave, Edge, Vivaldi): bookmarks → pinned folder, history,
+      Web Store extensions with one-click Add — verified with this Mac's Chrome profiles. Safari (needs Full Disk
+      Access) and Arc's own sidebar (`StorableSidebar.json`, no data here) todo; Atlas path is community-reported (R)
 - [ ] Split view (A) — gated on engine capability, later
 - [ ] Air Traffic Control link routing rules (A) — later
 - [ ] Boosts (per-site CSS/JS) (A) — later
@@ -80,8 +82,9 @@ to check that the feature still works (`forkctl test <feature>`).
 - [~] "Save Password?" into Apple Passwords (command 6; same entitlement gate)
 - [~] Strong password generation **relying on Apple Passwords** (`SecCreateSharedWebCredentialPassword` + save in Passwords) (U)
 - [ ] Sign in with Apple native sheet with Touch ID (AppSSO; needs entitlement)
-- [ ] Passkeys via platform authenticator (needs entitlement)
-- [ ] Touch ID gating (LocalAuthentication)
+- [~] Passkeys via platform authenticator: Chromium uses `ASAuthorizationWebBrowserPublicKeyCredentialManager` by itself
+      once the build carries the entitlement — no code of ours; verify with a signed build
+- [x] Touch ID: the system's own prompts inside Apple Passwords (helper) and Sign in with Apple (AppSSO), as in the tweets
 - [ ] Safari sync: favorites/bookmarks, iCloud Tabs, history — read side; write-back experimental (needs Full Disk Access)
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
 
