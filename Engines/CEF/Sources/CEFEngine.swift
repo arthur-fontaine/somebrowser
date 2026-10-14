@@ -141,7 +141,14 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
     }
 
     public func cefChromeOpenedURL(_ url: String) {
-        if let u = URL(string: url) { hooks.onEngineOpenedURL?(u) }
+        if Self.adoptsChromeOpenedURL(url), let u = URL(string: url) { hooks.onEngineOpenedURL?(u) }
+    }
+
+    /// Chrome opens its new-tab page when it wants a tabbed window for its own UI (e.g. the "extension
+    /// installed" bubble after a Web Store install), not because the user asked for a page.
+    static func adoptsChromeOpenedURL(_ url: String) -> Bool {
+        guard let u = URL(string: url), u.scheme == "chrome" else { return true }
+        return !["newtab", "new-tab-page", "new-tab-page-third-party"].contains(u.host ?? "")
     }
 
     /// Same page observer as the WebKit engine: media state, hovered links (CEF has no audible callback).
