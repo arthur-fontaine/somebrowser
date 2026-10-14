@@ -32,7 +32,7 @@ nonisolated public final class AppDriver: @unchecked Sendable {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    public enum DriverError: Error { case timeout(String), socket(String), badResponse }
+    public enum DriverError: Error { case timeout(String), socket(String), badResponse, crashed(String) }
 
     /// One request/response over the socket.
     @discardableResult
@@ -106,6 +106,10 @@ nonisolated public final class AppDriver: @unchecked Sendable {
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
         if process.isRunning { throw DriverError.timeout("app did not exit in \(timeout)s\n\(mainThreadSample())") }
+        // A crash during teardown is still a failure, even though the process is gone.
+        if process.terminationReason == .uncaughtSignal || process.terminationStatus != 0 {
+            throw DriverError.crashed("exit \(process.terminationStatus) (\(process.terminationReason == .uncaughtSignal ? "signal" : "status"))")
+        }
     }
 
     /// Main-thread stack of the running app (via `sample`), so a hang is diagnosable from the test log.
