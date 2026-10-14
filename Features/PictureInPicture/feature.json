@@ -1,0 +1,16 @@
+{
+  "id": "pip",
+  "name": "Picture in Picture",
+  "summary": "Radian's system-wide PiP: leave a playing video and it floats over every app; fling it to a corner with the trackpad, tuck it into an edge, control it without coming back.",
+  "entry": "PictureInPictureFeature",
+  "provides": ["pip"],
+  "commands": [
+    { "id": "pip.toggle", "title": "Picture in Picture", "shortcut": "ctrl+cmd+p", "menu": "View", "group": "media", "order": 1, "keywords": ["pop out", "float", "mini player"] },
+    { "id": "pip.close", "title": "Close Picture in Picture", "menu": "View", "group": "media", "order": 2, "palette": false }
+  ],
+  "settings": [
+    { "key": "pip.autoPopOut", "title": "Pop out playing videos when you switch tabs", "type": "bool", "default": true },
+    { "key": "pip.calls", "title": "Pop out video calls (Meet, Zoom…) when you switch tabs", "type": "bool", "default": true },
+    { "key": "pip.width", "title": "Picture in Picture width", "type": "int", "default": 400 }
+  ]
+}
