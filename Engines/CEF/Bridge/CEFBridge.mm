@@ -1,6 +1,8 @@
 // CEF bridge: Chrome-style browsers, one frameless CefWindow per tab (docs/decisions/0002).
 #import "CEFBridge.h"
 
+#include <crt_externs.h>
+
 #include <atomic>
 #include <cmath>
 #include <deque>
@@ -588,7 +590,8 @@ private:
 }
 
 - (BOOL)initializeWithRootCachePath:(NSString *)path switches:(NSDictionary<NSString *, NSString *> *)switches error:(NSError **)error {
-    CefMainArgs args(0, nullptr);
+    // The real argv, so Chromium switches work from the command line (`--enable-logging=stderr`, `--v=1`…).
+    CefMainArgs args(*_NSGetArgc(), *_NSGetArgv());
     CefSettings settings;
     settings.no_sandbox = true;
     settings.persist_session_cookies = true;
