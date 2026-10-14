@@ -1,13 +1,15 @@
 import Foundation
 
 /// An installed browser extension, as the engine reports it.
-public struct BrowserExtension: Identifiable, Equatable, Sendable {
+nonisolated public struct BrowserExtension: Identifiable, Equatable, Sendable {
     public let id: String
     public var name: String
     /// File URL of the toolbar icon, if any.
     public var icon: URL?
     /// Pinned to the toolbar by the user (shown as its own button).
     public var isPinned: Bool
+    /// Installed from the Chrome Web Store (so it can be installed again from there).
+    public var isFromWebStore = false
 
     public init(id: String, name: String, icon: URL? = nil, isPinned: Bool = false) {
         self.id = id

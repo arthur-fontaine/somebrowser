@@ -1,8 +1,8 @@
 import Foundation
 import Testing
-@testable import EngineCEF
+@testable import BrowserCore
 
-struct ChromeExtensionsReaderTests {
+struct ChromiumExtensionsTests {
     /// A profile shaped like Chromium 154's: settings in Secure Preferences, pins in Preferences.
     func makeProfile() throws -> URL {
         let profile = FileManager.default.temporaryDirectory.appendingPathComponent("ext-profile-\(UUID().uuidString.prefix(6))")
@@ -13,7 +13,7 @@ struct ChromeExtensionsReaderTests {
             try JSONSerialization.data(withJSONObject: object).write(to: url)
         }
         let settings: [String: Any] = [
-            "ublockid": ["location": 1, "path": "ublockid/1.0_0", "disable_reasons": [],
+            "ublockid": ["location": 1, "path": "ublockid/1.0_0", "disable_reasons": [], "from_webstore": true,
                          "manifest": ["name": "__MSG_extName__", "default_locale": "en",
                                       "action": ["default_icon": ["16": "img/16.png", "32": "img/32.png", "64": "img/64.png"]]]],
             "unpacked": ["location": 4, "path": "/Users/me/dev/my-ext", "state": 1,
@@ -32,10 +32,11 @@ struct ChromeExtensionsReaderTests {
     @Test func listsEnabledUserExtensionsPinnedFirst() throws {
         let profile = try makeProfile()
         defer { try? FileManager.default.removeItem(at: profile) }
-        let list = ChromeExtensionsReader.read(profile: profile, locale: "en-GB")
+        let list = ChromiumExtensions.read(profile: profile, locale: "en-GB")
         #expect(list.map(\.id) == ["unpacked", "ublockid", "alpha"])
         #expect(list.map(\.isPinned) == [true, true, false])
         #expect(list[1].name == "uBlock Origin Lite")
+        #expect(list.map(\.isFromWebStore) == [false, true, false])
         #expect(list[0].icon?.path == "/Users/me/dev/my-ext/icon.png")
         #expect(list[1].icon?.lastPathComponent == "32.png")
         #expect(list[2].icon?.path.hasSuffix("Extensions/alpha/2_0/a.png") == true)
@@ -44,8 +45,8 @@ struct ChromeExtensionsReaderTests {
     @Test func localizesNamesWithFallbacks() throws {
         let profile = try makeProfile()
         defer { try? FileManager.default.removeItem(at: profile) }
-        #expect(ChromeExtensionsReader.read(profile: profile, locale: "fr-FR").first { $0.id == "ublockid" }?.name == "uBlock Origin Lite (fr)")
-        #expect(ChromeExtensionsReader.read(profile: profile, locale: "de").first { $0.id == "ublockid" }?.name == "uBlock Origin Lite")
+        #expect(ChromiumExtensions.read(profile: profile, locale: "fr-FR").first { $0.id == "ublockid" }?.name == "uBlock Origin Lite (fr)")
+        #expect(ChromiumExtensions.read(profile: profile, locale: "de").first { $0.id == "ublockid" }?.name == "uBlock Origin Lite")
     }
 
     @Test func readsManifestFromFolderWhenPrefsHaveNone() throws {
@@ -63,12 +64,12 @@ struct ChromeExtensionsReaderTests {
         ext["settings"] = settings
         root["extensions"] = ext
         try JSONSerialization.data(withJSONObject: root).write(to: prefs)
-        let dev = ChromeExtensionsReader.read(profile: profile).first { $0.id == "devext" }
+        let dev = ChromiumExtensions.read(profile: profile).first { $0.id == "devext" }
         #expect(dev?.name == "Dev Ext")
         #expect(dev?.icon?.lastPathComponent == "i.png")
     }
 
     @Test func emptyProfileHasNoExtensions() {
-        #expect(ChromeExtensionsReader.read(profile: URL(fileURLWithPath: "/nonexistent-profile")).isEmpty)
+        #expect(ChromiumExtensions.read(profile: URL(fileURLWithPath: "/nonexistent-profile")).isEmpty)
     }
 }

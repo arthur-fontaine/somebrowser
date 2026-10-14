@@ -1,13 +1,13 @@
-import BrowserCore
 import Foundation
 
-/// Reads installed extensions from a Chrome profile directory (`Default/`): `Secure Preferences` holds
-/// `extensions.settings` (manifest, path, state), `Preferences` holds `extensions.pinned_extensions`.
-enum ChromeExtensionsReader {
+/// Reads installed extensions from a Chromium profile directory (`Default/`, `Profile 1/`…): `Secure Preferences`
+/// holds `extensions.settings` (manifest, path, state), `Preferences` holds `extensions.pinned_extensions`.
+/// Used by the Chromium engine (its own profile) and by importers (other browsers' profiles).
+nonisolated public enum ChromiumExtensions {
     /// Component and external-component installs (PDF viewer, …) are part of the browser, not the user's.
-    static let hiddenLocations: Set<Int> = [5, 10]
+    public static let hiddenLocations: Set<Int> = [5, 10]
 
-    static func read(profile: URL, locale: String = Locale.preferredLanguages.first ?? "en") -> [BrowserExtension] {
+    public static func read(profile: URL, locale: String = Locale.preferredLanguages.first ?? "en") -> [BrowserExtension] {
         let settings = (json(profile.appendingPathComponent("Secure Preferences"))?["extensions"] as? [String: Any])?["settings"] as? [String: Any]
             ?? (json(profile.appendingPathComponent("Preferences"))?["extensions"] as? [String: Any])?["settings"] as? [String: Any]
             ?? [:]
@@ -21,7 +21,9 @@ enum ChromeExtensionsReader {
             // Unpacked and command-line extensions keep no manifest copy: Chrome reads it from their folder.
             guard let manifest = entry["manifest"] as? [String: Any] ?? json(root.appendingPathComponent("manifest.json")) else { continue }
             let name = localized(manifest["name"] as? String ?? id, root: root, manifest: manifest, locale: locale)
-            out.append(BrowserExtension(id: id, name: name, icon: icon(manifest, root: root), isPinned: pinned.contains(id)))
+            var ext = BrowserExtension(id: id, name: name, icon: icon(manifest, root: root), isPinned: pinned.contains(id))
+            ext.isFromWebStore = entry["from_webstore"] as? Bool ?? false
+            out.append(ext)
         }
         return out.sorted { a, b in
             switch (pinned.firstIndex(of: a.id), pinned.firstIndex(of: b.id)) {

@@ -132,7 +132,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         }
         guard stamps != preferenceStamps else { return }
         preferenceStamps = stamps
-        let list = ChromeExtensionsReader.read(profile: profile)
+        let list = ChromiumExtensions.read(profile: profile)
         guard list != installedExtensions else { return }
         installedExtensions = list
         runtime.extensionToolbarWidth = Int32(Self.toolbarWidth(pinned: list.filter(\.isPinned).count))
