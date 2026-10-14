@@ -83,8 +83,9 @@ struct ContentArea: NSViewRepresentable {
     func makeNSView(context: Context) -> ContentContainerView {
         let v = ContentContainerView()
         v.onAttach = { [weak window, weak runtime] view in
-            guard let window, let runtime, window.viewport == nil else { return }
+            guard let window, let runtime, view.viewport == nil else { return }
             let viewport = runtime.engine.makeViewport(in: view)
+            view.viewport = viewport  // the container owns its viewport; the window state only references it
             window.viewport = viewport
             if let tab = runtime.selectedTab(in: window), tab.url != nil || tab.isLoaded {
                 viewport.present(runtime.live(tab))
@@ -98,7 +99,8 @@ struct ContentArea: NSViewRepresentable {
 }
 
 final class ContentContainerView: NSView {
-    var onAttach: ((NSView) -> Void)?
+    var onAttach: ((ContentContainerView) -> Void)?
+    var viewport: EngineViewport?
     var onLayout: (() -> Void)?
 
     override init(frame: NSRect) {
