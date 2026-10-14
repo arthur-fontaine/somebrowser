@@ -101,7 +101,7 @@ public final class WebKitEngine: BrowserEngine {
         for (identifier, json) in hooks.contentRuleLists {
             store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: json) { [weak self] list, error in
                 guard let self, let list else {
-                    if let error { NSLog("content rule list \(identifier) failed: \(error)") }
+                    if let error { self?.hooks.onContentRuleListFailed?(identifier, error) }
                     return
                 }
                 self.compiledRuleLists[identifier] = list

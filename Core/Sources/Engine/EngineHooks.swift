@@ -31,6 +31,8 @@ public final class EngineHooks {
     /// WebKit content blockers (Apple JSON format), compiled by the engine. Identifier → JSON.
     public private(set) var contentRuleLists: [String: String] = [:]
     public var onContentRuleListsChanged: (() -> Void)?
+    /// The engine couldn't compile a rule list (WebKit: over its rule limit, unsupported regex…).
+    public var onContentRuleListFailed: ((_ identifier: String, _ error: Error) -> Void)?
     public func setContentRuleList(_ json: String?, identifier: String) {
         contentRuleLists[identifier] = json
         onContentRuleListsChanged?()

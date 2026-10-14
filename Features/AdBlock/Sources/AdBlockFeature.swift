@@ -26,6 +26,10 @@ public final class AdBlockFeature: BrowserFeature {
         for key in ["adblock.enabled", "adblock.supportCreators"] { context.settings.observe(key) { [weak self] _ in self?.syncSettings() } }
         let shield = self.shield
         context.hooks.addRequestFilter { request in shield.verdict(for: request) }
+        context.hooks.onContentRuleListFailed = { [weak self] identifier, error in
+            guard identifier == "adblock" else { return }
+            self?.context.notify("Ad blocking lists couldn't load: \(error.localizedDescription)", systemImage: "exclamationmark.shield")
+        }
         context.hooks.addUserScript(UserScript(source: AdBlockScripts.observer, injectionTime: .documentEnd, mainFrameOnly: false, world: .isolated))
         // Generic hiding is applied to the top document; iframes' own cosmetics are a later step.
         context.hooks.handleFrameMessages(named: "adblock.classes") { [weak self] tab, m in
