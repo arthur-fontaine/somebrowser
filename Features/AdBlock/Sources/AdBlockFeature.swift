@@ -27,8 +27,14 @@ public final class AdBlockFeature: BrowserFeature {
         let shield = self.shield
         context.hooks.addRequestFilter { request in shield.verdict(for: request) }
         context.hooks.addUserScript(UserScript(source: AdBlockScripts.observer, injectionTime: .documentEnd, mainFrameOnly: false, world: .isolated))
-        context.hooks.handleMessages(named: "adblock.classes") { [weak self] tab, body in self?.genericHide(tab, body as? [String: Any] ?? [:]) }
-        context.hooks.handleMessages(named: "adblock.creator") { [weak self] _, body in self?.creatorDeclared(body as? [String: Any] ?? [:]) }
+        // Generic hiding is applied to the top document; iframes' own cosmetics are a later step.
+        context.hooks.handleFrameMessages(named: "adblock.classes") { [weak self] tab, m in
+            if m.isMainFrame { self?.genericHide(tab, m.body as? [String: Any] ?? [:]) }
+        }
+        // Only the top document speaks for its site (an ad iframe must not declare the page creator-friendly).
+        context.hooks.handleFrameMessages(named: "adblock.creator") { [weak self] tab, m in
+            if m.isMainFrame, let url = tab.state.url { self?.creatorDeclared(on: url) }
+        }
         context.events.subscribe(TabNavigated.self) { [weak self] event in self?.navigated(event) }
 
         context.commands.handle("adblock.toggle-site") { [weak self] inv in self?.toggleSite(in: inv.window) }
@@ -104,8 +110,8 @@ public final class AdBlockFeature: BrowserFeature {
     }
 
     /// A site declared how to support it: remember it, and let its ads through when the user supports creators.
-    func creatorDeclared(_ body: [String: Any]) {
-        guard let host = body["host"] as? String, let site = SiteSettingsStore.site(for: URL(string: "https://\(host)")) else { return }
+    func creatorDeclared(on page: URL) {
+        guard let site = SiteSettingsStore.site(for: page) else { return }
         guard context.runtime.siteSettings.bool("adblock.creator", for: site) != true else { return }
         context.runtime.siteSettings.set("adblock.creator", .bool(true), for: site)
         syncSettings()

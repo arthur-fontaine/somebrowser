@@ -23,7 +23,7 @@ enum AdBlockScripts {
       new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) collect(n); })
         .observe(document.documentElement, { childList: true, subtree: true });
       if (window === top && document.querySelector('link[rel~="monetization"], meta[name="monetization"]'))
-        post('adblock.creator', { host: location.hostname });
+        post('adblock.creator', {});
     })();
     """
 

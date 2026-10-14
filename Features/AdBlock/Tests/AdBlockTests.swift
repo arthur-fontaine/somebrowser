@@ -122,7 +122,14 @@ struct FeatureTests {
         let h = try TestHarness(features: [AdBlockFeature.self], manifestDirectory: #filePath)
         let feature = try #require(h.runtime.feature(AdBlockFeature.self))
         feature.install(.init(ads: AdBlockEngine(lists: adsList), privacy: AdBlockEngine(lists: privacyList), contentRules: nil))
-        feature.creatorDeclared(["host": "www.blog.example"])
+        let tab = h.fakeTab(h.openTab("https://www.blog.example/post"))
+        // An ad iframe can't speak for the page…
+        tab.simulateScriptMessage("adblock.creator", body: [:], mainFrame: false, frameURL: URL(string: "https://ads.example/f"))
+        #expect(h.engine.simulateRequest(URL(string: "https://ads.example/x.js")!, documentURL: URL(string: "https://www.blog.example/")) == .block)
+        // …the top document can.
+        tab.simulateScriptMessage("adblock.creator", body: ["host": "elsewhere.example"])
+        #expect(h.runtime.siteSettings.bool("adblock.creator", for: "blog.example") == true)
+        #expect(h.runtime.siteSettings.bool("adblock.creator", for: "elsewhere.example") == nil)
         #expect(h.engine.simulateRequest(URL(string: "https://ads.example/x.js")!, documentURL: URL(string: "https://www.blog.example/")) == .allow)
     }
 
