@@ -1,0 +1,226 @@
+import Foundation
+import Observation
+
+/// Extension points features register on. Engines call every hook they can support; a hook an engine
+/// cannot support is simply never called (check `BrowserEngine.capabilities`).
+public final class EngineHooks {
+    public init() {}
+
+    // MARK: Network
+
+    /// Called for every subresource and navigation request **off the main thread** (CEF: IO thread).
+    /// Must be fast and thread-safe. First non-`.allow` verdict wins.
+    public var requestFilters: [RequestFilter] {
+        get { lock.withLock { _requestFilters } }
+        set { lock.withLock { _requestFilters = newValue } }
+    }
+    public func addRequestFilter(_ filter: @escaping RequestFilter) { lock.withLock { _requestFilters.append(filter) } }
+
+    nonisolated public func evaluate(_ request: WebRequest) -> RequestVerdict {
+        let filters = lock.withLock { _requestFilters }
+        for f in filters {
+            let v = f(request)
+            if v != .allow { return v }
+        }
+        return .allow
+    }
+
+    nonisolated(unsafe) private var _requestFilters: [RequestFilter] = []
+    nonisolated private let lock = NSLock()
+
+    /// WebKit content blockers (Apple JSON format), compiled by the engine. Identifier → JSON.
+    public private(set) var contentRuleLists: [String: String] = [:]
+    public var onContentRuleListsChanged: (() -> Void)?
+    public func setContentRuleList(_ json: String?, identifier: String) {
+        contentRuleLists[identifier] = json
+        onContentRuleListsChanged?()
+    }
+
+    // MARK: Scripts
+
+    public private(set) var userScripts: [UserScript] = []
+    public var onUserScriptsChanged: (() -> Void)?
+    public func addUserScript(_ script: UserScript) {
+        userScripts.append(script)
+        onUserScriptsChanged?()
+    }
+
+    /// Messages posted from pages with `window.__browser.post(name, body)`.
+    public private(set) var messageHandlers: [String: (EngineTab, Any) -> Void] = [:]
+    public func handleMessages(named name: String, _ handler: @escaping (EngineTab, Any) -> Void) {
+        messageHandlers[name] = handler
+    }
+
+    // MARK: Navigation
+
+    /// Main-frame navigation decisions (Sign in with Apple interception, link routing…). First non-`.allow` wins.
+    public private(set) var navigationPolicies: [(NavigationAction) -> NavigationPolicy] = []
+    public func addNavigationPolicy(_ policy: @escaping (NavigationAction) -> NavigationPolicy) {
+        navigationPolicies.append(policy)
+    }
+    public func decide(_ action: NavigationAction) -> NavigationPolicy {
+        for p in navigationPolicies {
+            let d = p(action)
+            if case .allow = d { continue }
+            return d
+        }
+        return .allow
+    }
+
+    // MARK: Permissions
+
+    /// Camera, microphone, location, notifications… First non-nil decision wins; nil from all → `.prompt`.
+    public private(set) var permissionHandlers: [(PermissionRequest) -> PermissionDecision?] = []
+    public func addPermissionHandler(_ handler: @escaping (PermissionRequest) -> PermissionDecision?) {
+        permissionHandlers.append(handler)
+    }
+    public func decide(_ request: PermissionRequest) -> PermissionDecision {
+        for h in permissionHandlers { if let d = h(request) { return d } }
+        return .prompt
+    }
+    /// Shows the native permission prompt when no handler decided. Set by the permissions feature.
+    public var permissionPrompt: ((PermissionRequest, @escaping (Bool) -> Void) -> Void)?
+
+    // MARK: Downloads
+
+    public private(set) var downloadObservers: [(DownloadEvent) -> Void] = []
+    public func observeDownloads(_ observer: @escaping (DownloadEvent) -> Void) { downloadObservers.append(observer) }
+    public func emit(_ event: DownloadEvent) { downloadObservers.forEach { $0(event) } }
+    /// Chooses where a download is saved. Default: ~/Downloads with a unique name.
+    public var downloadDestination: ((URL?, String) -> URL)?
+
+    // MARK: User agent
+
+    /// Brand token appended to the engine's user agent (from `Brand.userAgentBrand` by default).
+    public var userAgentBrand: String?
+}
+
+public typealias RequestFilter = @Sendable (WebRequest) -> RequestVerdict
+
+nonisolated public struct WebRequest: Sendable {
+    public enum ResourceType: String, Sendable {
+        case document, subdocument, stylesheet, script, image, font, xhr, media, websocket, ping, other
+    }
+    public var url: URL
+    /// URL of the top-level document that triggered the request.
+    public var documentURL: URL?
+    public var type: ResourceType
+    public var method: String
+
+    public init(url: URL, documentURL: URL?, type: ResourceType, method: String = "GET") {
+        self.url = url
+        self.documentURL = documentURL
+        self.type = type
+        self.method = method
+    }
+}
+
+nonisolated public enum RequestVerdict: Equatable, Sendable {
+    case allow, block
+    case redirect(URL)
+}
+
+public struct UserScript: Sendable {
+    public enum InjectionTime: Sendable { case documentStart, documentEnd }
+    public enum World: Sendable {
+        /// Same JS world as the page (can read page globals).
+        case page
+        /// Isolated world (WebKit content world; engines without isolation fall back to `.page`).
+        case isolated
+    }
+    public var source: String
+    public var injectionTime: InjectionTime
+    public var mainFrameOnly: Bool
+    public var world: World
+
+    public init(source: String, injectionTime: InjectionTime = .documentEnd, mainFrameOnly: Bool = true, world: World = .isolated) {
+        self.source = source
+        self.injectionTime = injectionTime
+        self.mainFrameOnly = mainFrameOnly
+        self.world = world
+    }
+}
+
+public struct NavigationAction {
+    public var url: URL
+    public var sourceTab: EngineTab?
+    public var isMainFrame: Bool
+    public var userGesture: Bool
+    /// Modifier keys at click time (⌘, ⇧, ⌥).
+    public var modifiers: NSEventModifierFlagsBox
+
+    public init(url: URL, sourceTab: EngineTab?, isMainFrame: Bool = true, userGesture: Bool = false, modifiers: NSEventModifierFlagsBox = .init()) {
+        self.url = url
+        self.sourceTab = sourceTab
+        self.isMainFrame = isMainFrame
+        self.userGesture = userGesture
+        self.modifiers = modifiers
+    }
+}
+
+/// Modifier flags without importing AppKit types into every hook signature.
+public struct NSEventModifierFlagsBox: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let command = NSEventModifierFlagsBox(rawValue: 1 << 0)
+    public static let shift = NSEventModifierFlagsBox(rawValue: 1 << 1)
+    public static let option = NSEventModifierFlagsBox(rawValue: 1 << 2)
+    public static let control = NSEventModifierFlagsBox(rawValue: 1 << 3)
+}
+
+public enum NavigationPolicy: Equatable {
+    case allow
+    case cancel
+    /// Navigation is taken over by a feature (e.g. native Sign in with Apple), which reports back later.
+    case handled
+    case openInNewTab(URL)
+}
+
+public struct PermissionRequest {
+    public enum Kind: String, CaseIterable, Sendable {
+        case camera, microphone, location, notifications, clipboard, midi, screenCapture, popups, autoplay
+    }
+    public var kinds: [Kind]
+    public var origin: URL
+    public var tab: EngineTab?
+
+    public init(kinds: [Kind], origin: URL, tab: EngineTab?) {
+        self.kinds = kinds
+        self.origin = origin
+        self.tab = tab
+    }
+}
+
+public enum PermissionDecision {
+    case grant, deny, prompt
+}
+
+public enum DownloadEvent {
+    case started(DownloadItem)
+    case progress(DownloadItem)
+    case finished(DownloadItem)
+    case failed(DownloadItem, String)
+}
+
+@Observable
+public final class DownloadItem: Identifiable {
+    public let id = UUID()
+    public var sourceURL: URL?
+    public var suggestedFilename: String
+    public var destination: URL?
+    public var receivedBytes: Int64 = 0
+    public var totalBytes: Int64 = 0
+    public var isFinished = false
+    public var error: String?
+    public var startedAt = Date()
+    public var cancel: (() -> Void)?
+
+    public init(sourceURL: URL?, suggestedFilename: String) {
+        self.sourceURL = sourceURL
+        self.suggestedFilename = suggestedFilename
+    }
+
+    public var fractionCompleted: Double {
+        totalBytes > 0 ? Double(receivedBytes) / Double(totalBytes) : 0
+    }
+}
