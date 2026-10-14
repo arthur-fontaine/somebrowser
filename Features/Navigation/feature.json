@@ -1,0 +1,25 @@
+{
+  "id": "navigation",
+  "name": "Navigation",
+  "summary": "Back, forward, reload, stop, zoom, developer tools and Arc's tracker-free Copy URL.",
+  "entry": "NavigationFeature",
+  "provides": ["navigation"],
+  "commands": [
+    { "id": "navigation.back", "title": "Back", "shortcut": "cmd+[", "alternateShortcuts": ["cmd+left"], "menu": "History", "group": "nav", "order": 1 },
+    { "id": "navigation.forward", "title": "Forward", "shortcut": "cmd+]", "alternateShortcuts": ["cmd+right"], "menu": "History", "group": "nav", "order": 2 },
+    { "id": "navigation.reload", "title": "Reload Page", "shortcut": "cmd+r", "menu": "View", "group": "reload", "order": 1 },
+    { "id": "navigation.hard-reload", "title": "Reload Ignoring Cache", "shortcut": "cmd+shift+r", "menu": "View", "group": "reload", "order": 2 },
+    { "id": "navigation.stop", "title": "Stop Loading", "shortcut": "cmd+.", "menu": "View", "group": "reload", "order": 3 },
+    { "id": "navigation.zoom-in", "title": "Zoom In", "shortcut": "cmd+=", "alternateShortcuts": ["cmd+shift+="], "menu": "View", "group": "zoom", "order": 1 },
+    { "id": "navigation.zoom-out", "title": "Zoom Out", "shortcut": "cmd+-", "menu": "View", "group": "zoom", "order": 2 },
+    { "id": "navigation.zoom-reset", "title": "Actual Size", "shortcut": "cmd+0", "menu": "View", "group": "zoom", "order": 3 },
+    { "id": "navigation.devtools", "title": "Developer Tools", "shortcut": "cmd+opt+i", "menu": "Tools", "group": "dev", "order": 1, "keywords": ["inspect", "web inspector", "console"] },
+    { "id": "navigation.view-source", "title": "View Page Source", "shortcut": "cmd+opt+u", "menu": "Tools", "group": "dev", "order": 2 },
+    { "id": "navigation.copy-url", "title": "Copy URL", "shortcut": "cmd+shift+c", "menu": "Edit", "group": "copy", "order": 1, "keywords": ["share", "link", "super copy"] },
+    { "id": "navigation.copy-markdown", "title": "Copy URL as Markdown", "shortcut": "cmd+opt+shift+c", "menu": "Edit", "group": "copy", "order": 2 }
+  ],
+  "settings": [
+    { "key": "navigation.stripTrackers", "title": "Remove tracking parameters when copying links", "type": "bool", "default": true },
+    { "key": "navigation.rememberZoom", "title": "Remember zoom level per website", "type": "bool", "default": true }
+  ]
+}
