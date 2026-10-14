@@ -182,3 +182,15 @@ extension WebKitEngine: EngineSiteData {
         await dataStore.removeData(ofTypes: types, for: matching)
     }
 }
+
+extension WebKitEngine: EngineFloating {
+    public func detachForFloating(_ tab: EngineTab) -> FloatingContent? {
+        guard let web = (tab as? WebKitTab)?.webView else { return nil }
+        web.removeFromSuperview()
+        return .view(web)
+    }
+
+    public func reattachAfterFloating(_ tab: EngineTab) {
+        (tab as? WebKitTab)?.webView.removeFromSuperview()
+    }
+}

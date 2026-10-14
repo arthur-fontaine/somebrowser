@@ -358,7 +358,7 @@ final class WebKitViewport: EngineViewport {
     init(container: NSView) { self.container = container }
 
     func present(_ tab: EngineTab?) {
-        guard presentedTab !== tab else { return }
+        if presentedTab === tab, let web = (tab as? WebKitTab)?.webView, web.superview === container { return }
         (presentedTab as? WebKitTab)?.webView.removeFromSuperview()
         presentedTab = tab
         guard let container, let web = (tab as? WebKitTab)?.webView else { return }
