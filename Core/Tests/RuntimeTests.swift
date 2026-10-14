@@ -113,6 +113,25 @@ struct RuntimeTests {
         #expect(a.isLoaded)
     }
 
+    @Test func heldTabsStayAwakeAndIdleCountsFromLeaving() throws {
+        let h = try harness()
+        let a = h.openTab("https://a.example")
+        let selectedAt = a.lastActiveAt
+        _ = h.openTab("https://b.example")
+        #expect(a.lastActiveAt > selectedAt)  // stamped when left, not only when selected
+        h.runtime.holdAwake(a.id, reason: "pip")
+        h.runtime.holdAwake(a.id, reason: "other")
+        h.runtime.discard(a)
+        #expect(a.isLoaded)
+        h.runtime.releaseAwake(a.id, reason: "pip")
+        h.runtime.discard(a)
+        #expect(a.isLoaded)
+        h.runtime.releaseAwake(a.id, reason: "other")
+        #expect(!h.runtime.isHeldAwake(a.id))
+        h.runtime.discard(a)
+        #expect(!a.isLoaded)
+    }
+
     @Test func spacesSwitchSelection() throws {
         let h = try harness()
         let first = h.openTab("https://a.example")

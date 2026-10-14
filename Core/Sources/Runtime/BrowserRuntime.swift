@@ -207,7 +207,9 @@ public final class BrowserRuntime {
         if let s = tabs.spaceID(of: id), s != window.spaceID { window.spaceID = s }
         window.selectedTabID = id
         window.noteSelected(id)
-        tab.lastActiveAt = Date()
+        let now = Date()
+        if let previous, previous != id { tabs.tab(previous)?.lastActiveAt = now }  // idle counts from when it was left
+        tab.lastActiveAt = now
         let engineTab = tab.url == nil && tab.engineTab == nil ? nil : live(tab)
         window.viewport?.present(engineTab)
         events.publish(TabSelected(windowID: window.id, tabID: id, previousTabID: previous))
@@ -279,9 +281,22 @@ public final class BrowserRuntime {
         e.delegate = binding
     }
 
-    /// Frees the engine page; the tab keeps its URL/title/history and wakes on selection.
+    /// Reasons a tab must keep its page even in the background (it floats in picture in picture…).
+    @ObservationIgnored private var awakeHolds: [NodeID: Set<String>] = [:]
+
+    public func holdAwake(_ id: NodeID, reason: String) { awakeHolds[id, default: []].insert(reason) }
+
+    public func releaseAwake(_ id: NodeID, reason: String) {
+        awakeHolds[id]?.remove(reason)
+        if awakeHolds[id]?.isEmpty == true { awakeHolds[id] = nil }
+    }
+
+    public func isHeldAwake(_ id: NodeID) -> Bool { awakeHolds[id] != nil }
+
+    /// Frees the engine page; the tab keeps its URL/title/history and wakes on selection. Refused for a tab shown in a
+    /// window or held awake.
     public func discard(_ tab: BrowserTab) {
-        guard let e = tab.engineTab, !windows.contains(where: { $0.selectedTabID == tab.id }) else { return }
+        guard let e = tab.engineTab, !windows.contains(where: { $0.selectedTabID == tab.id }), awakeHolds[tab.id] == nil else { return }
         tab.restorationData = e.restorationData()
         if let u = e.state.url { tab.url = u }
         if !e.state.title.isEmpty { tab.title = e.state.title }
@@ -299,6 +314,7 @@ public final class BrowserRuntime {
             }
             t.engineTab = nil
             bindings[t.id] = nil
+            awakeHolds[t.id] = nil
         }
         if !removed.isEmpty { events.publish(TabsClosed(tabIDs: removed.map(\.id))) }
     }
