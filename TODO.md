@@ -12,10 +12,10 @@ to check that the feature still works (`forkctl test <feature>`).
 
 ## 0. Foundation (U)
 - [x] Repo scaffold: `Core/`, `Shell/`, `Engines/`, `Features/`, `Defaults/`, `Tools/forkctl/`, `docs/`
-- [ ] `forkctl generate`: scans `feature.yml` + `Fork/`, emits `Package.swift`, `project.yml`, registry, branding
+- [x] `forkctl generate`: scans `feature.yml` + `Fork/`, emits `Package.swift`, `project.yml`, registry, branding
 - [x] `forkctl validate` (ids, defaults, shortcut collisions, capability graph, brand literals, no cross-feature imports)
 - [x] `forkctl` verbs: init, rename, icon, feature add/remove/disable, engine use, test, sync, doctor
-- [ ] Fork overlay `Fork/fork.yml` never touched upstream; merge-conflict-free customization
+- [x] Fork overlay `Fork/fork.yml` never touched upstream; merge-conflict-free customization
 - [x] Branding in one place (name, bundle id, URL scheme, UA brand, icon)
 - [x] AGENTS.md + per-feature README template + ADRs
 - [ ] CI: build, unit tests, engine conformance suite, fork smoke test
