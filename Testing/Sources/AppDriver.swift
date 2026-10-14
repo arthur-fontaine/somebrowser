@@ -9,10 +9,11 @@ nonisolated public final class AppDriver: @unchecked Sendable {
     private let socketName = "a.sock"
 
     /// `executable`: `build/<Name>.app/Contents/MacOS/<Name>`.
-    public init(executable: String, extraEnvironment: [String: String] = [:]) throws {
+    public init(executable: String, extraEnvironment: [String: String] = [:], arguments: [String] = []) throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-\(UUID().uuidString.prefix(8))")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
         process.currentDirectoryURL = directory  // keeps the socket path short
         var env = ProcessInfo.processInfo.environment
         env["BROWSER_DATA_DIR"] = directory.appendingPathComponent("data").path

@@ -89,6 +89,20 @@ struct EngineConformanceTests {
         try? FileManager.default.removeItem(at: data)
     }
 
+    /// The browser itself contacts no third party: an idle fresh profile only talks to loopback.
+    /// Chromium only (its net log is the evidence); covers sign-in checks, network time, AI-mode probes.
+    @Test func idleProfileContactsNoThirdParty() throws {
+        let log = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-net-\(UUID().uuidString.prefix(6)).json")
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, arguments: ["--log-net-log=\(log.path)"])
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+        Thread.sleep(forTimeInterval: 8)
+        try app.quit()
+        let netLog = try String(contentsOf: log, encoding: .utf8)
+        let hosts = Set(netLog.matches(of: /"url":"[a-z-]+:\/\/([^\/:"]+)/).map { String($0.1) })
+        #expect(hosts.subtracting(["127.0.0.1", "localhost"]).isEmpty, "contacted \(hosts.sorted())")
+        try? FileManager.default.removeItem(at: log)
+    }
+
     @Test func quitsCleanly() throws {
         let (app, _) = try launch()
         try app.quit(timeout: 8)
