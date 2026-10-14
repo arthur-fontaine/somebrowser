@@ -95,6 +95,7 @@ struct FindBar: View {
                 Spacer()
             }
             .transition(.move(edge: .top).combined(with: .opacity))
+            .overlayKeyboardFocus("find", in: window)
             .onAppear { focused = true }
         }
     }

@@ -195,6 +195,7 @@ struct SpaceEditorOverlay: View {
             ZStack {
                 Color.black.opacity(0.15).contentShape(Rectangle()).onTapGesture { window.flags.remove(SpacesFeature.editFlag) }
                 SpaceEditor(space: space, store: runtime.tabs) { window.flags.remove(SpacesFeature.editFlag) }
+                    .overlayKeyboardFocus("spaces.editor", in: window)
                     .transition(.scale(scale: 0.95).combined(with: .opacity))
             }
         }

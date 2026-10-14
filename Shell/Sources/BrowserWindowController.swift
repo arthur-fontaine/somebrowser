@@ -67,13 +67,25 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             _ = state.isSidebarVisible
             _ = state.isSidebarPeeking
             _ = state.titlebarRequests
+            _ = state.overlayFocusRequests
         } onChange: { [weak self] in
             DispatchQueue.main.async {
                 self?.updateTrafficLights()
+                self?.updateOverlayFocus()
                 self?.observeChrome()
             }
         }
         updateTrafficLights()
+    }
+
+    /// Text input in overlays needs the overlay window to be key (pages are child windows under CEF).
+    private func updateOverlayFocus() {
+        guard let overlay else { return }
+        if !state.overlayFocusRequests.isEmpty {
+            if !overlay.isKeyWindow { overlay.makeKey() }
+        } else if overlay.isKeyWindow {
+            state.viewport?.focusContent()
+        }
     }
 
     private func updateTrafficLights() {

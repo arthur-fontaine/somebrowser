@@ -26,6 +26,9 @@ public final class BrowserWindowState: Identifiable {
     public var titlebarRequests: Set<String> = []
     /// Web content area in window coordinates (top-left origin), kept by the shell for overlays.
     public var contentFrame: CGRect = .zero
+    /// Overlays with text input currently on screen. When the engine hosts pages in child windows, the shell
+    /// gives keyboard focus to the overlay window while this is non-empty (use `.overlayKeyboardFocus(_:in:)`).
+    public var overlayFocusRequests: Set<String> = []
 
     /// Most-recently-used tabs, newest first (Ctrl-Tab, selection after close).
     @ObservationIgnored public internal(set) var mru: [NodeID] = []

@@ -125,6 +125,7 @@ struct PermissionPrompt: View {
             }
             .padding(16)
             .frame(width: 340)
+            .overlayKeyboardFocus("permissions", in: window)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
             .padding(.top, 54)

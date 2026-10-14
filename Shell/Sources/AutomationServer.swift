@@ -127,7 +127,9 @@ final class AutomationServer {
                 for sub in v.subviews { out += dump(sub, depth + 1) }
                 return out
             }
-            reply(["ok": true, "views": dump(root, 0), "children": ns.childWindows?.map { NSStringFromRect($0.frame) } ?? []])
+            let key = NSApp.keyWindow
+            reply(["ok": true, "views": dump(root, 0), "children": ns.childWindows?.map { NSStringFromRect($0.frame) } ?? [],
+                   "keyWindow": key.map { "\(type(of: $0))#\($0.identifier?.rawValue ?? "")" } ?? NSNull()])
         case "quit":
             reply(["ok": true])
             NSApp.terminate(nil)

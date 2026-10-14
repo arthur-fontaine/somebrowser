@@ -44,6 +44,7 @@ struct CommandBarOverlay: View {
                     .contentShape(Rectangle())
                     .onTapGesture { model.close(window) }
                 CommandBarPanel(window: window, model: model)
+                    .overlayKeyboardFocus("command-bar", in: window)
                     .padding(.top, 90)
                     .transition(.asymmetric(insertion: .scale(scale: 0.97, anchor: .top).combined(with: .opacity),
                                             removal: .opacity))

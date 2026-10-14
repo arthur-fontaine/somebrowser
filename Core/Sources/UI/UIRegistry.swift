@@ -87,3 +87,11 @@ public final class BrowserEnvironment {
     public let runtime: BrowserRuntime
     public init(runtime: BrowserRuntime) { self.runtime = runtime }
 }
+
+public extension View {
+    /// Declares that this overlay takes keyboard input while it is on screen (command bar, find bar…).
+    func overlayKeyboardFocus(_ id: String, in window: BrowserWindowState) -> some View {
+        onAppear { window.overlayFocusRequests.insert(id) }
+            .onDisappear { window.overlayFocusRequests.remove(id) }
+    }
+}
