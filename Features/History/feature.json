@@ -1,0 +1,17 @@
+{
+  "id": "history",
+  "name": "History",
+  "summary": "Local browsing history (SQLite) with a searchable panel and command-bar results ranked by frecency.",
+  "entry": "HistoryFeature",
+  "provides": ["history"],
+  "frameworks": [],
+  "commands": [
+    { "id": "history.show", "title": "Show History", "shortcut": "cmd+y", "menu": "History", "group": "panel", "order": 1 },
+    { "id": "history.clear-today", "title": "Clear Today's History", "menu": "History", "group": "clear", "order": 1 },
+    { "id": "history.clear-all", "title": "Clear All History…", "menu": "History", "group": "clear", "order": 2 }
+  ],
+  "settings": [
+    { "key": "history.enabled", "title": "Remember browsing history", "type": "bool", "default": true },
+    { "key": "history.retentionDays", "title": "Keep history for (days)", "type": "int", "default": 365 }
+  ]
+}
