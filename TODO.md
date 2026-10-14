@@ -81,7 +81,9 @@ to check that the feature still works (`forkctl test <feature>`).
       signed with the managed entitlement (ad-hoc builds are refused by a launch constraint, verified)
 - [~] "Save Password?" into Apple Passwords (command 6; same entitlement gate)
 - [~] Strong password generation **relying on Apple Passwords** (`SecCreateSharedWebCredentialPassword` + save in Passwords) (U)
-- [ ] Sign in with Apple native sheet with Touch ID (AppSSO; needs entitlement)
+- [~] Sign in with Apple native sheet with Touch ID — `apple-signin` feature: AppSSO interception, in-window sheet,
+      response loaded with appleid.apple.com's origin (`loadSimulated`, both engines). AppSSO declines unentitled
+      builds (verified), and the web flow continues; the native sheet needs a signed, entitled build
 - [~] Passkeys via platform authenticator: Chromium uses `ASAuthorizationWebBrowserPublicKeyCredentialManager` by itself
       once the build carries the entitlement — no code of ours; verify with a signed build
 - [x] Touch ID: the system's own prompts inside Apple Passwords (helper) and Sign in with Apple (AppSSO), as in the tweets

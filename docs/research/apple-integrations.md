@@ -57,6 +57,11 @@ sandboxed (Safari sync needs Full Disk Access anyway).
   `dlopen` AppSSO, drive `SOAuthorization` (signatures from WebKit `AppSSOSPI.h`), serve the
   returned body via a resource handler; on "not handled" fall back to the web flow.
 
+- **Verified 2026-10-15** (ad-hoc, unentitled app): `+canPerformAuthorizationWithURL:responseCode:useInternalExtensions:YES`
+  is YES for `appleid.apple.com/auth/authorize`; `-beginAuthorizationWithURL:httpHeaders:httpBody:` then answers
+  `authorizationDidNotHandle:`. From a non-AppKit process it crashes setting up the remote view controller, so the
+  sheet is an `NSViewController` the app must host. Implemented as `Features/SignInWithApple` with a web fallback.
+
 ## 3. Safari ⇄ iPhone sync
 
 - Data needs **Full Disk Access** (deep-link
