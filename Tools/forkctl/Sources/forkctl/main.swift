@@ -146,7 +146,11 @@ struct CLI {
     }
 
     func build(release: Bool) throws -> URL {
-        let p = try project()
+        var p = try project()
+        if p.engine.vendor == "cef", !FileManager.default.fileExists(atPath: root.appendingPathComponent("Vendor/cef/Release").path) {
+            try Vendor.cef(root: root)
+            p = try project()
+        }
         try Generator.run(p)
         try validate(p)
         let config = release ? "release" : "debug"
