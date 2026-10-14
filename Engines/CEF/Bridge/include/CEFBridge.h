@@ -85,6 +85,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 - (void)reloadIgnoringCache:(BOOL)ignoreCache;
 - (void)stopLoad;
 - (void)executeJavaScript:(NSString *)code;
+/// Evaluates in the main frame's context through the renderer (not subject to page CSP); the result arrives
+/// as message `__eval` with JSON `{id, ok, value | error}`.
+- (void)evaluate:(NSString *)code identifier:(int)identifier;
 /// CEF zoom level (factor = 1.2^level).
 @property (nonatomic) double zoomLevel;
 @property (nonatomic) BOOL muted;

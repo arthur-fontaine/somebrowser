@@ -456,6 +456,18 @@ private:
     [self whenReady:^{ CEFTab *s = weakSelf; if (s) s->_browser->GetMainFrame()->ExecuteJavaScript(CS(code), "", 0); }];
 }
 
+- (void)evaluate:(NSString *)code identifier:(int)identifier {
+    __weak CEFTab *weakSelf = self;
+    [self whenReady:^{
+        CEFTab *s = weakSelf;
+        if (!s) return;
+        CefRefPtr<CefProcessMessage> message = CefProcessMessage::Create("browser.eval");
+        message->GetArgumentList()->SetInt(0, identifier);
+        message->GetArgumentList()->SetString(1, CS(code));
+        s->_browser->GetMainFrame()->SendProcessMessage(PID_RENDERER, message);
+    }];
+}
+
 - (double)zoomLevel { return _browser ? _browser->GetHost()->GetZoomLevel() : _zoomLevel; }
 - (void)setZoomLevel:(double)level {
     _zoomLevel = level;

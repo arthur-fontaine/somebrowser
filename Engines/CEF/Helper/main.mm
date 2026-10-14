@@ -31,6 +31,35 @@ public:
     IMPLEMENT_REFCOUNTING(PostHandler);
 };
 
+/// JSON.stringify in the given context ("null" for undefined/unserializable values).
+static std::string Stringify(CefRefPtr<CefV8Context> context, CefRefPtr<CefV8Value> value) {
+    if (!value || value->IsUndefined()) return "null";
+    CefRefPtr<CefV8Value> JSON = context->GetGlobal()->GetValue("JSON");
+    CefRefPtr<CefV8Value> stringify = JSON ? JSON->GetValue("stringify") : nullptr;
+    if (!stringify || !stringify->IsFunction()) return "null";
+    CefRefPtr<CefV8Value> result = stringify->ExecuteFunction(JSON, {value});
+    return result && result->IsString() ? result->GetStringValue().ToString() : "null";
+}
+
+static std::string Quote(const std::string &s) {
+    std::string out = "\"";
+    for (char c : s) {
+        if (c == '"' || c == '\\') { out += '\\'; out += c; }
+        else if (c == '\n') out += "\\n";
+        else if ((unsigned char)c < 0x20) out += ' ';
+        else out += c;
+    }
+    return out + "\"";
+}
+
+static void ReplyEval(CefRefPtr<CefFrame> frame, int id, bool ok, const std::string &valueOrError) {
+    std::string json = "{\"id\":" + std::to_string(id) + ",\"ok\":" + (ok ? "true,\"value\":" + valueOrError : "false,\"error\":" + Quote(valueOrError)) + "}";
+    CefRefPtr<CefProcessMessage> message = CefProcessMessage::Create("browser.post");
+    message->GetArgumentList()->SetString(0, "__eval");
+    message->GetArgumentList()->SetString(1, json);
+    frame->SendProcessMessage(PID_BROWSER, message);
+}
+
 class RendererApp : public CefApp, public CefRenderProcessHandler {
 public:
     CefRefPtr<CefRenderProcessHandler> GetRenderProcessHandler() override { return this; }
@@ -62,6 +91,25 @@ public:
             CefRefPtr<CefV8Exception> exception;
             context->Eval(source, "", 0, retval, exception);
         }
+    }
+
+    /// Browser-requested evaluation: V8 Eval runs as the embedder, so page CSP / Trusted Types don't block it.
+    bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefProcessId source,
+                                  CefRefPtr<CefProcessMessage> message) override {
+        if (message->GetName() != "browser.eval") return false;
+        int id = message->GetArgumentList()->GetInt(0);
+        CefString code = message->GetArgumentList()->GetString(1);
+        CefRefPtr<CefV8Context> context = frame->GetV8Context();
+        if (!context || !context->Enter()) { ReplyEval(frame, id, false, "no script context"); return true; }
+        CefRefPtr<CefV8Value> retval;
+        CefRefPtr<CefV8Exception> exception;
+        if (!context->Eval(code, frame->GetURL(), 0, retval, exception)) {
+            ReplyEval(frame, id, false, exception ? exception->GetMessage().ToString() : "evaluation failed");
+        } else {
+            ReplyEval(frame, id, true, Stringify(context, retval));
+        }
+        context->Exit();
+        return true;
     }
 
 private:

@@ -10,6 +10,7 @@ struct EngineConformanceTests {
         "/one": "<!doctype html><title>One</title><body><a id='next' href='/two'>two</a><p>needle needle</p>",
         "/two": "<!doctype html><title>Two</title><body>second page</body>",
         "/three": "<!doctype html><title>Three</title><body>third</body>",
+        "/strict": "<!doctype html><meta http-equiv='Content-Security-Policy' content=\"script-src 'none'; require-trusted-types-for 'script'\"><title>Strict</title><body>strict</body>",
     ]
 
     func launch() throws -> (AppDriver, TestHTTPServer) {
@@ -23,6 +24,16 @@ struct EngineConformanceTests {
         try app.open(server.url("/one"))
         try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.title == "One" } }
         #expect(try app.eval("document.title") as? String == "One")
+        try app.quit()
+    }
+
+    /// Browser-side evaluation (automation, feature scripts) must work on pages whose CSP forbids eval.
+    @Test func evaluatesUnderStrictCSP() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/strict"))
+        try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.title == "Strict" } }
+        #expect(try app.eval("document.title + ':' + (1 + 1)") as? String == "Strict:2")
+        #expect(try app.eval("({ a: [1, 'x'] }).a.length") as? String == "2")
         try app.quit()
     }
 

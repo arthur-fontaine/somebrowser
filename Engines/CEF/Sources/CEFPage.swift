@@ -43,7 +43,7 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
     func reload(bypassingCache: Bool) { tab?.reloadIgnoringCache(bypassingCache) }
     func stopLoading() { tab?.stopLoad() }
 
-    /// CEF can't return values from script directly: results come back over `__browser.post('__eval')`.
+    /// Results come back from the renderer helper as `__eval` messages (V8 Eval, so page CSP doesn't apply).
     func evaluateJavaScript(_ source: String, completion: ((Result<Any?, Error>) -> Void)?) {
         guard let completion else { tab?.executeJavaScript(source); return }
         let id = nextEvalID
@@ -52,11 +52,7 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
             self?.failEval(id, "timed out")
         }
-        let literal = String(data: try! JSONEncoder().encode(source), encoding: .utf8)!
-        tab?.executeJavaScript("""
-        (async () => { try { const r = await (0, eval)(\(literal)); window.__browser.post('__eval', { id: \(id), ok: true, value: r === undefined ? null : r }); }
-          catch (e) { window.__browser.post('__eval', { id: \(id), ok: false, error: String(e) }); } })();
-        """)
+        tab?.evaluate(source, identifier: Int32(id))
     }
 
     var zoomFactor: Double {

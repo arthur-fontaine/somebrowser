@@ -16,6 +16,8 @@ public protocol EngineTab: AnyObject {
     func reload(bypassingCache: Bool)
     func stopLoading()
 
+    /// Runs in the main frame's page world, exempt from the page's CSP. The completion receives the script's
+    /// completion value as JSON-compatible types; promises are not awaited (post a message instead).
     func evaluateJavaScript(_ source: String, completion: ((Result<Any?, Error>) -> Void)?)
 
     var zoomFactor: Double { get set }
