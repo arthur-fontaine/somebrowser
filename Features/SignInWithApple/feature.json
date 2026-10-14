@@ -1,0 +1,9 @@
+{
+  "id": "apple-signin",
+  "name": "Sign in with Apple",
+  "summary": "Native Sign in with Apple: the system's sheet (Touch ID) in the window instead of Apple's web page.",
+  "entry": "SignInWithAppleFeature",
+  "settings": [
+    { "key": "apple-signin.native", "title": "Use the native Sign in with Apple sheet", "type": "bool", "default": true }
+  ]
+}
