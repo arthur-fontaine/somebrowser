@@ -51,7 +51,12 @@ final class PiPPanel: NSPanel {
         root.layer?.cornerRadius = 12
         root.layer?.cornerCurve = .continuous
         root.layer?.masksToBounds = true
-        root.layer?.backgroundColor = NSColor.black.cgColor
+        if case .window = content {
+            // The page window sits below; a near-clear fill keeps drags on the panel instead of the page.
+            root.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.01).cgColor
+        } else {
+            root.layer?.backgroundColor = NSColor.black.cgColor
+        }
         if case .view(let v) = content {
             v.frame = root.bounds
             v.autoresizingMask = [.width, .height]
@@ -64,11 +69,11 @@ final class PiPPanel: NSPanel {
         contentView = root
         if case .window(let w) = content {
             // Engine-owned page window (CEF): it follows the panel and sits under the controls.
-            w.styleMask = [.borderless]
             w.level = .floating
             w.collectionBehavior = collectionBehavior
             w.setFrame(frame, display: true)
             addChildWindow(w, ordered: .below)
+            w.orderFront(nil)
         }
     }
 
@@ -95,9 +100,11 @@ final class PiPPanel: NSPanel {
             alphaValue = 0
         }
         orderFrontRegardless()
+        if case .window(let w) = content { w.setFrame(frame, display: false); w.orderFront(nil) }
         NSAnimationContext.animate(.spring(duration: 0.55, bounce: 0.18)) {
             animator().setFrame(target, display: true)
             animator().alphaValue = 1
+            if case .window(let w) = content { w.animator().setFrame(target, display: true) }
         }
     }
 
@@ -114,8 +121,8 @@ final class PiPPanel: NSPanel {
     func settle(_ target: CGRect) {
         NSAnimationContext.animate(.spring(duration: 0.45, bounce: 0.22)) {
             animator().setFrame(target, display: true)
+            if case .window(let w) = content { w.animator().setFrame(target, display: true) }
         }
-        if case .window(let w) = content { w.setFrame(target, display: true) }
     }
 
     func moveBy(_ dx: CGFloat, _ dy: CGFloat) {
