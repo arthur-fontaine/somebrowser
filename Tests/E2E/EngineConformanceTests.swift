@@ -47,6 +47,16 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// Simulated responses keep the URL's origin (Sign in with Apple hands back appleid.apple.com's page).
+    @Test func simulatedResponsesKeepTheirOrigin() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        try app.simulate("https://simulated.example/callback", html: "<!doctype html><title>Simulated</title><body>ok</body>")
+        try app.waitUntil(timeout: 15) { try app.eval("document.title + ' ' + location.origin") as? String == "Simulated https://simulated.example" }
+        try app.quit()
+    }
+
     @Test func historyNavigation() throws {
         let (app, server) = try launch()
         try app.open(server.url("/one"))

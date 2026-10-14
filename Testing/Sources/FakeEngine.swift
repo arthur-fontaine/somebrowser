@@ -97,6 +97,13 @@ public final class FakeEngineTab: EngineTab {
         state.title = ""
     }
 
+    /// Simulated loads, in order (url, status, body).
+    public private(set) var simulatedLoads: [(url: URL, status: Int, body: Data)] = []
+    public func loadSimulated(_ url: URL, response: HTTPURLResponse, body: Data) {
+        simulatedLoads.append((url, response.statusCode, body))
+        commit(url)
+    }
+
     private func commit(_ url: URL) {
         state.url = url
         state.title = url.host() ?? url.absoluteString

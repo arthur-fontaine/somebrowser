@@ -38,6 +38,12 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         tab?.loadURL("data:text/html;charset=utf-8;base64,\(encoded)")
     }
 
+    func loadSimulated(_ url: URL, response: HTTPURLResponse, body: Data) {
+        let headers = response.allHeaderFields.reduce(into: [String: String]()) { $0["\($1.key)"] = "\($1.value)" }
+        tab?.loadURL(url.absoluteString, simulatingStatus: Int32(response.statusCode),
+                  statusText: HTTPURLResponse.localizedString(forStatusCode: response.statusCode), headers: headers, body: body)
+    }
+
     func goBack() { tab?.goBack() }
     func goForward() { tab?.goForward() }
     func reload(bypassingCache: Bool) { tab?.reloadIgnoringCache(bypassingCache) }

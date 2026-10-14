@@ -15,6 +15,8 @@
 #include "include/cef_application_mac.h"
 #include "include/cef_client.h"
 #include "include/cef_parser.h"
+#include "include/cef_stream.h"
+#include "include/wrapper/cef_stream_resource_handler.h"
 #include "include/views/cef_box_layout.h"
 #include "include/views/cef_fill_layout.h"
 #include "include/views/cef_overlay_controller.h"
@@ -95,13 +97,41 @@ static const char *ResourceTypeName(cef_resource_type_t t) {
     }
 }
 
-/// Shared by every browser: network filtering (IO thread).
+/// One tab's network filtering (IO thread), plus responses the browser serves itself (`simulate`).
 class FilterHandler : public CefResourceRequestHandler {
 public:
+    struct Simulated {
+        int status;
+        std::string statusText, mimeType;
+        CefResponse::HeaderMap headers;
+        std::string body;
+    };
+
+    /// The next request for `url` gets this response instead of going to the network (once).
+    void Simulate(const std::string &url, Simulated response) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        simulated_[url] = std::move(response);
+    }
+
+    CefRefPtr<CefResourceHandler> GetResourceHandler(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+                                                     CefRefPtr<CefRequest> request) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = simulated_.find(request->GetURL().ToString());
+        if (it == simulated_.end()) return nullptr;
+        Simulated r = std::move(it->second);
+        simulated_.erase(it);
+        CefRefPtr<CefStreamReader> stream = CefStreamReader::CreateForData(r.body.data(), r.body.size());
+        return new CefStreamResourceHandler(r.status, r.statusText, r.mimeType, r.headers, stream);
+    }
+
     ReturnValue OnBeforeResourceLoad(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request,
                                      CefRefPtr<CefCallback> callback) override {
         std::string url = request->GetURL().ToString();
         if (url.rfind("http", 0) != 0 && url.rfind("ws", 0) != 0) return RV_CONTINUE;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (simulated_.count(url)) return RV_CONTINUE;
+        }
         std::string fp = request->GetReferrerURL().ToString();
         if (frame) { std::string f = frame->GetURL().ToString(); if (!f.empty()) fp = f; }
         NSString *verdict = [[CEFRuntime shared] filter:url firstParty:fp type:ResourceTypeName(request->GetResourceType())];
@@ -110,6 +140,10 @@ public:
         request->SetURL(CS(verdict));  // an internal redirect: the new URL is filtered again
         return RV_CONTINUE;
     }
+
+private:
+    std::mutex mutex_;
+    std::map<std::string, Simulated> simulated_;
     IMPLEMENT_REFCOUNTING(FilterHandler);
 };
 
@@ -328,6 +362,7 @@ public:
     bool IsChromeToolbarButtonVisible(cef_chrome_toolbar_button_type_t) override { return false; }
 
     void Detach() { tab_ = nil; }
+    CefRefPtr<FilterHandler> filter() { return filter_; }
 
 private:
     __weak CEFTab *tab_;
@@ -644,6 +679,19 @@ static id AXButtonNamed(id e, NSString *name, int depth) {
     __weak CEFTab *weakSelf = self;
     [self whenReady:^{ CEFTab *s = weakSelf; if (s) s->_browser->GetMainFrame()->LoadURL(CS(url)); }];
 }
+- (void)loadURL:(NSString *)url simulatingStatus:(int)status statusText:(NSString *)statusText
+          headers:(NSDictionary<NSString *, NSString *> *)headers body:(NSData *)body {
+    FilterHandler::Simulated r;
+    r.status = status;
+    r.statusText = statusText.UTF8String ?: "";
+    NSString *type = headers[@"Content-Type"] ?: headers[@"content-type"] ?: @"text/html";
+    r.mimeType = [type componentsSeparatedByString:@";"].firstObject.UTF8String;
+    for (NSString *key in headers) r.headers.insert(std::make_pair(CS(key), CS(headers[key])));
+    r.body.assign((const char *)body.bytes, body.length);
+    if (_client) _client->filter()->Simulate(url.UTF8String, std::move(r));
+    [self loadURL:url];
+}
+
 - (void)goBack { if (_browser) _browser->GoBack(); }
 - (void)goForward { if (_browser) _browser->GoForward(); }
 - (void)reloadIgnoringCache:(BOOL)ignore { if (_browser) { ignore ? _browser->ReloadIgnoreCache() : _browser->Reload(); } }

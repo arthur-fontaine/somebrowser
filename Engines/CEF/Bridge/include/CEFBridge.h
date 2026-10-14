@@ -88,6 +88,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @property (readonly) BOOL isReady;
 @property (readonly, nullable) NSString *currentURL;
 - (void)loadURL:(NSString *)url;
+/// Loads `url` but answers it with this response instead of the network (the page keeps `url`'s origin).
+- (void)loadURL:(NSString *)url simulatingStatus:(int)status statusText:(NSString *)statusText
+          headers:(NSDictionary<NSString *, NSString *> *)headers body:(NSData *)body;
 - (void)goBack;
 - (void)goForward;
 - (void)reloadIgnoringCache:(BOOL)ignoreCache;

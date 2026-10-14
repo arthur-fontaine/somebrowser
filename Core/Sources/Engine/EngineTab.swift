@@ -11,6 +11,9 @@ public protocol EngineTab: AnyObject {
     func load(_ url: URL)
     /// Internal pages (new tab page, error pages). `baseURL` decides the page's origin.
     func loadHTML(_ html: String, baseURL: URL?)
+    /// Navigates to `url` but answers with this response instead of the network: the page gets `url`'s real
+    /// origin (Sign in with Apple hands back the page appleid.apple.com would have served).
+    func loadSimulated(_ url: URL, response: HTTPURLResponse, body: Data)
     func goBack()
     func goForward()
     func reload(bypassingCache: Bool)

@@ -63,6 +63,9 @@ final class WebKitTab: NSObject, EngineTab {
     }
 
     func loadHTML(_ html: String, baseURL: URL?) { webView.loadHTMLString(html, baseURL: baseURL) }
+    func loadSimulated(_ url: URL, response: HTTPURLResponse, body: Data) {
+        webView.loadSimulatedRequest(URLRequest(url: url), response: response, responseData: body)
+    }
     func goBack() { webView.goBack() }
     func goForward() { webView.goForward() }
     func reload(bypassingCache: Bool) { bypassingCache ? webView.reloadFromOrigin() : webView.reload() }

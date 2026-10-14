@@ -10,6 +10,7 @@ import Foundation
 ///     {"op":"navigate","url":"https://example.com/next"}
 ///     {"op":"state"}
 ///     {"op":"eval","js":"document.title"}
+///     {"op":"simulate","url":"https://a.example/","html":"<title>A</title>"}
 ///     {"op":"setting","key":"adblock.enabled","value":false}
 final class AutomationServer {
     let path: String
@@ -102,6 +103,14 @@ final class AutomationServer {
                 return reply(["ok": false, "error": "bad url or no tab"])
             }
             runtime.navigate(tab, to: url)
+            reply(["ok": true])
+        case "simulate":
+            // Loads `url` in the selected tab, answered with `html` instead of the network (engine conformance).
+            guard let s = req["url"] as? String, let url = URL(string: s), let html = req["html"] as? String, let window,
+                  let tab = runtime.selectedTab(in: window).map({ runtime.live($0) }),
+                  let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "text/html; charset=utf-8"])
+            else { return reply(["ok": false, "error": "bad request or no tab"]) }
+            tab.loadSimulated(url, response: response, body: Data(html.utf8))
             reply(["ok": true])
         case "state":
             reply(["ok": true, "state": stateJSON()])

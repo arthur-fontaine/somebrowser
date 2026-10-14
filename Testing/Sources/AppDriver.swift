@@ -73,6 +73,9 @@ nonisolated public final class AppDriver: @unchecked Sendable {
     /// Loads a URL in the selected tab, as if typed in the address bar.
     public func navigate(_ url: String) throws { try call(["op": "navigate", "url": url]) }
 
+    /// Loads `url` in the selected tab answered with `html` (no network), with `url`'s origin.
+    public func simulate(_ url: String, html: String) throws { try call(["op": "simulate", "url": url, "html": html]) }
+
     public func eval(_ js: String) throws -> Any? { try call(["op": "eval", "js": js])["value"] }
 
     public func state() throws -> [String: Any] { (try call(["op": "state"]))["state"] as? [String: Any] ?? [:] }
