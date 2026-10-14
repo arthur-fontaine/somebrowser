@@ -1,0 +1,19 @@
+{
+  "id": "sidebar",
+  "name": "Sidebar",
+  "summary": "Arc-style vertical sidebar: favorites, pinned and today tabs as a Horse-style tree, spaces you can swipe between.",
+  "entry": "SidebarFeature",
+  "provides": ["sidebar"],
+  "optional": ["tabs.commands"],
+  "commands": [
+    { "id": "sidebar.toggle", "title": "Toggle Sidebar", "shortcut": "cmd+s", "alternateShortcuts": ["cmd+opt+b"], "menu": "View", "group": "layout", "order": 1, "keywords": ["hide", "fullscreen", "focus"] },
+    { "id": "sidebar.focus-mode", "title": "Focus on Current Branch", "shortcut": "cmd+shift+b", "menu": "View", "group": "layout", "order": 2, "keywords": ["focus mode", "tree"] },
+    { "id": "sidebar.copy-branch-markdown", "title": "Copy Branch as Markdown", "menu": "Tabs", "group": "export", "order": 1, "keywords": ["export", "markdown", "trail"] }
+  ],
+  "settings": [
+    { "key": "sidebar.peekOnEdgeHover", "title": "Show the sidebar when the pointer reaches the window edge", "type": "bool", "default": true },
+    { "key": "sidebar.treeGuides", "title": "Show tree guide lines", "type": "bool", "default": true },
+    { "key": "sidebar.swipeBetweenSpaces", "title": "Swipe with two fingers to switch spaces", "type": "bool", "default": true },
+    { "key": "sidebar.rowHeight", "title": "Tab row height", "type": "int", "default": 32 }
+  ]
+}
