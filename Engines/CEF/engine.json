@@ -1,0 +1,21 @@
+{
+  "id": "cef-chrome",
+  "name": "Chromium (CEF, Chrome style)",
+  "summary": "Chromium through the Chromium Embedded Framework, Chrome-style browsers hosted as child windows (Chrome extensions, chrome:// pages).",
+  "module": "EngineCEF",
+  "entry": "CEFEngine",
+  "bundler": "cef",
+  "vendor": "cef",
+  "principalClass": "BrowserCEFApplication",
+  "targets": [
+    { "name": "CEFBridge", "path": "Engines/CEF/Bridge", "language": "objcxx",
+      "unsafeCFlags": ["-I$(VENDOR)/cef", "-std=c++20", "-fno-exceptions", "-fno-rtti", "-fobjc-call-cxx-cdtors", "-DNDEBUG", "-D__STDC_CONSTANT_MACROS", "-D__STDC_FORMAT_MACROS", "-Wno-deprecated-declarations"],
+      "unsafeLinkerFlags": ["$(VENDOR)/cef/build/libcef_dll_wrapper/libcef_dll_wrapper.a"],
+      "frameworks": ["Cocoa"] },
+    { "name": "EngineCEF", "path": "Engines/CEF/Sources", "language": "swift", "dependencies": ["BrowserCore", "CEFBridge"] },
+    { "name": "BrowserHelper", "path": "Engines/CEF/Helper", "language": "objcxx", "type": "executable",
+      "unsafeCFlags": ["-I$(VENDOR)/cef", "-std=c++20", "-fno-exceptions", "-fno-rtti", "-DNDEBUG", "-D__STDC_CONSTANT_MACROS", "-D__STDC_FORMAT_MACROS"],
+      "unsafeLinkerFlags": ["$(VENDOR)/cef/build/libcef_dll_wrapper/libcef_dll_wrapper.a"],
+      "frameworks": ["Cocoa"] }
+  ]
+}
