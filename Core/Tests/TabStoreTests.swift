@@ -9,7 +9,7 @@ struct TabStoreTests {
 
     init() { space = store.addSpace(name: "Work") }
 
-    func tab(_ s: String) -> Tab { Tab(url: URL(string: "https://\(s).example")!, title: s) }
+    func tab(_ s: String) -> BrowserTab { BrowserTab(url: URL(string: "https://\(s).example")!, title: s) }
     func titles(_ c: Container) -> [String] { store.rows(in: c).map { store.tab($0.id)?.title ?? store.folder($0.id)!.name } }
     var today: Container { .section(space.id, .today) }
 
@@ -112,7 +112,7 @@ struct TabStoreTests {
     }
 
     @Test func dedupMatchesNormalizedURLs() {
-        let t = Tab(url: URL(string: "https://www.Example.com/path/#frag")!)
+        let t = BrowserTab(url: URL(string: "https://www.Example.com/path/#frag")!)
         store.insert(t, into: today)
         #expect(store.tabs(matching: URL(string: "http://example.com/path")!).map(\.id) == [t.id])
     }

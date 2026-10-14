@@ -116,7 +116,7 @@ public final class TabsFeature: BrowserFeature {
 
     // MARK: Helpers
 
-    private func withSelected(_ inv: CommandInvocation, _ body: (Tab) -> Void) {
+    private func withSelected(_ inv: CommandInvocation, _ body: (BrowserTab) -> Void) {
         guard let w = inv.window, let tab = runtime.selectedTab(in: w) else { return }
         body(tab)
     }

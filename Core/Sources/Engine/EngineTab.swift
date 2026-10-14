@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import Observation
 
-/// A live page owned by an engine. Persistent tab data lives in `Tab`; this is only the running part,
+/// A live page owned by an engine. Persistent tab data lives in `BrowserTab`; this is only the running part,
 /// created on demand and dropped when a tab is discarded.
 public protocol EngineTab: AnyObject {
     var state: EngineTabState { get }
@@ -36,7 +36,7 @@ public extension EngineTab {
     func evaluateJavaScript(_ source: String) { evaluateJavaScript(source, completion: nil) }
 }
 
-/// Observable live state, mirrored into `Tab` by the tab runtime.
+/// Observable live state, mirrored into `BrowserTab` by the tab runtime.
 @Observable
 public final class EngineTabState {
     public var url: URL?

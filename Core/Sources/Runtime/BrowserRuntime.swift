@@ -148,19 +148,19 @@ public final class BrowserRuntime {
 
     // MARK: Tabs
 
-    public func selectedTab(in window: BrowserWindowState) -> Tab? { window.selectedTabID.flatMap { tabs.tab($0) } }
+    public func selectedTab(in window: BrowserWindowState) -> BrowserTab? { window.selectedTabID.flatMap { tabs.tab($0) } }
 
     /// Creates a tab (and its live page when `url` is given) and optionally selects it.
     @discardableResult
-    public func openTab(_ url: URL?, in window: BrowserWindowState, placement: TabPlacement = .automatic, select shouldSelect: Bool = true) -> Tab {
-        let tab = Tab(url: url, isPrivate: window.isPrivate)
+    public func openTab(_ url: URL?, in window: BrowserWindowState, placement: TabPlacement = .automatic, select shouldSelect: Bool = true) -> BrowserTab {
+        let tab = BrowserTab(url: url, isPrivate: window.isPrivate)
         insert(tab, placement: placement, window: window)
         events.publish(TabOpened(tabID: tab.id, openerID: nil, disposition: nil))
         if shouldSelect { select(tab.id, in: window) } else if url != nil { _ = live(tab) }
         return tab
     }
 
-    private func insert(_ tab: Tab, placement: TabPlacement, window: BrowserWindowState) {
+    private func insert(_ tab: BrowserTab, placement: TabPlacement, window: BrowserWindowState) {
         switch placement {
         case .automatic: tabs.insert(tab, into: .section(window.spaceID, .today), at: 0)
         case .childOf(let parent): tabs.insertChild(tab, of: parent)
@@ -232,7 +232,7 @@ public final class BrowserRuntime {
         select(tab.id, in: window)
     }
 
-    public func navigate(_ tab: Tab, to url: URL) {
+    public func navigate(_ tab: BrowserTab, to url: URL) {
         tab.url = url
         if let live = tab.engineTab { live.load(url) } else { _ = live(tab) }
         for w in windows where w.selectedTabID == tab.id { w.viewport?.present(tab.engineTab) }
@@ -240,7 +240,7 @@ public final class BrowserRuntime {
 
     /// The live engine page for a tab, created on demand.
     @discardableResult
-    public func live(_ tab: Tab) -> EngineTab {
+    public func live(_ tab: BrowserTab) -> EngineTab {
         if let e = tab.engineTab { return e }
         let e = engine.makeTab(EngineTabRequest(url: tab.restorationData == nil ? tab.url : nil, restorationData: tab.restorationData, isPrivate: tab.isPrivate))
         attach(e, to: tab)
@@ -248,7 +248,7 @@ public final class BrowserRuntime {
         return e
     }
 
-    private func attach(_ e: EngineTab, to tab: Tab) {
+    private func attach(_ e: EngineTab, to tab: BrowserTab) {
         let binding = LiveTabBinding(tabID: tab.id, runtime: self)
         bindings[tab.id] = binding
         e.delegate = binding
@@ -257,7 +257,7 @@ public final class BrowserRuntime {
     }
 
     /// Frees the engine page; the tab keeps its URL/title/history and wakes on selection.
-    public func discard(_ tab: Tab) {
+    public func discard(_ tab: BrowserTab) {
         guard let e = tab.engineTab, !windows.contains(where: { $0.selectedTabID == tab.id }) else { return }
         tab.restorationData = e.restorationData()
         if let u = e.state.url { tab.url = u }
@@ -268,7 +268,7 @@ public final class BrowserRuntime {
         events.publish(TabLiveChanged(tabID: tab.id, isLive: false))
     }
 
-    private func tabsRemoved(_ removed: [Tab]) {
+    private func tabsRemoved(_ removed: [BrowserTab]) {
         for t in removed {
             if let e = t.engineTab {
                 for w in windows where w.viewport?.presentedTab === e { w.viewport?.present(nil) }
@@ -287,14 +287,14 @@ public final class BrowserRuntime {
         let window = windows.first { $0.selectedTabID == id } ?? keyWindow ?? makeWindowState()
         if disposition == .newWindow, let shell {
             let w = shell.openWindow(spaceID: window.spaceID, isPrivate: window.isPrivate, initialURL: nil)
-            let t = Tab(url: url, isPrivate: w.isPrivate)
+            let t = BrowserTab(url: url, isPrivate: w.isPrivate)
             tabs.insert(t, into: .section(w.spaceID, .today), at: 0)
             attach(newTab, to: t)
             events.publish(TabOpened(tabID: t.id, openerID: id, disposition: disposition))
             select(t.id, in: w)
             return
         }
-        let child = Tab(url: url, isPrivate: source.isPrivate)
+        let child = BrowserTab(url: url, isPrivate: source.isPrivate)
         if source.opensLinksInPlace {
             tabs.insert(child, after: id)
         } else {

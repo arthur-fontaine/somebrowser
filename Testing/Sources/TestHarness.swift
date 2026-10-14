@@ -68,13 +68,13 @@ public final class TestHarness {
     }
 
     @discardableResult
-    public func openTab(_ string: String, placement: TabPlacement = .automatic, select: Bool = true) -> Tab {
+    public func openTab(_ string: String, placement: TabPlacement = .automatic, select: Bool = true) -> BrowserTab {
         runtime.openTab(URL(string: string)!, in: window, placement: placement, select: select)
     }
 
-    public var selectedTab: Tab? { runtime.selectedTab(in: window) }
+    public var selectedTab: BrowserTab? { runtime.selectedTab(in: window) }
 
-    public func fakeTab(_ tab: Tab) -> FakeEngineTab { runtime.live(tab) as! FakeEngineTab }
+    public func fakeTab(_ tab: BrowserTab) -> FakeEngineTab { runtime.live(tab) as! FakeEngineTab }
 
     static func loadManifest(near path: String) throws -> FeatureManifest {
         var dir = URL(fileURLWithPath: path).deletingLastPathComponent()

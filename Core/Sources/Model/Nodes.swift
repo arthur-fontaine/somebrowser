@@ -7,7 +7,7 @@ public typealias NodeID = UUID
 /// A tab in the sidebar tree. Persistent fields survive restarts; `engineTab` is the running page,
 /// nil while the tab is discarded (hibernated) or not yet loaded.
 @Observable
-public final class Tab: Identifiable {
+public final class BrowserTab: Identifiable {
     public let id: NodeID
     public var url: URL?
     public var title: String

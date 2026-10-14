@@ -44,7 +44,7 @@ public struct ClosedItem: Sendable {
 
 /// The whole sidebar model: spaces, sections, folders, favorites and the tab tree.
 /// Structural reads go through `structureVersion` so views re-render only when the tree changes, while
-/// each row observes its own `Tab` for title/favicon updates.
+/// each row observes its own `BrowserTab` for title/favicon updates.
 @Observable
 public final class TabStore {
     public private(set) var spaces: [Space] = []
@@ -53,14 +53,14 @@ public final class TabStore {
     public private(set) var structureVersion = 0
     public private(set) var recentlyClosed: [ClosedItem] = []
 
-    @ObservationIgnored private var tabsByID: [NodeID: Tab] = [:]
+    @ObservationIgnored private var tabsByID: [NodeID: BrowserTab] = [:]
     @ObservationIgnored private var foldersByID: [NodeID: Folder] = [:]
     @ObservationIgnored private var childrenOf: [NodeID: [NodeID]] = [:]
     @ObservationIgnored private var containerOf: [NodeID: Container] = [:]
     @ObservationIgnored private var rowCache: [Container: (version: Int, rows: [SidebarRow])] = [:]
 
     /// Called after tabs leave the model (close, space removal) so the runtime can release engine pages.
-    @ObservationIgnored public var onTabsRemoved: (([Tab]) -> Void)?
+    @ObservationIgnored public var onTabsRemoved: (([BrowserTab]) -> Void)?
     /// Called after any structural change (persistence debounce).
     @ObservationIgnored public var onChange: (() -> Void)?
 
@@ -70,10 +70,10 @@ public final class TabStore {
 
     // MARK: Lookup
 
-    public func tab(_ id: NodeID) -> Tab? { tabsByID[id] }
+    public func tab(_ id: NodeID) -> BrowserTab? { tabsByID[id] }
     public func folder(_ id: NodeID) -> Folder? { foldersByID[id] }
     public func contains(_ id: NodeID) -> Bool { tabsByID[id] != nil || foldersByID[id] != nil }
-    public var allTabs: [Tab] { Array(tabsByID.values) }
+    public var allTabs: [BrowserTab] { Array(tabsByID.values) }
     public var tabCount: Int { tabsByID.count }
 
     public func space(_ id: UUID) -> Space? { spaces.first { $0.id == id } }
@@ -136,7 +136,7 @@ public final class TabStore {
     public func isCollapsed(_ id: NodeID) -> Bool { tabsByID[id]?.isCollapsed ?? foldersByID[id]?.isCollapsed ?? false }
 
     /// Tabs whose URL matches (Horse dedup), optionally limited to one space.
-    public func tabs(matching url: URL, in space: UUID? = nil) -> [Tab] {
+    public func tabs(matching url: URL, in space: UUID? = nil) -> [BrowserTab] {
         let key = URLNormalizer.key(for: url)
         return tabsByID.values.filter { t in
             guard let u = t.url, URLNormalizer.key(for: u) == key else { return false }
@@ -165,7 +165,7 @@ public final class TabStore {
     }
 
     /// Every tab of a space in visual order (pinned first), regardless of collapse — keyboard ⌘1…9, Ctrl-Tab.
-    public func orderedTabs(in space: UUID, includeFavorites: Bool = false) -> [Tab] {
+    public func orderedTabs(in space: UUID, includeFavorites: Bool = false) -> [BrowserTab] {
         var ids: [NodeID] = includeFavorites ? favorites : []
         for section in SidebarSection.allCases {
             for root in nodes(in: .section(space, section)) { ids.append(root); ids += descendants(of: root) }
@@ -185,7 +185,7 @@ public final class TabStore {
 
     public func removeSpace(_ id: UUID) {
         guard let s = space(id), spaces.count > 1 else { return }
-        var removed: [Tab] = []
+        var removed: [BrowserTab] = []
         for root in s.pinned + s.today { removed += detachSubtree(root) }
         spaces.removeAll { $0.id == id }
         changed()
@@ -203,7 +203,7 @@ public final class TabStore {
 
     /// Inserts a new tab. `index` nil appends (children) or prepends (Today: newest on top, like Arc/Horse).
     @discardableResult
-    public func insert(_ tab: Tab, into container: Container, at index: Int? = nil) -> Tab {
+    public func insert(_ tab: BrowserTab, into container: Container, at index: Int? = nil) -> BrowserTab {
         tabsByID[tab.id] = tab
         place(tab.id, into: container, at: index)
         changed()
@@ -221,7 +221,7 @@ public final class TabStore {
 
     /// Opens `tab` as a child of `parent` (Horse: links become children). Appended after existing children.
     @discardableResult
-    public func insertChild(_ tab: Tab, of parent: NodeID) -> Tab {
+    public func insertChild(_ tab: BrowserTab, of parent: NodeID) -> BrowserTab {
         guard contains(parent), containerOf[parent] != .favorites else {
             // Favorites are flat: children of a favorite go to the top of the favorite's space today list.
             return insert(tab, into: defaultTodayContainer(), at: 0)
@@ -231,7 +231,7 @@ public final class TabStore {
 
     /// Inserts right after `sibling` in the same container (Horse sidetrail / Arc "open below").
     @discardableResult
-    public func insert(_ tab: Tab, after sibling: NodeID) -> Tab {
+    public func insert(_ tab: BrowserTab, after sibling: NodeID) -> BrowserTab {
         guard let c = containerOf[sibling], let i = nodes(in: c).firstIndex(of: sibling) else {
             return insert(tab, into: defaultTodayContainer(), at: 0)
         }
@@ -367,7 +367,7 @@ public final class TabStore {
     /// Removes a node. Children are promoted into its place (Horse ⌘W) unless `includingDescendants`
     /// (Horse ⌘⇧W) or the node is a collapsed tab (Horse follows the visible hierarchy). Returns closed tabs.
     @discardableResult
-    public func close(_ id: NodeID, includingDescendants: Bool = false) -> [Tab] {
+    public func close(_ id: NodeID, includingDescendants: Bool = false) -> [BrowserTab] {
         guard contains(id), let (c, i) = position(of: id) else { return [] }
         let subtree = includingDescendants || isCollapsed(id) || foldersByID[id] != nil
         let promoted = subtree ? [] : (childrenOf[id] ?? [])
@@ -381,7 +381,7 @@ public final class TabStore {
 
     /// Reopens the most recently closed subtree at its old position (clamped). Returns the restored root tab.
     @discardableResult
-    public func reopenLastClosed() -> Tab? {
+    public func reopenLastClosed() -> BrowserTab? {
         while let item = recentlyClosed.popLast() {
             var container = item.container
             switch container {
@@ -390,9 +390,9 @@ public final class TabStore {
             default: break
             }
             let byID = Dictionary(item.tabs.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-            func make(_ id: NodeID) -> Tab? {
+            func make(_ id: NodeID) -> BrowserTab? {
                 guard let d = byID[id], !contains(id) else { return nil }
-                let t = Tab(id: id, url: d.url, title: d.title, faviconURL: d.faviconURL)
+                let t = BrowserTab(id: id, url: d.url, title: d.title, faviconURL: d.faviconURL)
                 t.customTitle = d.customTitle
                 t.pinnedURL = d.pinnedURL
                 t.restorationData = d.restorationData
@@ -450,10 +450,10 @@ public final class TabStore {
     }
 
     /// Removes a node and its descendants from every index; returns the removed tabs.
-    private func detachSubtree(_ id: NodeID) -> [Tab] {
+    private func detachSubtree(_ id: NodeID) -> [BrowserTab] {
         let ids = [id] + descendants(of: id)
         _ = unplace(id)
-        var removed: [Tab] = []
+        var removed: [BrowserTab] = []
         for n in ids {
             if let t = tabsByID.removeValue(forKey: n) { removed.append(t) }
             foldersByID.removeValue(forKey: n)
@@ -506,7 +506,7 @@ public final class TabStore {
     public func restore(_ s: Snapshot) {
         tabsByID = [:]; foldersByID = [:]; childrenOf = [:]; containerOf = [:]
         for t in s.tabs {
-            let tab = Tab(id: t.id, url: t.url, title: t.title, faviconURL: t.faviconURL, createdAt: t.createdAt)
+            let tab = BrowserTab(id: t.id, url: t.url, title: t.title, faviconURL: t.faviconURL, createdAt: t.createdAt)
             tab.customTitle = t.customTitle
             tab.pinnedURL = t.pinnedURL
             tab.lastActiveAt = t.lastActiveAt
