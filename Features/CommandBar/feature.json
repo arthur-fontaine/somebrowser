@@ -1,0 +1,64 @@
+{
+  "id": "command-bar",
+  "name": "Command Bar",
+  "summary": "Arc's centered command bar: open URLs, search, switch tabs, search history and run any action from the keyboard.",
+  "entry": "CommandBarFeature",
+  "provides": [
+    "command-bar"
+  ],
+  "optional": [
+    "search",
+    "history"
+  ],
+  "commands": [
+    {
+      "id": "command-bar.open",
+      "title": "New Tab\u2026",
+      "shortcut": "cmd+t",
+      "menu": "File",
+      "group": "new",
+      "order": 0,
+      "keywords": [
+        "open",
+        "url",
+        "search",
+        "command"
+      ]
+    },
+    {
+      "id": "command-bar.edit-url",
+      "title": "Open Location\u2026",
+      "shortcut": "cmd+l",
+      "menu": "File",
+      "group": "new",
+      "order": 6,
+      "keywords": [
+        "address",
+        "url",
+        "location"
+      ]
+    },
+    {
+      "id": "command-bar.paste-and-go",
+      "title": "Paste and Go",
+      "shortcut": "cmd+opt+v",
+      "menu": "Edit",
+      "group": "paste",
+      "order": 1
+    }
+  ],
+  "settings": [
+    {
+      "key": "command-bar.showActions",
+      "title": "Show actions in the command bar",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "command-bar.switchToOpenTabs",
+      "title": "Prefer switching to an already-open tab",
+      "type": "bool",
+      "default": true
+    }
+  ]
+}
