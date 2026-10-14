@@ -2,8 +2,8 @@ import AppKit
 import BrowserCore
 import Foundation
 
-/// In-memory engine for unit tests: navigation, titles, popups and media are simulated synchronously.
-public final class FakeEngine: BrowserEngine {
+/// In-memory engine for unit tests: navigation, titles, popups, media and extensions are simulated synchronously.
+public final class FakeEngine: BrowserEngine, EngineExtensions {
     public let id = "fake"
     public var capabilities: EngineCapabilities = [.requestBlocking, .reparentableViews]
     public let hooks = EngineHooks()
@@ -30,6 +30,20 @@ public final class FakeEngine: BrowserEngine {
     }
 
     public func shutdown(completion: @escaping () -> Void) { completion() }
+
+    // MARK: Extensions (simulated)
+
+    /// Set with `simulateExtensions`; `toolbarAvailable = false` mimics an engine without an action host.
+    public private(set) var installedExtensions: [BrowserExtension] = []
+    public var onExtensionsChanged: (() -> Void)?
+    public var toolbarAvailable = true
+    public private(set) var ranActions: [(id: String, tab: FakeEngineTab)] = []
+    public private(set) var extensionMenus: [FakeEngineTab] = []
+
+    public func simulateExtensions(_ list: [BrowserExtension]) {
+        installedExtensions = list
+        onExtensionsChanged?()
+    }
 
     /// Applies the request filters exactly like a real engine would.
     public func simulateRequest(_ url: URL, type: WebRequest.ResourceType = .script, documentURL: URL? = nil) -> RequestVerdict {
@@ -139,5 +153,17 @@ public final class FakeEngineTab: EngineTab {
 }
 
 extension FakeEngine {
+    @discardableResult public func runAction(of extensionID: String, in tab: EngineTab) -> Bool {
+        guard toolbarAvailable, installedExtensions.contains(where: { $0.id == extensionID }), let tab = tab as? FakeEngineTab else { return false }
+        ranActions.append((extensionID, tab))
+        return true
+    }
+
+    @discardableResult public func showExtensionsMenu(in tab: EngineTab) -> Bool {
+        guard toolbarAvailable, let tab = tab as? FakeEngineTab else { return false }
+        extensionMenus.append(tab)
+        return true
+    }
+
     func recordCreated(_ t: FakeEngineTab) { createdTabs.append(t) }
 }
