@@ -1,0 +1,13 @@
+{
+  "id": "tab-switcher",
+  "name": "Tab Switcher",
+  "summary": "Arc's Ctrl-Tab: recently used tabs while you hold Control; W closes the highlighted one.",
+  "entry": "TabSwitcherFeature",
+  "commands": [
+    { "id": "tab-switcher.next", "title": "Switch to Recent Tab", "shortcut": "ctrl+tab", "menu": "Tabs", "group": "switch", "order": 3 },
+    { "id": "tab-switcher.previous", "title": "Switch to Recent Tab (Backwards)", "shortcut": "ctrl+shift+tab", "alternateShortcuts": ["ctrl+backtick"], "menu": "Tabs", "group": "switch", "order": 4 }
+  ],
+  "settings": [
+    { "key": "tab-switcher.allSpaces", "title": "Include tabs from every space", "type": "bool", "default": false }
+  ]
+}
