@@ -140,7 +140,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     }
 
     /// Wide enough for every pinned action, so Chrome doesn't overflow them into its menu.
-    static func toolbarWidth(pinned: Int) -> Int { 360 + 40 * pinned }
+    static func toolbarWidth(pinned: Int) -> Int { 560 + 40 * pinned }
 
     public func makeTab(_ request: EngineTabRequest) -> EngineTab {
         let page = CEFPage(engine: self)

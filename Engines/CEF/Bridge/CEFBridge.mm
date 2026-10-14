@@ -19,6 +19,7 @@
 #include "include/views/cef_fill_layout.h"
 #include "include/views/cef_overlay_controller.h"
 #include "include/views/cef_panel.h"
+#include "include/views/cef_scroll_view.h"
 #include "include/views/cef_browser_view.h"
 #include "include/views/cef_window.h"
 #include "include/wrapper/cef_closure_task.h"
@@ -61,6 +62,8 @@ static CefString CS(NSString *s) { return CefString(s ? s.UTF8String : ""); }
 - (void)removeExtensionToolbar;
 - (void)pageWindowBoundsChanged;
 - (void)extensionToolbarWidthChanged:(int)width;
+- (void)placeToolbarContent;
+- (CefRect)toolbarOverlayBounds;
 @property (nonatomic) CEFDisposition pendingDisposition;
 @property (nonatomic) BOOL pendingGesture;
 @property (nonatomic, copy, nullable) NSString *pendingURL;
@@ -412,7 +415,7 @@ private:
     CefRefPtr<PageWindowDelegate> _windowDelegate;
     CefRefPtr<CefBrowser> _browser;
     CefRefPtr<CefOverlayController> _toolbarOverlay;
-    CefRefPtr<CefPanel> _toolbarPanel;
+    CefRefPtr<CefScrollView> _toolbarScroll;
     CefRefPtr<CefPanel> _toolbarFull;
     CefRefPtr<CefView> _toolbarView;
     CefRefPtr<SizedPanelDelegate> _toolbarSize;
@@ -495,18 +498,15 @@ private:
     full->AddChildView(toolbar);
     _toolbarFull = full;
     _toolbarView = toolbar;
-    // Views clip children to their parent, but anchors keep their unclipped screen bounds: a 1×1 overlay shows
-    // nothing while Chrome's bubbles still open where the (virtual) buttons are, next to the sidebar.
-    _toolbarPanel = CefPanel::CreatePanel(nullptr);
-    CefBoxLayoutSettings box;
-    box.horizontal = true;
-    box.main_axis_alignment = CEF_AXIS_ALIGNMENT_START;
-    box.cross_axis_alignment = CEF_AXIS_ALIGNMENT_START;
-    _toolbarPanel->SetToBoxLayout(box);
-    _toolbarPanel->AddChildView(full);
-    _toolbarOverlay = window->AddOverlayView(_toolbarPanel, CEF_DOCKING_MODE_CUSTOM, false);
-    _toolbarOverlay->SetBounds(CefRect(0, 0, 1, 1));
+    // A 1×1 scroll view clips the full-size toolbar: nothing shows, while anchors keep their unclipped screen
+    // bounds, so Chrome's bubbles open where the (virtual) buttons are, next to the sidebar. A scroll view, not a
+    // panel: its content keeps the size we give it, where layouts would squeeze the toolbar to its minimum.
+    _toolbarScroll = CefScrollView::CreateScrollView(nullptr);
+    _toolbarScroll->SetContentView(full);
+    _toolbarOverlay = window->AddOverlayView(_toolbarScroll, CEF_DOCKING_MODE_CUSTOM, false);
+    _toolbarOverlay->SetBounds([self toolbarOverlayBounds]);
     _toolbarOverlay->SetVisible(true);
+    [self placeToolbarContent];
 }
 
 /// Before the page window closes, the toolbar goes back into that window (hidden): Chrome's browser view keeps
@@ -521,7 +521,7 @@ private:
     }
     if (_toolbarOverlay && _toolbarOverlay->IsValid()) _toolbarOverlay->Destroy();
     _toolbarOverlay = nullptr;
-    _toolbarPanel = nullptr;
+    _toolbarScroll = nullptr;
     _toolbarFull = nullptr;
     _toolbarView = nullptr;
     _toolbarSize = nullptr;
@@ -529,13 +529,29 @@ private:
 
 /// Custom-docked overlays don't follow the window when the viewport moves it.
 - (void)pageWindowBoundsChanged {
-    if (_toolbarOverlay && _toolbarOverlay->IsValid()) _toolbarOverlay->SetBounds(CefRect(0, 0, 1, 1));
+    if (_toolbarOverlay && _toolbarOverlay->IsValid()) _toolbarOverlay->SetBounds([self toolbarOverlayBounds]);
 }
 
 - (void)extensionToolbarWidthChanged:(int)width {
-    if (!_toolbarSize || !_toolbarPanel) return;
+    if (!_toolbarSize || !_toolbarFull) return;
     _toolbarSize->size = CefSize(MAX(width, 320), 46);
-    _toolbarPanel->InvalidateLayout();
+    [self placeToolbarContent];
+}
+
+/// Sizes the toolbar: only once it is in a widget, since laying out Chrome's toolbar outside one crashes.
+- (void)placeToolbarContent {
+    CefSize size = _toolbarSize->size;
+    _toolbarFull->SetSize(size);
+    if (_toolbarOverlay && _toolbarOverlay->IsValid()) _toolbarOverlay->SetBounds([self toolbarOverlayBounds]);
+}
+
+/// The 1×1 overlay sits where the toolbar starts, so that the toolbar ends at the page's top-right corner:
+/// Chrome opens popups there, as users expect. (Its extension buttons can't sit by the sidebar: Chrome shows
+/// pinned actions only from ~560 pt wide, and overlays can't start left of the page.)
+- (CefRect)toolbarOverlayBounds {
+    CefRefPtr<CefWindow> window = _windowDelegate ? _windowDelegate->window() : nullptr;
+    int width = window ? window->GetBounds().width : 0, toolbar = _toolbarSize ? _toolbarSize->size.width : 0;
+    return CefRect(MAX(0, width - toolbar), 0, 1, 1);
 }
 
 /// The overlay's NSWindow: the page's 1×1 child window.
