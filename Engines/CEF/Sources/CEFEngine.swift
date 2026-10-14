@@ -162,3 +162,20 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
     })();
     """
 }
+
+extension CEFEngine: EngineFloating {
+    /// The page keeps its own window; it leaves the browser window and the caller restyles it.
+    public func detachForFloating(_ tab: EngineTab) -> FloatingContent? {
+        guard let page = tab as? CEFPage, let w = page.window else { return nil }
+        w.parent?.removeChildWindow(w)
+        return .window(w)
+    }
+
+    public func reattachAfterFloating(_ tab: EngineTab) {
+        guard let page = tab as? CEFPage, let w = page.window else { return }
+        w.parent?.removeChildWindow(w)
+        w.level = .normal
+        w.collectionBehavior = [.fullScreenAuxiliary]
+        w.orderOut(nil)
+    }
+}
