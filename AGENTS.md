@@ -87,4 +87,6 @@ End-to-end tests: `./forkctl test --e2e` builds the app and runs `Tests/E2E` aga
 - Performance: one `@Observable` per tab; sidebar rows come from `TabStore.rows` (cached by structure
   version). Heavy work never runs in `activate()`.
 - Privacy: no Google/third-party service is contacted unless the user chose it (search engine,
-  suggestions are opt-out settings and default to DuckDuckGo).
+  suggestions are opt-out settings and default to DuckDuckGo). An idle browser contacts nobody (E2E net-log
+  test). The one background contact is ad-blocking list updates (easylist.to, GitHub), started only once the user
+  browses and turned off with `adblock.enabled`. Extension updates go to the Chrome Web Store for store installs.
