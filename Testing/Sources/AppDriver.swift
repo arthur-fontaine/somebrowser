@@ -24,7 +24,11 @@ nonisolated public final class AppDriver: @unchecked Sendable {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle(forWritingAtPath: "/dev/null")
         try process.run()
-        try waitUntil(timeout: 30) { (try? self.call(["op": "state"]))?["ok"] as? Bool == true }
+        do {
+            try waitUntil(timeout: 30) { (try? self.call(["op": "state"]))?["ok"] as? Bool == true }
+        } catch {
+            throw DriverError.timeout("app did not answer within 30s of launch\n\(mainThreadSample())")
+        }
     }
 
     deinit {
