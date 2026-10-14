@@ -74,9 +74,11 @@ to check that the feature still works (`forkctl test <feature>`).
 - [ ] Boosts (per-site CSS/JS) (A) — later
 
 ## 6. Apple integrations (R)
-- [ ] Apple Passwords autofill via PasswordManagerBrowserExtensionHelper (needs entitlement)
-- [ ] "Save Password?" into Apple Passwords
-- [ ] Strong password generation **relying on Apple Passwords** (`SecCreateSharedWebCredentialPassword` + save in Passwords) (U)
+- [~] Apple Passwords autofill via PasswordManagerBrowserExtensionHelper — `passwords` feature: SRP pairing (verified
+      against an independent reference), dropdown, Touch ID fill; tested against a fake helper. Live use needs a build
+      signed with the managed entitlement (ad-hoc builds are refused by a launch constraint, verified)
+- [~] "Save Password?" into Apple Passwords (command 6; same entitlement gate)
+- [~] Strong password generation **relying on Apple Passwords** (`SecCreateSharedWebCredentialPassword` + save in Passwords) (U)
 - [ ] Sign in with Apple native sheet with Touch ID (AppSSO; needs entitlement)
 - [ ] Passkeys via platform authenticator (needs entitlement)
 - [ ] Touch ID gating (LocalAuthentication)

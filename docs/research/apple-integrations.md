@@ -37,6 +37,13 @@ sandboxed (Safari sync needs Full Disk Access anyway).
   `ASAuthorizationPasswordRequest` (own associated domains only), `ASCredentialDataManager`
   (iOS-only), keychain internet passwords (private access groups).
 
+- **Verified 2026-10-14:** spawning the helper from an unentitled process ends in
+  `SIGKILL (Code Signature Invalid)`, CODESIGNING "Launch Constraint Violation". The entitlement has its own
+  request form, submitted by the Account Holder ([Apple forum](https://developer.apple.com/forums/thread/829169)).
+  Radian's "AutoFill for 'Radian'" prompt is this helper's string: Radian holds the entitlement.
+- Wire details that differ between the two references (we follow bromure, which spawns the helper directly):
+  PROTO `[0,1]`, `msg`/`payload` as JSON strings, bare-hex `SDATA`, full 32-byte session key.
+
 ## 2. Sign in with Apple (native sheet + Touch ID)
 
 - Not `ASWebAuthenticationSession` (callback must be our associated domain) and not
