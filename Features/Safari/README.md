@@ -1,8 +1,8 @@
 # Safari Sync
 
-**Purpose** — Radian's Safari ⇄ iPhone sync: the start page shows Safari's Favorites and updates when they change on
-the iPhone; adding or deleting a favorite here edits Safari's Favorites; "iCloud Tabs" lists the iPhone's open tabs;
-Safari's history (iPhone included) appears in the command bar.
+**Purpose** — Radian's Safari ⇄ iPhone sync: the start page shows Safari's Favorites and follows Safari's file (so
+iPhone changes arrive on Safari's sync schedule); a favorite added here appears in Safari and on the iPhone; "iCloud
+Tabs" lists the iPhone's open tabs; Safari's history (iPhone included) appears in the command bar.
 
 **How it works** — Safari's sync agents (`SafariBookmarksSyncAgent`, `com.apple.Safari.History`) keep what iCloud
 syncs in local files, decrypted (History and iCloud Tabs are end-to-end encrypted, so only they can):
@@ -23,9 +23,11 @@ grants as security-scoped bookmarks (`Grants/` in the feature's data folder), so
 second panel keeps Favorites and history. "Disconnect from Safari" stops using Safari's folders and deletes the
 stored grants.
 
-**Status** — Reading is verified on macOS 27 with real data. Favorites written here land in Bookmarks.plist (tested);
-when Safari's sync agent uploads such external edits to iCloud is not verified yet. The agent learns about local edits
-from Safari over an entitled XPC connection. Tabs and history are read-only: their stores belong to Safari's agents.
+**Status (macOS 27, real data, 2026-10-15)** — Reading: verified. Adding a favorite: verified on the iPhone within
+two minutes, with Safari running on the Mac (Safari watches Bookmarks.plist and hands the change to its sync agent);
+with Safari not running, untested. Deleting: **not offered** — Safari absorbed a favorite removed from its file but
+never synced the deletion (the agent takes deletions from Safari's own change log, over an entitled XPC connection),
+so it stayed on the iPhone. Delete in Safari. Tabs and history are read-only: their stores belong to Safari's agents.
 
 **Commands** — `safari.add-favorite`, `safari.cloud-tabs`, `safari.connect`, `safari.disconnect`.
 **Settings** — `safari.enabled`.

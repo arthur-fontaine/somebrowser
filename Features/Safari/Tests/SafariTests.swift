@@ -194,8 +194,6 @@ struct FeatureTests {
         _ = h.openTab("https://new.example/page")
         try h.run("safari.add-favorite")
         #expect(try feature.store?.favorites().last?.url.host == "new.example")
-        feature.remove(feature.model.favorites[0])
-        #expect(try feature.store?.favorites().map(\.title).contains("Apple") == false)
 
         let provider = SafariHistoryOmnibox(model: feature.model, runtime: h.runtime)
         #expect(provider.items(for: "swift", in: h.window).first?.subtitle == "swift.org")

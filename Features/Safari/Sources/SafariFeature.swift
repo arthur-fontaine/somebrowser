@@ -3,7 +3,7 @@ import BrowserCore
 import SwiftUI
 import SystemConfiguration
 
-/// Safari ⇄ iPhone (Radian, 08-07): Safari's Favorites on the start page, live, editable both ways; the iPhone's
+/// Safari ⇄ iPhone (Radian, 08-07): Safari's Favorites on the start page, live, and added from here; the iPhone's
 /// open tabs ("iCloud Tabs"); Safari's history in the command bar. Works on Safari's own synced files, so iCloud does
 /// the syncing; access is two clicks in open panels (`SafariAccess`), not Full Disk Access.
 public final class SafariFeature: BrowserFeature {
@@ -39,7 +39,6 @@ public final class SafariFeature: BrowserFeature {
         context.ui.contribute("start-page.extras", id: "safari.start", order: 10) { [weak self] window in
             SafariStartSection(model: model, window: window,
                                open: { url, newTab in self?.open(url, in: window, newTab: newTab) },
-                               remove: { self?.remove($0) },
                                connect: { self?.connect() })
         }
         context.ui.contribute(.overlay, id: "safari.cloud-tabs", order: 75) { [weak self] window in
@@ -119,7 +118,7 @@ public final class SafariFeature: BrowserFeature {
         }
     }
 
-    /// Bi-directional: a favorite added here appears in Safari and on the iPhone.
+    /// A favorite added here appears in Safari and on the iPhone (verified with Safari running).
     func addCurrentPage(in window: BrowserWindowState?) {
         guard let window, let tab = context.runtime.selectedTab(in: window), let url = tab.live?.url ?? tab.url else { return }
         guard store != nil || connect(), let store else { return }
@@ -129,17 +128,6 @@ public final class SafariFeature: BrowserFeature {
             context.notify("Added to Safari Favorites", systemImage: "star.fill")
         } catch {
             context.notify("Couldn't add to Safari Favorites", systemImage: "exclamationmark.triangle")
-        }
-    }
-
-    /// Deleting here deletes on the iPhone too.
-    func remove(_ favorite: SafariBookmark) {
-        guard let store else { return }
-        do {
-            try store.removeFavorite(id: favorite.id)
-            withAnimation(.spring(duration: 0.3)) { model.favorites.removeAll { $0.id == favorite.id } }
-        } catch {
-            context.notify("Couldn't remove from Safari Favorites", systemImage: "exclamationmark.triangle")
         }
     }
 }
