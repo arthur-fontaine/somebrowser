@@ -29,7 +29,7 @@ This file is for coding agents and humans customizing the browser. Read it fully
 | `Tools/forkctl/` | The generator/validator/bundler and fork verbs |
 | `Defaults/` | Upstream defaults: `fork.json` (brand, engine, settings), entitlements, icon |
 | `Fork/` | Your fork's overrides (create it with any fork verb) |
-| `docs/decisions/` | Architecture decisions (read 0001–0002 before touching engines) |
+| `docs/decisions/` | Architecture decisions (read 0001–0003 before touching engines) |
 
 ## Recipes
 

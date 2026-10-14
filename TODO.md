@@ -93,11 +93,11 @@ to check that the feature still works (`forkctl test <feature>`).
 ## 8. Extensions (U)
 - [~] MV3 content scripts / background workers (spike ✅)
 - [x] Chrome Web Store install (uBlock Origin Lite: install dialog, blocking, auto-update verified)
-- [ ] Load unpacked (developer mode + Chrome's file picker)
-- [ ] Extension actions + popups: spike Chrome's real toolbar (`CEF_CTT_NORMAL`, clipped to the extensions
-      container) so popups, `action.onClicked`, badges and `activeTab` grants work; fallback = own popup window
-      (breaks onClicked-only extensions and activeTab)
-- [ ] `chrome://extensions` management reachable from settings
+- [~] Load unpacked: `--load-extension` works (E2E fixture); developer-mode "Load unpacked" picker on `chrome://extensions` to verify
+- [x] Extension actions + popups via an invisible Chrome toolbar (ADR-0003): pinned buttons + menu in the sidebar,
+      Chrome's own popups/permissions, `activeTab` proven by E2E (`extensionActionGetsActiveTab`)
+- [ ] Badges on the sidebar buttons (read from the toolbar's accessibility tree)
+- [x] `chrome://extensions` management reachable (Tools menu, command bar: `extensions.manage`)
 
 ## 9. Performance (U)
 - [~] Lazy feature activation (heavy work deferred) · paint shell before CEF init (todo)
