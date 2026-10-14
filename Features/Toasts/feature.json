@@ -1,0 +1,10 @@
+{
+  "id": "toasts",
+  "name": "Toasts",
+  "summary": "Small animated confirmations (tab closed, copied, zoom…) with optional undo.",
+  "entry": "ToastsFeature",
+  "provides": ["toasts"],
+  "settings": [
+    { "key": "toasts.duration", "title": "Toast duration (seconds)", "type": "double", "default": 2.4 }
+  ]
+}
