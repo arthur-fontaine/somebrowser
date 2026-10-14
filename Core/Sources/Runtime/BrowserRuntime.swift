@@ -251,9 +251,10 @@ public final class BrowserRuntime {
     private func attach(_ e: EngineTab, to tab: BrowserTab) {
         let binding = LiveTabBinding(tabID: tab.id, runtime: self)
         bindings[tab.id] = binding
-        e.delegate = binding
+        // The model must know the page before its first delegate callback (engines may commit synchronously).
         tab.engineTab = e
         events.publish(TabLiveChanged(tabID: tab.id, isLive: true))
+        e.delegate = binding
     }
 
     /// Frees the engine page; the tab keeps its URL/title/history and wakes on selection.

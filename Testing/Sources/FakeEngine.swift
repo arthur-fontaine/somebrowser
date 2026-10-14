@@ -24,7 +24,8 @@ public final class FakeEngine: BrowserEngine {
     public func makeTab(_ request: EngineTabRequest) -> EngineTab {
         let t = FakeEngineTab(engine: self)
         createdTabs.append(t)
-        if let url = request.url { t.load(url) }
+        // Like real engines, the first commit arrives after the runtime attached its delegate.
+        if let url = request.url { t.pendingURL = url }
         return t
     }
 
@@ -52,7 +53,12 @@ public final class FakeViewport: EngineViewport {
 
 public final class FakeEngineTab: EngineTab {
     public let state = EngineTabState()
-    public weak var delegate: EngineTabDelegate?
+    public weak var delegate: EngineTabDelegate? {
+        didSet { if delegate != nil, let url = pendingURL { pendingURL = nil; load(url) } }
+    }
+    var pendingURL: URL? {
+        didSet { if let url = pendingURL { state.url = url } }
+    }
     public private(set) weak var engine: FakeEngine?
     public private(set) var history: [URL] = []
     public private(set) var historyIndex = -1
