@@ -192,6 +192,13 @@ public final class TabStore {
         onTabsRemoved?(removed)
     }
 
+    /// Edits a space's name, icon or theme and persists it.
+    public func updateSpace(_ id: UUID, _ change: (Space) -> Void) {
+        guard let s = space(id) else { return }
+        change(s)
+        changed()
+    }
+
     public func moveSpace(_ id: UUID, to index: Int) {
         guard let i = spaces.firstIndex(where: { $0.id == id }) else { return }
         let s = spaces.remove(at: i)
