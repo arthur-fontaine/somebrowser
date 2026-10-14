@@ -349,7 +349,7 @@ public:
 
     void OnWindowChanged(CefRefPtr<CefView> view, bool added) override {
         CEFTab *tab = tab_;
-        if (!added) { [tab removeExtensionToolbar]; return; }
+        if (!added) return;  // the toolbar is handed back in browserClosed, before the window closes
         CefRefPtr<CefBrowserView> browserView = view->AsBrowserView();
         CefRefPtr<CefView> toolbar = browserView ? browserView->GetChromeToolbar() : nullptr;
         if (toolbar && view->GetWindow()) [tab installExtensionToolbar:toolbar window:view->GetWindow()];
@@ -413,6 +413,8 @@ private:
     CefRefPtr<CefBrowser> _browser;
     CefRefPtr<CefOverlayController> _toolbarOverlay;
     CefRefPtr<CefPanel> _toolbarPanel;
+    CefRefPtr<CefPanel> _toolbarFull;
+    CefRefPtr<CefView> _toolbarView;
     CefRefPtr<SizedPanelDelegate> _toolbarSize;
     NSMutableArray<void (^)(void)> *_pending;
     double _zoomLevel;
@@ -491,6 +493,8 @@ private:
     CefRefPtr<CefPanel> full = CefPanel::CreatePanel(_toolbarSize);
     full->SetToFillLayout();
     full->AddChildView(toolbar);
+    _toolbarFull = full;
+    _toolbarView = toolbar;
     // Views clip children to their parent, but anchors keep their unclipped screen bounds: a 1×1 overlay shows
     // nothing while Chrome's bubbles still open where the (virtual) buttons are, next to the sidebar.
     _toolbarPanel = CefPanel::CreatePanel(nullptr);
@@ -505,10 +509,21 @@ private:
     _toolbarOverlay->SetVisible(true);
 }
 
+/// Before the page window closes, the toolbar goes back into that window (hidden): Chrome's browser view keeps
+/// a pointer to it, and only the window's own teardown destroys the two in a safe order. Left in the overlay
+/// (another widget), it is deleted first and closing the window crashes.
 - (void)removeExtensionToolbar {
+    CefRefPtr<CefWindow> window = _windowDelegate ? _windowDelegate->window() : nullptr;
+    if (_toolbarFull && _toolbarView && window) {
+        _toolbarFull->RemoveChildView(_toolbarView);
+        _toolbarView->SetVisible(false);
+        window->AddChildView(_toolbarView);
+    }
     if (_toolbarOverlay && _toolbarOverlay->IsValid()) _toolbarOverlay->Destroy();
     _toolbarOverlay = nullptr;
     _toolbarPanel = nullptr;
+    _toolbarFull = nullptr;
+    _toolbarView = nullptr;
     _toolbarSize = nullptr;
 }
 
