@@ -1,0 +1,14 @@
+{
+  "id": "toolbar",
+  "name": "Toolbar",
+  "summary": "A slim top bar that moves with you: hides while you scroll down, comes back when you scroll up or touch the top edge.",
+  "entry": "ToolbarFeature",
+  "provides": ["toolbar"],
+  "commands": [
+    { "id": "toolbar.toggle", "title": "Show / Hide Toolbar", "shortcut": "cmd+shift+o", "menu": "View", "group": "layout", "order": 3 }
+  ],
+  "settings": [
+    { "key": "toolbar.mode", "title": "Show the toolbar", "type": "choice", "default": "when-sidebar-hidden", "options": ["when-sidebar-hidden", "always", "never"] },
+    { "key": "toolbar.hideOnScroll", "title": "Hide the toolbar while scrolling down", "type": "bool", "default": true }
+  ]
+}
