@@ -105,21 +105,30 @@ struct EngineConformanceTests {
 
     /// Extension actions run through Chrome's own toolbar path: the fixture's popup (activeTab + scripting, no host
     /// permissions) can only retitle the page if the click granted activeTab, and the popup must be in front of the page.
-    @Test func extensionActionGetsActiveTab() throws {
+    /// Unpinned actions go through Chrome's extensions menu; pinned ones press their (hidden) toolbar button.
+    @Test(arguments: [false, true]) func extensionActionGetsActiveTab(pinned: Bool) throws {
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Fixtures/ActiveTabExtension")
+        let id = "efdfmfjfedndlkfjgpagdmphepfimllj"  // from the fixture manifest's `key`
+        let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-ext-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: data) }
+        if pinned {
+            let profile = data.appendingPathComponent("Engine/cef-chrome/Default")
+            try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+            try JSONSerialization.data(withJSONObject: ["extensions": ["pinned_extensions": [id]]])
+                .write(to: profile.appendingPathComponent("Preferences"))
+        }
         let server = try TestHTTPServer(pages: Self.pages)
-        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, arguments: ["--load-extension=\(fixture.path)"])
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path],
+                                arguments: ["--load-extension=\(fixture.path)"])
         guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
         try app.open(server.url("/one"))
         try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
-        var id: String?
         // Chrome batches preference writes (~10 s); the engine lists extensions once they are on disk.
         try app.waitUntil(timeout: 30) {
-            id = (try app.state()["extensions"] as? [[String: Any]])?.first { $0["name"] as? String == "E2E ActiveTab" }?["id"] as? String
-            return id != nil
+            (try app.state()["extensions"] as? [[String: Any]])?.contains { $0["id"] as? String == id && $0["pinned"] as? Bool == pinned } == true
         }
-        try app.run("extensions.run", ["id": id!])
+        try app.run("extensions.run", ["id": id])
         try app.waitUntil(timeout: 10) { try app.eval("document.title") as? String == "granted" }
         // Front-to-back: an engine bubble (the popup) comes before the page window.
         let windows = try app.call(["op": "views"])["windows"] as? [[String: Any]] ?? []

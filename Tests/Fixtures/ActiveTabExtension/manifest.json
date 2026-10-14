@@ -3,6 +3,13 @@
   "name": "E2E ActiveTab",
   "version": "1.0",
   "description": "Test fixture: its popup can only touch the page if the action click granted activeTab.",
-  "permissions": ["activeTab", "scripting"],
-  "action": { "default_popup": "popup.html", "default_title": "E2E ActiveTab" }
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "E2E ActiveTab"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6S2kR3AScwPanQEDqZhELFR1uzxK71F2/o4CYAt2TqF33fGN/yeEqh1Le2uvbXrMQwgnH6vTBGwK0RG9tmDWia9aGleagj7r3gON9mz5p3e82RWPv1xEfWskTK5u72GOWiAO9obX6I48PSv4bwJkaTEt2A8cIYakrMCZhzdBMLeA3r/SSotJQYusdEInqcg4VfiKqt61PMPAtGT6Gg+BpnSseUWnb4d0K5+wQBHh5GFK+RamTP3VS4K4wStebyvLe7obgvAQMbyAgF49y9laJrJ9aLRBnuQLMdGR9uPQKAJ4UU9vsiciwXA4TNq3ymon+X0yHl8XEasBe1pnnSHP4QIDAQAB"
 }
