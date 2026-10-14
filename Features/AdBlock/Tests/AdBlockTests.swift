@@ -43,6 +43,15 @@ struct EngineTests {
         #expect(AdBlockEngine(serialized: Data("garbage".utf8)) == nil)
     }
 
+    @Test func contentRulesFitWebKitsLimit() throws {
+        let rule = { (type: String) -> [String: Any] in ["trigger": ["url-filter": "x"], "action": ["type": type]] }
+        let rules = [rule("block"), rule("css-display-none"), rule("block"), rule("block"), rule("ignore-previous-rules")]
+        let json = String(decoding: try JSONSerialization.data(withJSONObject: rules), as: UTF8.self)
+        let fitted = try #require(try JSONSerialization.jsonObject(with: Data(AdBlockEngine.fitContentRules(json, limit: 3).utf8)) as? [[String: Any]])
+        let types = fitted.compactMap { ($0["action"] as? [String: Any])?["type"] as? String }
+        #expect(types == ["block", "block", "ignore-previous-rules"])
+    }
+
     @Test func contentBlockingRulesForWebKit() throws {
         let json = AdBlockEngine.contentBlockingRules(lists: adsList)
         let rules = try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]])

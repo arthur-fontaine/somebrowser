@@ -64,11 +64,31 @@ nonisolated final class AdBlockEngine: @unchecked Sendable {
         return Self.decode(adb_hidden_selectors(handle, json(classes), json(ids), json(exceptions))) ?? []
     }
 
-    /// Apple content-blocker rules for the same lists (WebKit engine).
+    /// Apple content-blocker rules for the same lists (WebKit engine), fitted to WebKit's limit.
     static func contentBlockingRules(lists: String) -> String {
         guard let s = adb_content_blocking(lists) else { return "[]" }
         defer { adb_string_free(s) }
-        return String(cString: s)
+        return fitContentRules(String(cString: s))
+    }
+
+    /// WebKit rejects a rule list over 150,000 rules, and exceptions (`ignore-previous-rules`) only cancel rules
+    /// of their own list, so the list can't be split. Element hiding is dropped (the injected cosmetic styles
+    /// already do it on every engine); past `limit`, the last network rules go, never the exceptions.
+    static func fitContentRules(_ json: String, limit: Int = 145_000) -> String {
+        guard let rules = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [[String: Any]] else { return "[]" }
+        let action = { (rule: [String: Any]) in (rule["action"] as? [String: Any])?["type"] as? String }
+        var kept = rules.filter { action($0) != "css-display-none" }
+        if kept.count > limit {
+            var excess = kept.count - limit
+            var drop = Set<Int>()
+            for i in stride(from: kept.count - 1, through: 0, by: -1) where excess > 0 && action(kept[i]) != "ignore-previous-rules" {
+                drop.insert(i)
+                excess -= 1
+            }
+            kept = kept.enumerated().filter { !drop.contains($0.offset) }.map(\.element)
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: kept)) ?? Data("[]".utf8)
+        return String(decoding: data, as: UTF8.self)
     }
 
     private static func decode<T: Decodable>(_ s: UnsafeMutablePointer<CChar>?) -> T? {
