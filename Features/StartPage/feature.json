@@ -1,0 +1,10 @@
+{
+  "id": "start-page",
+  "name": "Start Page",
+  "summary": "Blank tabs show a calm page with a search field and your favorites.",
+  "entry": "StartPageFeature",
+  "optional": ["search"],
+  "settings": [
+    { "key": "start-page.showFavorites", "title": "Show favorites on the start page", "type": "bool", "default": true }
+  ]
+}
