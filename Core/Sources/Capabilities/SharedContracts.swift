@@ -101,3 +101,35 @@ public extension CapabilityRegistry {
     var search: SearchService? { resolve(SearchService.self) }
     var history: HistoryService? { resolve(HistoryService.self) }
 }
+
+/// Per-site permission decisions (the permission broker — Radian's "Security Core" idea: every grant
+/// goes through one auditable place).
+public protocol PermissionsService: AnyObject {
+    /// Remembered decision, nil when the site must ask.
+    func decision(_ kind: PermissionRequest.Kind, for site: String) -> PermissionDecision?
+    func setDecision(_ decision: PermissionDecision?, _ kind: PermissionRequest.Kind, for site: String)
+    /// Most recent first.
+    var log: [PermissionLogEntry] { get }
+}
+
+public struct PermissionLogEntry: Codable, Identifiable, Sendable {
+    public var id = UUID()
+    public var date: Date
+    public var site: String
+    public var kinds: [String]
+    public var granted: Bool
+    /// "remembered", "user", "policy"
+    public var source: String
+
+    public init(date: Date, site: String, kinds: [String], granted: Bool, source: String) {
+        self.date = date
+        self.site = site
+        self.kinds = kinds
+        self.granted = granted
+        self.source = source
+    }
+}
+
+public extension CapabilityRegistry {
+    var permissions: PermissionsService? { resolve(PermissionsService.self) }
+}
