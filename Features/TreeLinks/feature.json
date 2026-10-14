@@ -1,0 +1,19 @@
+{
+  "id": "tree-links",
+  "name": "Link Tree",
+  "summary": "browser.horse's trails: clicking a link opens it as a child of the page, so your tabs grow into a tree of where you went.",
+  "entry": "TreeLinksFeature",
+  "provides": ["tree-links"],
+  "commands": [
+    { "id": "tree-links.toggle", "title": "Open Links as Child Tabs", "menu": "Tabs", "group": "behaviour", "order": 2, "keywords": ["tree", "trail", "branch"] }
+  ],
+  "settings": [
+    { "key": "tree-links.enabled", "title": "Clicking a link opens it as a child tab", "type": "bool", "default": true },
+    { "key": "tree-links.sameSite", "title": "Also branch links that stay on the same site", "type": "bool", "default": true },
+    { "key": "tree-links.focusExisting", "title": "If the page is already open, go to it instead", "type": "bool", "default": true },
+    { "key": "tree-links.exclusions", "title": "Sites where links open in place", "type": "string",
+      "default": "mail.google.com, x.com, twitter.com, instagram.com, linkedin.com, facebook.com, web.whatsapp.com, discord.com, slack.com, app.slack.com, notion.so, figma.com, docs.google.com, calendar.google.com, outlook.live.com, outlook.office.com, youtube.com, music.apple.com, open.spotify.com, chatgpt.com, claude.ai",
+      "description": "Comma-separated hosts (subdomains included)." },
+    { "key": "tree-links.hoverBox", "title": "Show the link preview box when hovering links", "type": "bool", "default": true }
+  ]
+}
