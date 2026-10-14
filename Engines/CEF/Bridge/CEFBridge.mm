@@ -15,6 +15,10 @@
 #include "include/cef_application_mac.h"
 #include "include/cef_client.h"
 #include "include/cef_parser.h"
+#include "include/views/cef_box_layout.h"
+#include "include/views/cef_fill_layout.h"
+#include "include/views/cef_overlay_controller.h"
+#include "include/views/cef_panel.h"
 #include "include/views/cef_browser_view.h"
 #include "include/views/cef_window.h"
 #include "include/wrapper/cef_closure_task.h"
@@ -53,6 +57,10 @@ static CefString CS(NSString *s) { return CefString(s ? s.UTF8String : ""); }
 - (void)browserClosed;
 - (CefRefPtr<CefClient>)client;
 - (CefRefPtr<CefBrowserViewDelegate>)viewDelegate;
+- (void)installExtensionToolbar:(CefRefPtr<CefView>)toolbar window:(CefRefPtr<CefWindow>)window;
+- (void)removeExtensionToolbar;
+- (void)pageWindowBoundsChanged;
+- (void)extensionToolbarWidthChanged:(int)width;
 @property (nonatomic) CEFDisposition pendingDisposition;
 @property (nonatomic) BOOL pendingGesture;
 @property (nonatomic, copy, nullable) NSString *pendingURL;
@@ -301,6 +309,9 @@ public:
         return true;
     }
 
+    /// The Chrome toolbar only exists for extension actions: none of its other buttons (each may preload UI).
+    bool IsChromeToolbarButtonVisible(cef_chrome_toolbar_button_type_t) override { return false; }
+
     void Detach() { tab_ = nil; }
 
 private:
@@ -310,16 +321,43 @@ private:
     IMPLEMENT_REFCOUNTING(TabClient);
 };
 
-/// Chrome style, no Chrome toolbar; popups are adopted as tabs.
+/// Gives a panel a fixed preferred size (the hidden toolbar's virtual width).
+class SizedPanelDelegate : public CefPanelDelegate {
+public:
+    explicit SizedPanelDelegate(CefSize size) : size(size) {}
+    CefSize GetPreferredSize(CefRefPtr<CefView>) override { return size; }
+    CefSize size;
+    IMPLEMENT_REFCOUNTING(SizedPanelDelegate);
+};
+
+/// DevTools windows are CEF's own: no toolbar.
+class DevToolsViewDelegate : public CefBrowserViewDelegate {
+public:
+    ChromeToolbarType GetChromeToolbarType(CefRefPtr<CefBrowserView>) override { return CEF_CTT_NONE; }
+    IMPLEMENT_REFCOUNTING(DevToolsViewDelegate);
+};
+
+/// Chrome style; popups are adopted as tabs. With `extensionToolbar`, each page carries Chrome's real toolbar
+/// in a 1×1 overlay (docs/decisions/0003): invisible, but its extension actions, popups and bubbles are Chrome's own.
 class ViewDelegate : public CefBrowserViewDelegate {
 public:
     explicit ViewDelegate(CEFTab *tab) : tab_(tab) {}
     cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
-    ChromeToolbarType GetChromeToolbarType(CefRefPtr<CefBrowserView>) override { return CEF_CTT_NONE; }
+    ChromeToolbarType GetChromeToolbarType(CefRefPtr<CefBrowserView>) override {
+        return [CEFRuntime shared].extensionToolbar ? CEF_CTT_NORMAL : CEF_CTT_NONE;
+    }
+
+    void OnWindowChanged(CefRefPtr<CefView> view, bool added) override {
+        CEFTab *tab = tab_;
+        if (!added) { [tab removeExtensionToolbar]; return; }
+        CefRefPtr<CefBrowserView> browserView = view->AsBrowserView();
+        CefRefPtr<CefView> toolbar = browserView ? browserView->GetChromeToolbar() : nullptr;
+        if (toolbar && view->GetWindow()) [tab installExtensionToolbar:toolbar window:view->GetWindow()];
+    }
 
     CefRefPtr<CefBrowserViewDelegate> GetDelegateForPopupBrowserView(CefRefPtr<CefBrowserView> view, const CefBrowserSettings &settings,
                                                                      CefRefPtr<CefClient> client, bool is_devtools) override {
-        if (is_devtools) return this;
+        if (is_devtools) return new DevToolsViewDelegate;
         TabClient *tc = static_cast<TabClient *>([tab_ client].get());
         CEFTab *popup = tc ? tc->PeekPendingPopup() : nil;
         return popup ? [popup viewDelegate] : CefRefPtr<CefBrowserViewDelegate>(this);
@@ -351,6 +389,7 @@ public:
     }
     void OnWindowDestroyed(CefRefPtr<CefWindow> window) override { view_ = nullptr; window_ = nullptr; }
     bool IsFrameless(CefRefPtr<CefWindow>) override { return true; }
+    void OnWindowBoundsChanged(CefRefPtr<CefWindow>, const CefRect &) override { [tab_ pageWindowBoundsChanged]; }
     bool CanResize(CefRefPtr<CefWindow>) override { return true; }
     bool CanClose(CefRefPtr<CefWindow>) override { return true; }
     CefRect GetInitialBounds(CefRefPtr<CefWindow>) override { return CefRect(-20000, -20000, 1024, 768); }
@@ -372,6 +411,9 @@ private:
     CefRefPtr<CefBrowserView> _view;
     CefRefPtr<PageWindowDelegate> _windowDelegate;
     CefRefPtr<CefBrowser> _browser;
+    CefRefPtr<CefOverlayController> _toolbarOverlay;
+    CefRefPtr<CefPanel> _toolbarPanel;
+    CefRefPtr<SizedPanelDelegate> _toolbarSize;
     NSMutableArray<void (^)(void)> *_pending;
     double _zoomLevel;
     BOOL _muted;
@@ -434,10 +476,121 @@ private:
 }
 
 - (void)browserClosed {
+    [self removeExtensionToolbar];
     _browser = nullptr;
     if (_client) _client->Detach();
     if (_windowDelegate && _windowDelegate->window()) _windowDelegate->window()->Close();
     [[CEFRuntime shared] unregisterTab:self];
+}
+
+// MARK: Hidden extension toolbar (docs/decisions/0003)
+
+- (void)installExtensionToolbar:(CefRefPtr<CefView>)toolbar window:(CefRefPtr<CefWindow>)window {
+    if (_toolbarOverlay) return;
+    _toolbarSize = new SizedPanelDelegate(CefSize(MAX([CEFRuntime shared].extensionToolbarWidth, 320), 46));
+    CefRefPtr<CefPanel> full = CefPanel::CreatePanel(_toolbarSize);
+    full->SetToFillLayout();
+    full->AddChildView(toolbar);
+    // Views clip children to their parent, but anchors keep their unclipped screen bounds: a 1×1 overlay shows
+    // nothing while Chrome's bubbles still open where the (virtual) buttons are, next to the sidebar.
+    _toolbarPanel = CefPanel::CreatePanel(nullptr);
+    CefBoxLayoutSettings box;
+    box.horizontal = true;
+    box.main_axis_alignment = CEF_AXIS_ALIGNMENT_START;
+    box.cross_axis_alignment = CEF_AXIS_ALIGNMENT_START;
+    _toolbarPanel->SetToBoxLayout(box);
+    _toolbarPanel->AddChildView(full);
+    _toolbarOverlay = window->AddOverlayView(_toolbarPanel, CEF_DOCKING_MODE_CUSTOM, false);
+    _toolbarOverlay->SetBounds(CefRect(0, 0, 1, 1));
+    _toolbarOverlay->SetVisible(true);
+}
+
+- (void)removeExtensionToolbar {
+    if (_toolbarOverlay && _toolbarOverlay->IsValid()) _toolbarOverlay->Destroy();
+    _toolbarOverlay = nullptr;
+    _toolbarPanel = nullptr;
+    _toolbarSize = nullptr;
+}
+
+/// Custom-docked overlays don't follow the window when the viewport moves it.
+- (void)pageWindowBoundsChanged {
+    if (_toolbarOverlay && _toolbarOverlay->IsValid()) _toolbarOverlay->SetBounds(CefRect(0, 0, 1, 1));
+}
+
+- (void)extensionToolbarWidthChanged:(int)width {
+    if (!_toolbarSize || !_toolbarPanel) return;
+    _toolbarSize->size = CefSize(MAX(width, 320), 46);
+    _toolbarPanel->InvalidateLayout();
+}
+
+/// The overlay's NSWindow: the page's 1×1 child window.
+- (NSWindow *)toolbarWindow {
+    if (!_toolbarOverlay) return nil;
+    for (NSWindow *child in self.window.childWindows)
+        if (NSEqualSizes(child.frame.size, NSMakeSize(1, 1))) return child;
+    return nil;
+}
+
+static NSArray *AXKids(id e) {
+    return [e respondsToSelector:@selector(accessibilityChildren)] ? ([e accessibilityChildren] ?: @[]) : @[];
+}
+static NSString *AXRole(id e) { return [e respondsToSelector:@selector(accessibilityRole)] ? [e accessibilityRole] : nil; }
+static NSString *AXName(id e) {
+    NSString *label = [e respondsToSelector:@selector(accessibilityLabel)] ? [e accessibilityLabel] : nil;
+    if (label.length) return label;
+    return [e respondsToSelector:@selector(accessibilityTitle)] ? [e accessibilityTitle] : nil;
+}
+static BOOL AXContainsRole(id e, NSString *role, int depth) {
+    if ([AXRole(e) isEqualToString:role]) return YES;
+    if (depth > 8) return NO;
+    for (id k in AXKids(e)) if (AXContainsRole(k, role, depth + 1)) return YES;
+    return NO;
+}
+/// Chrome's extensions container, found by structure (labels are localized): the group whose last child is the
+/// extensions menu button and that holds no text field (the location bar has the omnibox).
+static id AXExtensionsContainer(id e, int depth) {
+    if (depth > 12) return nil;
+    NSArray *kids = AXKids(e);
+    if (kids.count && [AXRole(kids.lastObject) isEqualToString:NSAccessibilityPopUpButtonRole]
+        && ![AXRole(e) isEqualToString:NSAccessibilityToolbarRole] && ![AXRole(e) isEqualToString:NSAccessibilityWindowRole]
+        && !AXContainsRole(e, NSAccessibilityTextFieldRole, 0)) return e;
+    for (id k in kids) if (id found = AXExtensionsContainer(k, depth + 1)) return found;
+    return nil;
+}
+static id AXButtonNamed(id e, NSString *name, int depth) {
+    if ([AXRole(e) isEqualToString:NSAccessibilityButtonRole] && [AXName(e) isEqualToString:name]) return e;
+    if (depth > 14) return nil;
+    for (id k in AXKids(e)) if (id found = AXButtonNamed(k, name, depth + 1)) return found;
+    return nil;
+}
+
+- (BOOL)showExtensionsMenu {
+    id container = AXExtensionsContainer(self.toolbarWindow, 0);
+    return container ? [AXKids(container).lastObject accessibilityPerformPress] : NO;
+}
+
+- (void)runExtensionActionNamed:(NSString *)name completion:(void (^)(BOOL))completion {
+    NSWindow *toolbarWindow = self.toolbarWindow;
+    id container = AXExtensionsContainer(toolbarWindow, 0);
+    if (!container) { completion(NO); return; }
+    for (id button in AXKids(container)) {
+        if (button != AXKids(container).lastObject && [AXName(button) hasPrefix:name]) { completion([button accessibilityPerformPress]); return; }
+    }
+    // Not pinned: Chrome's menu runs it (and briefly pops the action out, like a click in Chrome would).
+    if (![AXKids(container).lastObject accessibilityPerformPress]) { completion(NO); return; }
+    __weak NSWindow *weakToolbar = toolbarWindow;
+    __block int attempts = 0;
+    __block void (^poll)(void);
+    void (^tryPress)(void) = ^{
+        for (NSWindow *menu in weakToolbar.childWindows) {
+            if (id item = AXButtonNamed(menu, name, 0)) { completion([item accessibilityPerformPress]); poll = nil; return; }
+        }
+        if (++attempts > 40) { completion(NO); poll = nil; return; }
+        void (^next)(void) = poll;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 25 * NSEC_PER_MSEC), dispatch_get_main_queue(), next);
+    };
+    poll = tryPress;
+    tryPress();
 }
 
 - (void)whenReady:(void (^)(void))block {
@@ -593,6 +746,7 @@ private:
         _tabs = [NSHashTable weakObjectsHashTable];
         _retained = [NSMutableSet set];
         _userScripts = @[];
+        _extensionToolbarWidth = 360;
         _profilePreferences = @{};
     }
     return self;
@@ -620,6 +774,11 @@ private:
         return NO;
     }
     return YES;
+}
+
+- (void)setExtensionToolbarWidth:(int)width {
+    _extensionToolbarWidth = width;
+    for (CEFTab *tab in _tabs) [tab extensionToolbarWidthChanged:width];
 }
 
 - (void)runMessageLoop { CefRunMessageLoop(); }

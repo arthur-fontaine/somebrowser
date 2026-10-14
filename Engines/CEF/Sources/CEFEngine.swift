@@ -5,7 +5,7 @@ import Foundation
 
 /// Chromium through CEF in Chrome style: full Chrome extensions and `chrome://` pages, each tab hosted
 /// in its own frameless page window attached as a child of the browser window (docs/decisions/0002).
-public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
+public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRuntimeDelegate {
     public static var applicationClass: NSApplication.Type { BrowserCEFApplication.self }
 
     public let id = "cef-chrome"
@@ -14,6 +14,11 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
     let options: [String: SettingValue]
     private let runtime = CEFRuntime.shared()
     private var downloads: [UInt32: DownloadItem] = [:]
+    private var profile: URL?
+    private var profileWatcher: DispatchSourceFileSystemObject?
+    private var preferenceStamps: [Date?] = []
+    public private(set) var installedExtensions: [BrowserExtension] = []
+    public var onExtensionsChanged: (() -> Void)?
 
     public init(options: [String: SettingValue]) {
         self.options = options
@@ -54,6 +59,8 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
             "OptimizationHints", "OptimizationGuideManifestBroker", "OptimizationGuideModelExecution",
             "OnDeviceModelBackgroundDownload", "OnDeviceModelPerformanceParams",
             "NetworkTimeServiceQuerying", "AimServerEligibilityEnabled", "AimServerRequestOnStartupEnabled",
+            // The hidden Chrome toolbar would otherwise preload a WebUI renderer for its bubbles.
+            "PreloadTopChromeWebUI", "WebUIOmniboxPopup",
         ].joined(separator: ","),
     ]
 
@@ -81,6 +88,13 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
             switches[String(key.dropFirst(7))] = value.stringValue ?? ""
         }
         runtime.profilePreferences = Self.privacyPreferences
+        // `chromeToolbar: "none"` (engine option) drops the hidden toolbar: no extension actions, slightly less memory.
+        runtime.extensionToolbar = options["chromeToolbar"]?.stringValue != "none"
+        let profile = profileDirectory.appendingPathComponent("Default", isDirectory: true)
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        self.profile = profile
+        reloadExtensions()
+        watchProfile(profile)
         try runtime.initialize(withRootCachePath: profileDirectory.path, switches: switches)
     }
 
@@ -93,6 +107,40 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
     }
 
     public func makeViewport(in container: NSView) -> EngineViewport { CEFViewport(container: container) }
+
+    /// Chrome rewrites its preference files (atomically, by rename) when extensions change.
+    private func watchProfile(_ profile: URL) {
+        let fd = open(profile.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
+        var pending = false
+        source.setEventHandler { [weak self] in
+            guard !pending else { return }
+            pending = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { pending = false; self?.reloadExtensions() }
+        }
+        source.setCancelHandler { close(fd) }
+        source.resume()
+        profileWatcher = source
+    }
+
+    private func reloadExtensions() {
+        guard let profile else { return }
+        // The directory also churns with SQLite journals: only re-read when a preference file was replaced.
+        let stamps = ["Preferences", "Secure Preferences"].map {
+            (try? FileManager.default.attributesOfItem(atPath: profile.appendingPathComponent($0).path)[.modificationDate]) as? Date
+        }
+        guard stamps != preferenceStamps else { return }
+        preferenceStamps = stamps
+        let list = ChromeExtensionsReader.read(profile: profile)
+        guard list != installedExtensions else { return }
+        installedExtensions = list
+        runtime.extensionToolbarWidth = Int32(Self.toolbarWidth(pinned: list.filter(\.isPinned).count))
+        onExtensionsChanged?()
+    }
+
+    /// Wide enough for every pinned action, so Chrome doesn't overflow them into its menu.
+    static func toolbarWidth(pinned: Int) -> Int { 360 + 40 * pinned }
 
     public func makeTab(_ request: EngineTabRequest) -> EngineTab {
         let page = CEFPage(engine: self)
@@ -109,6 +157,19 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
             NSApp.reply(toApplicationShouldTerminate: false)
             self?.runtime.quitMessageLoop()
         }
+    }
+
+    // MARK: EngineExtensions
+
+    @discardableResult public func runAction(of extensionID: String, in tab: EngineTab) -> Bool {
+        guard runtime.extensionToolbar, let cefTab = (tab as? CEFPage)?.tab,
+              let ext = installedExtensions.first(where: { $0.id == extensionID }) else { return false }
+        cefTab.runExtensionActionNamed(ext.name) { _ in }
+        return true
+    }
+
+    @discardableResult public func showExtensionsMenu(in tab: EngineTab) -> Bool {
+        (tab as? CEFPage)?.tab?.showExtensionsMenu() ?? false
     }
 
     func syncScripts() {

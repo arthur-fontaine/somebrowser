@@ -60,6 +60,10 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @property (weak, nullable) id<CEFRuntimeDelegate> delegate;
 /// Scripts injected in every frame's main world at context creation: {source, documentStart (BOOL), mainFrameOnly (BOOL)}.
 @property (copy) NSArray<NSDictionary<NSString *, id> *> *userScripts;
+/// Host Chrome's toolbar invisibly in every page (extension actions, popups). Set before creating tabs.
+@property (nonatomic) BOOL extensionToolbar;
+/// Virtual width of that toolbar: room for the pinned actions before Chrome overflows them into its menu.
+@property (nonatomic) int extensionToolbarWidth;
 /// Profile preferences applied when the default request context is initialized (bool, number or string values).
 @property (copy) NSDictionary<NSString *, id> *profilePreferences;
 /// Loads the framework (main process). Call before anything else.
@@ -90,6 +94,11 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 /// Evaluates in the main frame's context through the renderer (not subject to page CSP); the result arrives
 /// as message `__eval` with JSON `{id, ok, value | error}`.
 - (void)evaluate:(NSString *)code identifier:(int)identifier;
+/// Opens Chrome's extensions menu, anchored to the hidden toolbar. NO without a toolbar.
+- (BOOL)showExtensionsMenu;
+/// Runs an extension's action as a toolbar click would (popup, onClicked, activeTab): its pinned button, else
+/// its entry in the extensions menu. `name` is the name Chrome displays.
+- (void)runExtensionActionNamed:(NSString *)name completion:(void (^)(BOOL ran))completion;
 /// CEF zoom level (factor = 1.2^level).
 @property (nonatomic) double zoomLevel;
 @property (nonatomic) BOOL muted;
