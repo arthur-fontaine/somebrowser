@@ -25,7 +25,9 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] CEF app bundle: 5 helpers, versioned framework layout, `CefAppProtocol`, ad-hoc signing (`forkctl build`)
 - [x] `webkit`: WKWebView engine behind the same protocols (fork option, fast tests)
 - [x] Engine conformance test suite: `./forkctl test --e2e` (Chromium + WebKit, `FORKCTL_ENGINE=…`)
-- [~] De-googled runtime defaults: privacy switches (no background networking, pings, sync, component updates, breakpad, translate, autofill server) — policies todo (U)
+- [x] De-googled runtime defaults: an idle profile contacts no third party (E2E net-log test); extension updates kept
+- [ ] Chrome's default search engine follows the `search` feature's engine (context menu "Search for…") instead of being disabled
+- [ ] Silence the `ListAccounts` retries to the dead loopback endpoint (harmless, but wasted work)
 - [ ] Remote-CI recipe for a source build with ungoogled patches + H.264/AAC (U, documented)
 - [-] `cef-alloy` engine (deferred; no extensions)
 
@@ -90,8 +92,11 @@ to check that the feature still works (`forkctl test <feature>`).
 
 ## 8. Extensions (U)
 - [~] MV3 content scripts / background workers (spike ✅)
-- [ ] Load unpacked + Chrome Web Store install
-- [ ] Native extension buttons + popups in the sidebar/toolbar
+- [x] Chrome Web Store install (uBlock Origin Lite: install dialog, blocking, auto-update verified)
+- [ ] Load unpacked (developer mode + Chrome's file picker)
+- [ ] Extension actions + popups: spike Chrome's real toolbar (`CEF_CTT_NORMAL`, clipped to the extensions
+      container) so popups, `action.onClicked`, badges and `activeTab` grants work; fallback = own popup window
+      (breaks onClicked-only extensions and activeTab)
 - [ ] `chrome://extensions` management reachable from settings
 
 ## 9. Performance (U)
