@@ -1,0 +1,90 @@
+import AppKit
+import BrowserCore
+import SwiftUI
+
+/// The browser window: a real NSWindow we own (native titlebar behaviour, full-size content,
+/// traffic lights inside the sidebar like Arc). Its whole content is a SwiftUI tree made of slots.
+final class ShellWindow: NSWindow {
+    /// Engines that put pages in child windows (CEF) report the page window here so the shell keeps
+    /// its active appearance (traffic lights, sidebar vibrancy) while the page has keyboard focus.
+    var childKeyWindowProvider: (() -> Bool)?
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
+    @objc var _hasActiveAppearance: Bool {
+        isKeyWindow || childKeyWindowProvider?() == true
+    }
+}
+
+final class BrowserWindowController: NSWindowController, NSWindowDelegate {
+    let state: BrowserWindowState
+    private let runtime: BrowserRuntime
+    private weak var shell: ShellController?
+    private var hosting: NSHostingView<AnyView>?
+
+    init(state: BrowserWindowState, runtime: BrowserRuntime, shell: ShellController) {
+        self.state = state
+        self.runtime = runtime
+        self.shell = shell
+        let frame = state.frameDescriptor.map(NSRectFromString) ?? Self.defaultFrame()
+        let window = ShellWindow(contentRect: frame, styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                                 backing: .buffered, defer: false)
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 480, height: 360)
+        window.collectionBehavior = [.fullScreenPrimary]
+        window.tabbingMode = .disallowed
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.title = state.isPrivate ? "Private" : Brand.name
+        if state.frameDescriptor == nil { window.center() }
+        super.init(window: window)
+        window.delegate = self
+        let root = BrowserWindowView(window: state)
+            .environment(BrowserEnvironment(runtime: runtime))
+        let hosting = NSHostingView(rootView: AnyView(root))
+        hosting.sizingOptions = []
+        window.contentView = hosting
+        self.hosting = hosting
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    static func defaultFrame() -> NSRect {
+        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let w = min(1400, screen.width * 0.85), h = min(900, screen.height * 0.88)
+        return NSRect(x: screen.midX - w / 2, y: screen.midY - h / 2, width: w, height: h)
+    }
+
+    func owns(_ window: NSWindow) -> Bool {
+        window === self.window || window.parent === self.window
+    }
+
+    func focusContent() {
+        state.viewport?.focusContent()
+    }
+
+    func persistFrame() {
+        if let frame = window?.frame { state.frameDescriptor = NSStringFromRect(frame) }
+    }
+
+    // MARK: NSWindowDelegate
+
+    func windowDidBecomeKey(_ notification: Notification) { state.isKeyWindow = true }
+    func windowDidResignKey(_ notification: Notification) {
+        state.isKeyWindow = (window as? ShellWindow)?.childKeyWindowProvider?() ?? false
+    }
+    func windowDidResize(_ notification: Notification) { state.viewport?.layoutDidChange(); persistFrame() }
+    func windowDidMove(_ notification: Notification) { state.viewport?.layoutDidChange(); persistFrame() }
+    func windowDidEnterFullScreen(_ notification: Notification) { state.isFullscreen = true; state.viewport?.layoutDidChange() }
+    func windowDidExitFullScreen(_ notification: Notification) { state.isFullscreen = false; state.viewport?.layoutDidChange() }
+    func windowDidChangeScreen(_ notification: Notification) { state.viewport?.layoutDidChange() }
+
+    func windowWillClose(_ notification: Notification) {
+        persistFrame()
+        state.viewport?.tearDown()
+        shell?.windowDidClose(self)
+    }
+}
