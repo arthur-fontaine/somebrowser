@@ -26,7 +26,7 @@ public protocol HistoryService: AnyObject {
     func importEntries(_ entries: [HistoryEntry])
 }
 
-public struct HistoryEntry: Identifiable, Hashable, Sendable {
+nonisolated public struct HistoryEntry: Identifiable, Hashable, Sendable {
     public var id: URL { url }
     public var url: URL
     public var title: String
