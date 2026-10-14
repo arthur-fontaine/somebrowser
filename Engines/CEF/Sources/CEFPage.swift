@@ -9,8 +9,10 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
     weak var delegate: EngineTabDelegate?
     private(set) var tab: CEFTab?
     private weak var engine: CEFEngine?
-    private var evalCallbacks: [Int: (Result<Any?, Error>) -> Void] = [:]
+    private var evalCallbacks: [Int: (generation: Int, callback: (Result<Any?, Error>) -> Void)] = [:]
     private var nextEvalID = 1
+    /// Bumped on every main-frame commit: scripts sent to a document that went away never answer.
+    private var generation = 0
     private var lastFind = ""
 
     init(engine: CEFEngine) {
@@ -46,7 +48,10 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         guard let completion else { tab?.executeJavaScript(source); return }
         let id = nextEvalID
         nextEvalID += 1
-        evalCallbacks[id] = completion
+        evalCallbacks[id] = (generation, completion)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            self?.failEval(id, "timed out")
+        }
         let literal = String(data: try! JSONEncoder().encode(source), encoding: .utf8)!
         tab?.executeJavaScript("""
         (async () => { try { const r = await (0, eval)(\(literal)); window.__browser.post('__eval', { id: \(id), ok: true, value: r === undefined ? null : r }); }
@@ -122,7 +127,15 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
 
     func cefTab(_ tab: CEFTab, progressChanged progress: Double) { state.estimatedProgress = progress }
 
+    private func failEval(_ id: Int, _ reason: String) {
+        guard let entry = evalCallbacks.removeValue(forKey: id) else { return }
+        entry.callback(.failure(NSError(domain: "JavaScript", code: 2, userInfo: [NSLocalizedDescriptionKey: reason])))
+    }
+
     func cefTab(_ tab: CEFTab, didCommit url: String) {
+        // Evaluations still pending from the previous document will never answer.
+        for (id, entry) in evalCallbacks where entry.generation == generation { _ = id; failEval(id, "page navigated") }
+        generation += 1
         state.isCrashed = false
         state.findResult = nil
         if let u = URL(string: url) { delegate?.engineTab(self, didCommit: u) }
@@ -183,7 +196,7 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         let body = (try? JSONSerialization.jsonObject(with: Data(json.utf8), options: [.fragmentsAllowed])) ?? NSNull()
         switch name {
         case "__eval":
-            guard let d = body as? [String: Any], let id = d["id"] as? Int, let cb = evalCallbacks.removeValue(forKey: id) else { return }
+            guard let d = body as? [String: Any], let id = d["id"] as? Int, let cb = evalCallbacks.removeValue(forKey: id)?.callback else { return }
             if d["ok"] as? Bool == true { cb(.success(d["value"] is NSNull ? nil : d["value"])) }
             else { cb(.failure(NSError(domain: "JavaScript", code: 1, userInfo: [NSLocalizedDescriptionKey: d["error"] as? String ?? "error"]))) }
         case "__media":
