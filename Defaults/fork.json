@@ -8,7 +8,7 @@
     "repository": "arthur-fontaine/somebrowser",
     "copyright": "Open source. Fork it."
   },
-  "engine": "webkit",
+  "engine": "cef-chrome",
   "features": { "enable": [], "disable": [] },
   "shortcuts": {},
   "settings": {}
