@@ -113,7 +113,8 @@ enum ProjectLoader {
             let url = dir.appendingPathComponent("engine.json")
             if fm.fileExists(atPath: url.path) { engines.append(try readJSON(EngineManifest.self, at: url)) }
         }
-        let engineId = fork.engine ?? defaults.engine ?? "webkit"
+        // FORKCTL_ENGINE overrides the configured engine for one command (CI runs the suite on every engine).
+        let engineId = ProcessInfo.processInfo.environment["FORKCTL_ENGINE"] ?? fork.engine ?? defaults.engine ?? "webkit"
         guard let engine = engines.first(where: { $0.id == engineId }) else {
             throw ProjectError.invalid("engine '\(engineId)' not found; available: \(engines.map(\.id).sorted())")
         }

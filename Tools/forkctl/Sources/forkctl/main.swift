@@ -10,7 +10,8 @@ Everyday
   validate                 Check manifests, ids, shortcuts, capabilities, imports, brand literals
   build [--release]        generate + validate + compile + assemble build/<Name>.app
   run [--release]          build, then launch the app (logs in this terminal)
-  test [feature…]          Run unit/integration tests (all, or only the given feature ids)
+  test [feature…] [--e2e]  Run unit/integration tests (all, or only the given feature ids);
+                           --e2e builds the app and runs the end-to-end engine suite against it
   doctor                   Check toolchain, vendored engines, project health
 
 Customize a fork (writes only Fork/, never upstream files)
@@ -168,6 +169,13 @@ struct CLI {
         try Generator.run(p)
         try validate(p)
         var cmd = ["swift", "test"]
+        var env: [String: String] = [:]
+        if flag("--e2e") {
+            // End-to-end: build the real app and drive it (tests/E2E) on the selected engine.
+            let app = try build(release: flag("--release"))
+            env["BROWSER_E2E_APP"] = app.appendingPathComponent("Contents/MacOS/\(p.brand.executableName)").path
+            if ids.isEmpty { cmd += ["--filter", "BrowserE2ETests"] }
+        }
         if !ids.isEmpty {
             let targets = ids.map { id -> String in
                 if id == "core" { return "BrowserCoreTests" }
@@ -177,7 +185,7 @@ struct CLI {
             }
             cmd += ["--filter", targets.map { "^\($0)\\." }.joined(separator: "|")]
         }
-        try Shell.run(cmd, cwd: root)
+        try Shell.run(cmd, cwd: root, env: env)
     }
 
     func feature() throws {

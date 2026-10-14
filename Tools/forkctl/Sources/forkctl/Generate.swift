@@ -54,6 +54,9 @@ enum Generator {
             }
             appDeps.append("\"\(f.targetName)\"")
         }
+        if exists(p, "Tests/E2E") {
+            targets.append(".testTarget(name: \"BrowserE2ETests\", dependencies: [\"BrowserTesting\"], path: \"Tests/E2E\")")
+        }
         targets.append(".executableTarget(name: \"BrowserApp\", dependencies: [\(appDeps.joined(separator: ", "))], path: \"Generated/App\", \(mainActor))")
 
         return """
