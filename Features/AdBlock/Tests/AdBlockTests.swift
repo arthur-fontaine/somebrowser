@@ -69,6 +69,14 @@ struct ShieldTests {
         #expect(s.verdict(for: request("https://ads.example/", on: "https://news.example/", .document)) == .allow)
     }
 
+    /// Navigations are cleaned of tracking parameters, never blocked.
+    @Test func navigationsAreCleanedNotBlocked() {
+        let s = shield()
+        #expect(s.verdict(for: WebRequest(url: URL(string: "https://shop.example/?utm_source=x&id=1")!, documentURL: nil, type: .document))
+            == .redirect(URL(string: "https://shop.example/?id=1")!))
+        #expect(s.verdict(for: WebRequest(url: URL(string: "https://tracker.example/")!, documentURL: nil, type: .document)) == .allow)
+    }
+
     @Test func siteSwitchAndCreatorMode() {
         let s = shield()
         s.configure(enabled: true, supportCreators: true, disabledSites: ["off.example"], creatorSites: ["blog.example"])

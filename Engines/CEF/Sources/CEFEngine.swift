@@ -181,11 +181,15 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     // MARK: CEFRuntimeDelegate
 
     /// IO thread: only touches the lock-protected filter list.
-    nonisolated public func cefShouldBlockRequest(_ url: String, firstParty: String?, type: String) -> Bool {
-        guard let u = URL(string: url) else { return false }
+    nonisolated public func cefFilterRequest(_ url: String, firstParty: String?, type: String) -> String? {
+        guard let u = URL(string: url) else { return nil }
         let request = WebRequest(url: u, documentURL: firstParty.flatMap(URL.init(string:)),
                                  type: WebRequest.ResourceType(rawValue: type) ?? .other)
-        return hooks.evaluate(request) == .block
+        switch hooks.evaluate(request) {
+        case .allow: return nil
+        case .block: return ""
+        case .redirect(let target): return target == u ? nil : target.absoluteString
+        }
     }
 
     public func cefDownloadPath(forSuggestedName name: String, url: String?) -> String? {

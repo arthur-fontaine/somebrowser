@@ -163,8 +163,15 @@ nonisolated final class Shield: @unchecked Sendable {
     }
 
     func verdict(for request: WebRequest) -> RequestVerdict {
-        guard request.type != .document, let page = request.documentURL, ["http", "https"].contains(request.url.scheme),
-              shouldFilter(page: page) else { return .allow }
+        guard ["http", "https"].contains(request.url.scheme) else { return .allow }
+        // Navigations are never blocked, only cleaned of tracking parameters (`removeparam`).
+        if request.type == .document {
+            guard shouldFilter(page: request.url), let privacy = lock.withLock({ privacy }),
+                  case .rewrite(let clean) = privacy.check(url: request.url.absoluteString, source: request.url.absoluteString, type: "document")
+            else { return .allow }
+            return .redirect(clean)
+        }
+        guard let page = request.documentURL, shouldFilter(page: page) else { return .allow }
         let engines: [AdBlockEngine] = lock.withLock { [privacy] + (blocksAdsLocked(page) ? [ads] : []) }.compactMap { $0 }
         let type = Self.types[request.type] ?? "other"
         for engine in engines {

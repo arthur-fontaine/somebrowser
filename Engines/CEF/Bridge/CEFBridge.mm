@@ -74,7 +74,7 @@ static CefString CS(NSString *s) { return CefString(s ? s.UTF8String : ""); }
 - (void)registerTab:(CEFTab *)tab;
 - (void)unregisterTab:(CEFTab *)tab;
 - (CefRefPtr<CefDictionaryValue>)extraInfo;
-- (BOOL)shouldBlock:(const std::string &)url firstParty:(const std::string &)fp type:(const char *)type;
+- (nullable NSString *)filter:(const std::string &)url firstParty:(const std::string &)fp type:(const char *)type;
 - (void)chromeOpened:(NSString *)url;
 - (NSString *)downloadPathFor:(NSString *)name url:(NSString *)url;
 - (void)download:(CefRefPtr<CefDownloadItem>)item callback:(CefRefPtr<CefDownloadItemCallback>)callback;
@@ -104,7 +104,10 @@ public:
         if (url.rfind("http", 0) != 0 && url.rfind("ws", 0) != 0) return RV_CONTINUE;
         std::string fp = request->GetReferrerURL().ToString();
         if (frame) { std::string f = frame->GetURL().ToString(); if (!f.empty()) fp = f; }
-        if ([[CEFRuntime shared] shouldBlock:url firstParty:fp type:ResourceTypeName(request->GetResourceType())]) return RV_CANCEL;
+        NSString *verdict = [[CEFRuntime shared] filter:url firstParty:fp type:ResourceTypeName(request->GetResourceType())];
+        if (!verdict) return RV_CONTINUE;
+        if (verdict.length == 0) return RV_CANCEL;
+        request->SetURL(CS(verdict));  // an internal redirect: the new URL is filtered again
         return RV_CONTINUE;
     }
     IMPLEMENT_REFCOUNTING(FilterHandler);
@@ -867,12 +870,12 @@ private:
     return info;
 }
 
-- (BOOL)shouldBlock:(const std::string &)url firstParty:(const std::string &)fp type:(const char *)type {
+- (nullable NSString *)filter:(const std::string &)url firstParty:(const std::string &)fp type:(const char *)type {
     id<CEFRuntimeDelegate> d = self.delegate;
-    if (!d) return NO;
-    return [d cefShouldBlockRequest:[NSString stringWithUTF8String:url.c_str()]
-                         firstParty:fp.empty() ? nil : [NSString stringWithUTF8String:fp.c_str()]
-                               type:[NSString stringWithUTF8String:type]];
+    if (!d) return nil;
+    return [d cefFilterRequest:[NSString stringWithUTF8String:url.c_str()]
+                    firstParty:fp.empty() ? nil : [NSString stringWithUTF8String:fp.c_str()]
+                          type:[NSString stringWithUTF8String:type]];
 }
 
 - (void)chromeOpened:(NSString *)url { [self.delegate cefChromeOpenedURL:url]; }

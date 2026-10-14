@@ -46,8 +46,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @end
 
 @protocol CEFRuntimeDelegate <NSObject>
-/// Called on the IO thread for every request: must be fast and thread-safe. Return YES to block.
-- (BOOL)cefShouldBlockRequest:(NSString *)url firstParty:(nullable NSString *)firstParty type:(NSString *)type;
+/// Called on the IO thread for every request: must be fast and thread-safe. nil continues, an empty string
+/// blocks, any other string replaces the URL (e.g. tracking parameters removed).
+- (nullable NSString *)cefFilterRequest:(NSString *)url firstParty:(nullable NSString *)firstParty type:(NSString *)type;
 /// Where to save a download (UI thread). nil cancels.
 - (nullable NSString *)cefDownloadPathForSuggestedName:(NSString *)name url:(nullable NSString *)url;
 - (void)cefDownload:(uint32_t)identifier url:(NSString *)url path:(nullable NSString *)path received:(int64_t)received
