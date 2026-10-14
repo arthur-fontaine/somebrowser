@@ -44,9 +44,16 @@ enum Generator {
 
         var appDeps = ["\"BrowserCore\"", "\"BrowserShell\"", "\"\(p.engine.module)\""]
         for f in p.enabled {
-            let deps = (["BrowserCore"] + f.manifest.modules).map { "\"\($0)\"" }.joined(separator: ", ")
-            let linker = f.manifest.frameworks.isEmpty ? "" :
-                ", linkerSettings: [" + f.manifest.frameworks.map { ".linkedFramework(\"\($0)\")" }.joined(separator: ", ") + "]"
+            var modules = f.manifest.modules
+            var linkerSettings = f.manifest.frameworks.map { ".linkedFramework(\"\($0)\")" }
+            if let crate = f.manifest.cargo {
+                let dir = "\(f.directory)/\(crate)"
+                targets.append(".systemLibrary(name: \"\(f.targetName)Native\", path: \"\(dir)/include\")")
+                modules.append("\(f.targetName)Native")
+                linkerSettings.append(".unsafeFlags([\"-L\", \"\(p.root.appendingPathComponent(dir).path)/target/release\"])")
+            }
+            let deps = (["BrowserCore"] + modules).map { "\"\($0)\"" }.joined(separator: ", ")
+            let linker = linkerSettings.isEmpty ? "" : ", linkerSettings: [" + linkerSettings.joined(separator: ", ") + "]"
             let resources = exists(p, "\(f.directory)/Resources") ? ", resources: [.copy(\"../Resources\")]" : ""
             targets.append(".target(name: \"\(f.targetName)\", dependencies: [\(deps)], path: \"\(f.directory)/Sources\"\(resources), \(mainActor)\(linker))")
             if exists(p, "\(f.directory)/Tests") {

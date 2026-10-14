@@ -26,10 +26,13 @@ struct FeatureManifest: Codable, Equatable {
     var modules: [String] = []
     /// Linked system frameworks.
     var frameworks: [String] = []
+    /// A Rust crate (directory relative to the feature) built as a staticlib; its `include/` holds the C header
+    /// and a module map, imported as `<Target>Native`.
+    var cargo: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, summary, entry, provides, requires, optional, engines, replaces, enabledByDefault,
-             commands, settings, modules, frameworks
+             commands, settings, modules, frameworks, cargo
     }
 
     init(from decoder: Decoder) throws {
@@ -48,6 +51,7 @@ struct FeatureManifest: Codable, Equatable {
         settings = try c.decodeIfPresent([SettingSpec].self, forKey: .settings) ?? []
         modules = try c.decodeIfPresent([String].self, forKey: .modules) ?? []
         frameworks = try c.decodeIfPresent([String].self, forKey: .frameworks) ?? []
+        cargo = try c.decodeIfPresent(String.self, forKey: .cargo)
     }
 
     init(id: String, name: String, summary: String = "", entry: String) {

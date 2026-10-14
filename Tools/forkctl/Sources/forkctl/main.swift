@@ -155,6 +155,7 @@ struct CLI {
         try Generator.run(p)
         try validate(p)
         let config = release ? "release" : "debug"
+        try buildCrates(p)
         try Shell.run(["swift", "build", "-c", config, "--product", p.brand.executableName], cwd: root)
         if p.engine.bundler == "cef" {
             try Shell.run(["swift", "build", "-c", config, "--product", "BrowserHelper"], cwd: root)
@@ -162,6 +163,15 @@ struct CLI {
         let app = try Bundler.bundle(p, configuration: config)
         print("built \(app.path)")
         return app
+    }
+
+    /// Features' Rust crates, always optimized (they are dependencies, not code being debugged).
+    func buildCrates(_ p: Project) throws {
+        for f in p.enabled {
+            guard let crate = f.manifest.cargo else { continue }
+            let manifest = root.appendingPathComponent("\(f.directory)/\(crate)/Cargo.toml").path
+            try Shell.run(["cargo", "build", "--release", "--quiet", "--manifest-path", manifest], cwd: root)
+        }
     }
 
     func test(features ids: [String]) throws {
@@ -185,6 +195,7 @@ struct CLI {
             }
             cmd += ["--filter", targets.map { "^\($0)\\." }.joined(separator: "|")]
         }
+        try buildCrates(p)
         try Shell.run(cmd, cwd: root, env: env)
     }
 
