@@ -33,8 +33,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 - (BOOL)cefTab:(CEFTab *)tab shouldNavigateTo:(NSString *)url userGesture:(BOOL)gesture isRedirect:(BOOL)redirect;
 /// The page opened `newTab` (popup, target=_blank, ⌘-click, context menu "Open in New Tab").
 - (void)cefTab:(CEFTab *)tab didOpen:(CEFTab *)newTab url:(nullable NSString *)url disposition:(CEFDisposition)disposition userGesture:(BOOL)gesture;
-/// `window.__browser.post(name, body)`; `json` is `JSON.stringify(body)`.
-- (void)cefTab:(CEFTab *)tab message:(NSString *)name json:(NSString *)json;
+/// `window.__browser.post(name, body)`; `json` is `JSON.stringify(body)`. The sending frame is the browser
+/// process's view of it (not page-supplied).
+- (void)cefTab:(CEFTab *)tab message:(NSString *)name json:(NSString *)json mainFrame:(BOOL)mainFrame frameURL:(nullable NSString *)frameURL;
 - (void)cefTabRequestsClose:(CEFTab *)tab;
 - (void)cefTabDidCrash:(CEFTab *)tab;
 /// Key down with ⌘/⌃ before the page sees it. Return YES when the browser consumed it (menu shortcut).

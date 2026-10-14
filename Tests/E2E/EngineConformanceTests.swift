@@ -10,6 +10,7 @@ struct EngineConformanceTests {
         "/one": "<!doctype html><title>One</title><body><a id='next' href='/two'>two</a><p>needle needle</p>",
         "/two": "<!doctype html><title>Two</title><body>second page</body>",
         "/three": "<!doctype html><title>Three</title><body>third</body>",
+        "/spoof": "<!doctype html><title>Spoof</title><script>setInterval(() => { if (window.__browser) for (let i = 0; i < 200; i++) window.__browser.post('__eval', { id: i, ok: true, value: 'spoofed' }); }, 5);</script><body>spoof</body>",
         "/strict": "<!doctype html><meta http-equiv='Content-Security-Policy' content=\"script-src 'none'; require-trusted-types-for 'script'\"><title>Strict</title><body>strict</body>",
     ]
 
@@ -34,6 +35,15 @@ struct EngineConformanceTests {
         try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.title == "Strict" } }
         #expect(try app.eval("document.title + ':' + (1 + 1)") as? String == "Strict:2")
         #expect(try app.eval("({ a: [1, 'x'] }).a.length") as? String == "2")
+        try app.quit()
+    }
+
+    /// Pages can post anything, including the engine's own eval replies: results must come from the engine.
+    @Test func pagesCannotForgeEvalResults() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/spoof"))
+        try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.title == "Spoof" } }
+        for _ in 0..<5 { #expect(try app.eval("21 * 2") as? String == "42") }
         try app.quit()
     }
 

@@ -239,12 +239,21 @@ public:
         [tab_.delegate cefTabDidCrash:tab_];
     }
 
-    // Messages from the renderer helper (window.__browser.post).
+    // Messages from the renderer helper: page posts (window.__browser.post) and eval results. The sending
+    // frame comes from the browser process, so pages can't lie about it.
     bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefProcessId source,
                                   CefRefPtr<CefProcessMessage> message) override {
-        if (message->GetName() != "browser.post") return false;
         CefRefPtr<CefListValue> args = message->GetArgumentList();
-        [tab_.delegate cefTab:tab_ message:NS(args->GetString(0)) json:NS(args->GetString(1))];
+        BOOL main = frame && frame->IsMain();
+        NSString *frameURL = frame ? NS(frame->GetURL()) : nil;
+        if (message->GetName() == "browser.evalResult") {
+            [tab_.delegate cefTab:tab_ message:@"__eval" json:NS(args->GetString(0)) mainFrame:main frameURL:frameURL];
+            return true;
+        }
+        if (message->GetName() != "browser.post") return false;
+        NSString *name = NS(args->GetString(0));
+        if ([name isEqualToString:@"__eval"]) return true;  // only the renderer answers evals
+        [tab_.delegate cefTab:tab_ message:name json:NS(args->GetString(1)) mainFrame:main frameURL:frameURL];
         return true;
     }
 

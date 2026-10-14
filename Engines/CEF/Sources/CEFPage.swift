@@ -188,7 +188,7 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         delegate?.engineTab(self, didOpen: page, url: url.flatMap(URL.init(string:)), disposition: d, userGesture: gesture)
     }
 
-    func cefTab(_ tab: CEFTab, message name: String, json: String) {
+    func cefTab(_ tab: CEFTab, message name: String, json: String, mainFrame: Bool, frameURL: String?) {
         let body = (try? JSONSerialization.jsonObject(with: Data(json.utf8), options: [.fragmentsAllowed])) ?? NSNull()
         switch name {
         case "__eval":
@@ -200,7 +200,7 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
             state.isPlayingAudio = d?["audio"] as? Bool ?? false
             state.isPlayingVideo = d?["video"] as? Bool ?? false
         default:
-            engine?.hooks.messageHandlers[name]?(self, body)
+            engine?.hooks.dispatch(name, from: self, ScriptMessage(body: body, isMainFrame: mainFrame, frameURL: frameURL.flatMap(URL.init(string:))))
         }
     }
 

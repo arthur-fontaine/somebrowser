@@ -52,11 +52,11 @@ static std::string Quote(const std::string &s) {
     return out + "\"";
 }
 
+/// Eval results travel as their own process message: page script can only produce `browser.post`.
 static void ReplyEval(CefRefPtr<CefFrame> frame, int id, bool ok, const std::string &valueOrError) {
     std::string json = "{\"id\":" + std::to_string(id) + ",\"ok\":" + (ok ? "true,\"value\":" + valueOrError : "false,\"error\":" + Quote(valueOrError)) + "}";
-    CefRefPtr<CefProcessMessage> message = CefProcessMessage::Create("browser.post");
-    message->GetArgumentList()->SetString(0, "__eval");
-    message->GetArgumentList()->SetString(1, json);
+    CefRefPtr<CefProcessMessage> message = CefProcessMessage::Create("browser.evalResult");
+    message->GetArgumentList()->SetString(0, json);
     frame->SendProcessMessage(PID_BROWSER, message);
 }
 

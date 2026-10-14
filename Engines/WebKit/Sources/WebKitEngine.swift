@@ -118,7 +118,8 @@ public final class WebKitEngine: BrowserEngine {
         guard let body = message.body as? [String: Any], let name = body["name"] as? String,
               let webView = message.webView, let tab = liveTabs.allObjects.first(where: { $0.webView === webView }) else { return }
         if name.hasPrefix("__") { tab.handleInternalMessage(name, body: body["body"]); return }
-        hooks.messageHandlers[name]?(tab, body["body"] ?? NSNull())
+        hooks.dispatch(name, from: tab, ScriptMessage(body: body["body"] ?? NSNull(), isMainFrame: message.frameInfo.isMainFrame,
+                                                      frameURL: message.frameInfo.request.url))
     }
 
     /// `window.__browser.post(name, body)` in every world.

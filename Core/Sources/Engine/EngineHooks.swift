@@ -45,10 +45,19 @@ public final class EngineHooks {
         onUserScriptsChanged?()
     }
 
-    /// Messages posted from pages with `window.__browser.post(name, body)`.
-    public private(set) var messageHandlers: [String: (EngineTab, Any) -> Void] = [:]
+    /// Messages posted from pages with `window.__browser.post(name, body)`. Any page script can post any
+    /// name and body: treat the body as untrusted input.
+    public private(set) var messageHandlers: [String: (EngineTab, ScriptMessage) -> Void] = [:]
     public func handleMessages(named name: String, _ handler: @escaping (EngineTab, Any) -> Void) {
+        messageHandlers[name] = { tab, message in handler(tab, message.body) }
+    }
+    /// Same, with the sender as the engine saw it: use for flows where identity matters (credentials, site policy).
+    public func handleFrameMessages(named name: String, _ handler: @escaping (EngineTab, ScriptMessage) -> Void) {
         messageHandlers[name] = handler
+    }
+    /// Called by engines.
+    public func dispatch(_ name: String, from tab: EngineTab, _ message: ScriptMessage) {
+        messageHandlers[name]?(tab, message)
     }
 
     // MARK: Navigation
@@ -98,6 +107,21 @@ public final class EngineHooks {
 
     /// Brand token appended to the engine's user agent (from `Brand.userAgentBrand` by default).
     public var userAgentBrand: String?
+}
+
+/// A page message and its sender, as reported by the engine (never by the page).
+public struct ScriptMessage {
+    public var body: Any
+    /// Sent by the tab's top-level document (not an iframe).
+    public var isMainFrame: Bool
+    /// URL of the sending frame's document.
+    public var frameURL: URL?
+
+    public init(body: Any, isMainFrame: Bool, frameURL: URL?) {
+        self.body = body
+        self.isMainFrame = isMainFrame
+        self.frameURL = frameURL
+    }
 }
 
 public typealias RequestFilter = @Sendable (WebRequest) -> RequestVerdict

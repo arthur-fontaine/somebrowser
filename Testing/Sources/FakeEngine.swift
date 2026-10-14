@@ -147,8 +147,9 @@ public final class FakeEngineTab: EngineTab {
         state.isPlayingAudio = audio
         state.isPlayingVideo = video
     }
-    public func simulateScriptMessage(_ name: String, body: Any) {
-        engine?.hooks.messageHandlers[name]?(self, body)
+    /// A page message; `frameURL` defaults to the tab's URL (or an iframe's when `mainFrame` is false).
+    public func simulateScriptMessage(_ name: String, body: Any, mainFrame: Bool = true, frameURL: URL? = nil) {
+        engine?.hooks.dispatch(name, from: self, ScriptMessage(body: body, isMainFrame: mainFrame, frameURL: frameURL ?? state.url))
     }
 }
 
