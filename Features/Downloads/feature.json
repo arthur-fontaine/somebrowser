@@ -1,0 +1,16 @@
+{
+  "id": "downloads",
+  "name": "Downloads",
+  "summary": "Downloads fly into the sidebar, show progress, and announce themselves with a toast.",
+  "entry": "DownloadsFeature",
+  "provides": ["downloads"],
+  "commands": [
+    { "id": "downloads.show", "title": "Show Downloads", "shortcut": "cmd+shift+j", "menu": "Tools", "group": "panels", "order": 1 },
+    { "id": "downloads.open-folder", "title": "Open Downloads Folder", "menu": "Tools", "group": "panels", "order": 2 },
+    { "id": "downloads.clear", "title": "Clear Downloads List", "menu": "Tools", "group": "panels", "order": 3 }
+  ],
+  "settings": [
+    { "key": "downloads.askWhereToSave", "title": "Ask where to save each file", "type": "bool", "default": false },
+    { "key": "downloads.flyAnimation", "title": "Animate new downloads into the sidebar", "type": "bool", "default": true }
+  ]
+}
