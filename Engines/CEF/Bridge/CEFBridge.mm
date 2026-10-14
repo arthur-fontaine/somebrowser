@@ -15,6 +15,7 @@
 #include "include/cef_application_mac.h"
 #include "include/cef_client.h"
 #include "include/cef_parser.h"
+#include "include/cef_color_ids.h"
 #include "include/cef_stream.h"
 #include "include/wrapper/cef_stream_resource_handler.h"
 #include "include/views/cef_box_layout.h"
@@ -429,13 +430,29 @@ private:
     IMPLEMENT_REFCOUNTING(ViewDelegate);
 };
 
+static const cef_color_t kPageBackground = CefColorSetARGB(255, 255, 255, 255);
+
 /// The page window: frameless, never shown by CEF (the Swift viewport orders it in as a child window).
 class PageWindowDelegate : public CefWindowDelegate {
 public:
     PageWindowDelegate(CEFTab *tab, CefRefPtr<CefBrowserView> view) : tab_(tab), view_(view) {}
     void OnWindowCreated(CefRefPtr<CefWindow> window) override {
         window_ = window;
+        SetPageColors(window);
+        window->ThemeChanged();
         window->AddChildView(view_);
+    }
+    /// Chrome's theme gives pages without a background its web-contents color: dark gray in Dark Mode. Pages
+    /// stay white, as in Safari (they still get `prefers-color-scheme: dark` to style themselves).
+    void OnThemeColorsChanged(CefRefPtr<CefWindow> window, bool chromeTheme) override {
+        SetPageColors(window);
+    }
+    /// Pages render with a transparent canvas here, over the window's primary background (dark gray in Dark
+    /// Mode): pages without a background stay white, as in Safari. Only this window's views are affected (its page
+    /// and the invisible toolbar); Chrome's bubbles are separate widgets with the normal theme.
+    static void SetPageColors(CefRefPtr<CefWindow> window) {
+        window->SetThemeColor(CEF_ColorPrimaryBackground, kPageBackground);
+        window->SetThemeColor(CEF_ColorWebContentsBackground, kPageBackground);
     }
     void OnWindowDestroyed(CefRefPtr<CefWindow> window) override { view_ = nullptr; window_ = nullptr; }
     bool IsFrameless(CefRefPtr<CefWindow>) override { return true; }
@@ -485,6 +502,7 @@ private:
     if ((self = [self initDetachedPopup])) {
         _delegate = delegate;
         CefBrowserSettings settings;
+        settings.background_color = CefColorSetARGB(255, 255, 255, 255);
         CefRefPtr<CefBrowserView> view = CefBrowserView::CreateBrowserView(_client, CS(url ?: @""), settings,
                                                                            [[CEFRuntime shared] extraInfo], nullptr, _viewDelegate);
         [self attachBrowserView:view];
@@ -522,6 +540,7 @@ private:
 - (void)browserCreated:(CefRefPtr<CefBrowser>)browser {
     if (_browser) return;
     _browser = browser;
+
     NSArray *pending = [_pending copy];
     [_pending removeAllObjects];
     for (void (^block)(void) in pending) block();
@@ -854,6 +873,8 @@ private:
     CefMainArgs args(*_NSGetArgc(), *_NSGetArgv());
     CefSettings settings;
     settings.no_sandbox = true;
+    // Pages without a background are white, as in Chrome and Safari (CEF's default follows the dark theme).
+    settings.background_color = CefColorSetARGB(255, 255, 255, 255);
     settings.persist_session_cookies = true;
     CefString(&settings.root_cache_path) = CS(path);
     CefString(&settings.cache_path) = CS([path stringByAppendingPathComponent:@"Default"]);
