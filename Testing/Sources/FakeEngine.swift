@@ -1,0 +1,137 @@
+import AppKit
+import BrowserCore
+import Foundation
+
+/// In-memory engine for unit tests: navigation, titles, popups and media are simulated synchronously.
+public final class FakeEngine: BrowserEngine {
+    public let id = "fake"
+    public var capabilities: EngineCapabilities = [.requestBlocking, .reparentableViews]
+    public let hooks = EngineHooks()
+    public private(set) var createdTabs: [FakeEngineTab] = []
+    public private(set) var viewports: [FakeViewport] = []
+
+    public init(options: [String: SettingValue] = [:]) {}
+
+    public func bootstrap(profileDirectory: URL) throws {}
+    public func runMainLoop(ready: @escaping () -> Void) { ready() }
+
+    public func makeViewport(in container: NSView) -> EngineViewport {
+        let v = FakeViewport()
+        viewports.append(v)
+        return v
+    }
+
+    public func makeTab(_ request: EngineTabRequest) -> EngineTab {
+        let t = FakeEngineTab(engine: self)
+        createdTabs.append(t)
+        if let url = request.url { t.load(url) }
+        return t
+    }
+
+    public func shutdown(completion: @escaping () -> Void) { completion() }
+
+    /// Applies the request filters exactly like a real engine would.
+    public func simulateRequest(_ url: URL, type: WebRequest.ResourceType = .script, documentURL: URL? = nil) -> RequestVerdict {
+        hooks.evaluate(WebRequest(url: url, documentURL: documentURL, type: type))
+    }
+}
+
+public final class FakeViewport: EngineViewport {
+    public private(set) var presentedTab: EngineTab?
+    public private(set) var presentCount = 0
+    public private(set) var focusCount = 0
+
+    public func present(_ tab: EngineTab?) {
+        presentedTab = tab
+        presentCount += 1
+    }
+    public func layoutDidChange() {}
+    public func focusContent() { focusCount += 1 }
+    public func tearDown() { presentedTab = nil }
+}
+
+public final class FakeEngineTab: EngineTab {
+    public let state = EngineTabState()
+    public weak var delegate: EngineTabDelegate?
+    public private(set) weak var engine: FakeEngine?
+    public private(set) var history: [URL] = []
+    public private(set) var historyIndex = -1
+    public private(set) var evaluatedScripts: [String] = []
+    public private(set) var isClosed = false
+    public var zoomFactor: Double = 1
+    public var isMuted = false { didSet { state.isMuted = isMuted } }
+    /// Value returned by `evaluateJavaScript`.
+    public var scriptResult: Any?
+
+    init(engine: FakeEngine) { self.engine = engine }
+
+    public func load(_ url: URL) {
+        if engine?.hooks.decide(NavigationAction(url: url, sourceTab: self)) == .some(.cancel) { return }
+        history = Array(history.prefix(historyIndex + 1)) + [url]
+        historyIndex = history.count - 1
+        commit(url)
+    }
+
+    public func loadHTML(_ html: String, baseURL: URL?) {
+        state.url = baseURL
+        state.title = ""
+    }
+
+    private func commit(_ url: URL) {
+        state.url = url
+        state.title = url.host() ?? url.absoluteString
+        state.canGoBack = historyIndex > 0
+        state.canGoForward = historyIndex < history.count - 1
+        state.security = url.scheme == "https" ? .secure : .insecure
+        delegate?.engineTab(self, didCommit: url)
+        delegate?.engineTabDidFinishLoad(self)
+    }
+
+    public func goBack() { guard historyIndex > 0 else { return }; historyIndex -= 1; commit(history[historyIndex]) }
+    public func goForward() { guard historyIndex < history.count - 1 else { return }; historyIndex += 1; commit(history[historyIndex]) }
+    public func reload(bypassingCache: Bool) { if let u = state.url { commit(u) } }
+    public func stopLoading() { state.isLoading = false }
+
+    public func evaluateJavaScript(_ source: String, completion: ((Result<Any?, Error>) -> Void)?) {
+        evaluatedScripts.append(source)
+        completion?(.success(scriptResult))
+    }
+
+    public func find(_ text: String, forward: Bool, caseSensitive: Bool) {
+        state.findResult = FindResult(matches: text.isEmpty ? 0 : 3, activeIndex: forward ? 1 : 3)
+    }
+    public func stopFinding() { state.findResult = nil }
+    public func showDevTools() {}
+    public func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void) { completion(nil) }
+
+    public func restorationData() -> Data? {
+        try? JSONEncoder().encode(["urls": history.map(\.absoluteString), "index": [String(historyIndex)]])
+    }
+
+    public func close() { isClosed = true }
+
+    // MARK: Simulation
+
+    /// The page opens a link in a new tab / popup.
+    @discardableResult
+    public func simulateOpen(_ url: URL, disposition: OpenDisposition = .foregroundTab, userGesture: Bool = true) -> FakeEngineTab {
+        let t = FakeEngineTab(engine: engine!)
+        engine?.recordCreated(t)
+        delegate?.engineTab(self, didOpen: t, url: url, disposition: disposition, userGesture: userGesture)
+        t.load(url)
+        return t
+    }
+
+    public func simulateTitle(_ title: String) { state.title = title }
+    public func simulateMedia(audio: Bool, video: Bool) {
+        state.isPlayingAudio = audio
+        state.isPlayingVideo = video
+    }
+    public func simulateScriptMessage(_ name: String, body: Any) {
+        engine?.hooks.messageHandlers[name]?(self, body)
+    }
+}
+
+extension FakeEngine {
+    func recordCreated(_ t: FakeEngineTab) { createdTabs.append(t) }
+}
