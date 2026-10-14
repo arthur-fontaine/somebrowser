@@ -170,7 +170,8 @@ struct CLI {
         for f in p.enabled {
             guard let crate = f.manifest.cargo else { continue }
             let manifest = root.appendingPathComponent("\(f.directory)/\(crate)/Cargo.toml").path
-            try Shell.run(["cargo", "build", "--release", "--quiet", "--manifest-path", manifest], cwd: root)
+            // --locked: dependencies are exactly the committed Cargo.lock (no silent drift).
+            try Shell.run(["cargo", "build", "--release", "--quiet", "--locked", "--manifest-path", manifest], cwd: root)
         }
     }
 
