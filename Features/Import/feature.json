@@ -1,0 +1,10 @@
+{
+  "id": "import",
+  "name": "Import",
+  "summary": "Bookmarks, history and extensions from Chrome, Arc, Dia, Atlas, Helium and other Chromium browsers.",
+  "entry": "ImportFeature",
+  "optional": ["history"],
+  "commands": [
+    { "id": "import.open", "title": "Import from Another Browser…", "menu": "File", "group": "import", "order": 1, "keywords": ["switch", "migrate", "chrome", "arc"] }
+  ]
+}
