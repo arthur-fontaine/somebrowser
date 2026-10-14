@@ -104,7 +104,23 @@ nonisolated public final class AppDriver: @unchecked Sendable {
         _ = try? call(["op": "quit"])
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
-        if process.isRunning { throw DriverError.timeout("app did not exit in \(timeout)s") }
+        if process.isRunning { throw DriverError.timeout("app did not exit in \(timeout)s\n\(mainThreadSample())") }
+    }
+
+    /// Main-thread stack of the running app (via `sample`), so a hang is diagnosable from the test log.
+    public func mainThreadSample() -> String {
+        let sampler = Process()
+        sampler.executableURL = URL(fileURLWithPath: "/usr/bin/sample")
+        sampler.arguments = [String(process.processIdentifier), "1"]
+        let pipe = Pipe()
+        sampler.standardOutput = pipe
+        sampler.standardError = FileHandle.nullDevice
+        guard (try? sampler.run()) != nil else { return "" }
+        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        sampler.waitUntilExit()
+        let lines = output.components(separatedBy: "\n")
+        guard let start = lines.firstIndex(where: { $0.contains("com.apple.main-thread") }) else { return "" }
+        return lines[start..<min(start + 40, lines.count)].joined(separator: "\n")
     }
 
     public static var executableFromEnvironment: String? { ProcessInfo.processInfo.environment["BROWSER_E2E_APP"] }
