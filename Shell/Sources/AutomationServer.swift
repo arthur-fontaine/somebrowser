@@ -136,8 +136,13 @@ final class AutomationServer {
                 return out
             }
             let key = NSApp.keyWindow
+            // Every app window front to back, with its parent: page, overlay and engine bubble composition.
+            let windows: [[String: Any]] = NSApp.orderedWindows.map { w in
+                ["number": w.windowNumber, "class": String(describing: type(of: w)), "frame": NSStringFromRect(w.frame),
+                 "parent": w.parent?.windowNumber ?? 0, "visible": w.isVisible, "level": w.level.rawValue, "alpha": w.alphaValue]
+            }
             reply(["ok": true, "views": dump(root, 0), "children": ns.childWindows?.map { NSStringFromRect($0.frame) } ?? [],
-                   "keyWindow": key.map { "\(type(of: $0))#\($0.identifier?.rawValue ?? "")" } ?? NSNull()])
+                   "windows": windows, "keyWindow": key.map { "\(type(of: $0))#\($0.identifier?.rawValue ?? "")" } ?? NSNull()])
         case "quit":
             reply(["ok": true])
             NSApp.terminate(nil)
@@ -161,6 +166,9 @@ final class AutomationServer {
         return [
             "engine": runtime.engine.id,
             "features": runtime.activationOrder,
+            "extensions": ((runtime.engine as? EngineExtensions)?.installedExtensions ?? []).map {
+                ["id": $0.id, "name": $0.name, "pinned": $0.isPinned]
+            },
             "windows": runtime.windows.map { w in
                 [
                     "id": w.id.uuidString,

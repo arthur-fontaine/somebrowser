@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "E2E ActiveTab",
+  "version": "1.0",
+  "description": "Test fixture: its popup can only touch the page if the action click granted activeTab.",
+  "permissions": ["activeTab", "scripting"],
+  "action": { "default_popup": "popup.html", "default_title": "E2E ActiveTab" }
+}

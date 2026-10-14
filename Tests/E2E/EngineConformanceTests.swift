@@ -103,6 +103,33 @@ struct EngineConformanceTests {
         try? FileManager.default.removeItem(at: log)
     }
 
+    /// Extension actions run through Chrome's own toolbar path: the fixture's popup (activeTab + scripting, no host
+    /// permissions) can only retitle the page if the click granted activeTab, and the popup must be in front of the page.
+    @Test func extensionActionGetsActiveTab() throws {
+        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/ActiveTabExtension")
+        let server = try TestHTTPServer(pages: Self.pages)
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, arguments: ["--load-extension=\(fixture.path)"])
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        var id: String?
+        // Chrome batches preference writes (~10 s); the engine lists extensions once they are on disk.
+        try app.waitUntil(timeout: 30) {
+            id = (try app.state()["extensions"] as? [[String: Any]])?.first { $0["name"] as? String == "E2E ActiveTab" }?["id"] as? String
+            return id != nil
+        }
+        try app.run("extensions.run", ["id": id!])
+        try app.waitUntil(timeout: 10) { try app.eval("document.title") as? String == "granted" }
+        // Front-to-back: an engine bubble (the popup) comes before the page window.
+        let windows = try app.call(["op": "views"])["windows"] as? [[String: Any]] ?? []
+        let page = windows.firstIndex { $0["class"] as? String == "CefNSWindow" && $0["visible"] as? Bool == true }
+        let popup = windows.firstIndex { $0["class"] as? String == "NativeWidgetMacNSWindow" && $0["visible"] as? Bool == true
+            && !(($0["frame"] as? String ?? "").contains("{1, 1}")) }
+        #expect(page != nil && popup != nil && popup! < page!, "windows: \(windows)")
+        try app.quit()
+    }
+
     @Test func quitsCleanly() throws {
         let (app, _) = try launch()
         try app.quit(timeout: 8)
