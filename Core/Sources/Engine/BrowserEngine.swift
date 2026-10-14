@@ -91,3 +91,17 @@ public struct EngineTabRequest {
         self.isPrivate = isPrivate
     }
 }
+
+/// Optional: engines whose tab content can leave the window (system-wide Picture in Picture, Peek).
+public protocol EngineFloating: AnyObject {
+    /// Takes the tab's content out of its window. `.view` must be embedded by the caller;
+    /// `.window` is an engine-owned window the caller may restyle (CEF hosts pages in their own windows).
+    func detachForFloating(_ tab: EngineTab) -> FloatingContent?
+    /// Gives the content back; the next `EngineViewport.present` shows it in the browser window again.
+    func reattachAfterFloating(_ tab: EngineTab)
+}
+
+public enum FloatingContent {
+    case view(NSView)
+    case window(NSWindow)
+}
