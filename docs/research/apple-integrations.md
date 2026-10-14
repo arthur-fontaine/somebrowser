@@ -60,9 +60,10 @@ sandboxed (Safari sync needs Full Disk Access anyway).
   (`cloud_tab_devices`, `cloud_tabs`), `SafariTabs.db` (profiles, tab groups).
 - Read: FSEvents on directories (atomic replace), SQLite read-only/immutable or copy with
   WAL, debounce + diff by UUID/URL. Optional AppleScript `sync all plist to disk`.
-- Write: only AppleScript `add reading list item` is supported. Direct `Bookmarks.plist` edits
-  (Safari quit, nodes without `Sync`) are unverified and may be overwritten by iCloud — ship behind
-  an "experimental write-back" flag with backups.
+- Write (mandatory, Radian does it): only AppleScript `add reading list item` is a documented route.
+  Bookmark/favorite write-back goes through `Bookmarks.plist` edits coordinated with
+  `SafariBookmarksSyncAgent` (backups first, verify round-trip to iPhone experimentally and lock
+  the working recipe into an integration test).
 
 ## 4. System-wide PiP
 

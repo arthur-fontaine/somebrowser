@@ -96,5 +96,9 @@ Tools/forkctl/  generator + verbs
 4. Overlays over web content, fullscreen, PiP.
 5. adblock-rust bridge (<1 ms p99 per request).
 
-Known risks: no H.264/AAC in prebuilt CEF; Chrome Web Store install unverified; Apple Passwords
-API surface; Safari sync access.
+Known risks: no H.264/AAC in prebuilt CEF; Chrome Web Store install unverified.
+
+**Not risks — mandatory features (user decision, 2026-10-14):** Apple Passwords (autofill, save,
+generation) and two-way Safari sync. Radian ships both, so they are proven possible; the work is
+engineering (Passwords helper protocol client, Safari data formats + write-back), not a go/no-go
+question. See `docs/research/apple-integrations.md` for the implementation routes.
