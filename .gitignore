@@ -10,8 +10,4 @@
 /.swiftpm/
 /Native/*/target/
 
-# Fork overlay lives only in forks
-# (kept out of upstream on purpose; forks remove this line)
-/Fork/
-
 .DS_Store
