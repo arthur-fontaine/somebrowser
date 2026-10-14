@@ -25,8 +25,7 @@ struct BrowserWindowView: View {
                     SlotHost(.toolbar, window: window)
                     content
                 }
-                .padding(.top, window.isSidebarVisible || window.isFullscreen ? Self.contentInset : 0)
-                .padding([.bottom, .trailing], Self.contentInset)
+                .padding([.top, .bottom, .trailing], Self.contentInset)
                 .padding(.leading, window.isSidebarVisible ? 0 : Self.contentInset)
             }
             SlotHost(.overlay, window: window)

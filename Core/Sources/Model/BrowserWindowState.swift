@@ -22,6 +22,8 @@ public final class BrowserWindowState: Identifiable {
     public var isKeyWindow = false
     /// Arbitrary per-window flags features need (e.g. "command-bar.open"), observable.
     public var flags: Set<String> = []
+    /// Features that need the traffic lights visible while the sidebar is hidden (toolbar, peek…).
+    public var titlebarRequests: Set<String> = []
 
     /// Most-recently-used tabs, newest first (Ctrl-Tab, selection after close).
     @ObservationIgnored public internal(set) var mru: [NodeID] = []

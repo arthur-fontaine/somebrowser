@@ -48,6 +48,30 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         hosting.sizingOptions = []
         window.contentView = hosting
         self.hosting = hosting
+        observeChrome()
+    }
+
+    /// Arc hides the traffic lights with the sidebar; they come back when something needs the titlebar.
+    private func observeChrome() {
+        withObservationTracking {
+            _ = state.isSidebarVisible
+            _ = state.isSidebarPeeking
+            _ = state.titlebarRequests
+        } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                self?.updateTrafficLights()
+                self?.observeChrome()
+            }
+        }
+        updateTrafficLights()
+    }
+
+    private func updateTrafficLights() {
+        let hasSidebar = !runtime.ui.views(for: .sidebar).isEmpty
+        let visible = !hasSidebar || state.isSidebarVisible || state.isSidebarPeeking || !state.titlebarRequests.isEmpty || state.isFullscreen
+        for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            window?.standardWindowButton(kind)?.isHidden = !visible
+        }
     }
 
     required init?(coder: NSCoder) { fatalError() }
