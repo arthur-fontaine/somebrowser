@@ -1,0 +1,15 @@
+{
+  "id": "find",
+  "name": "Find in Page",
+  "summary": "Native find bar with match count, next/previous and selection search.",
+  "entry": "FindFeature",
+  "commands": [
+    { "id": "find.show", "title": "Find…", "shortcut": "cmd+f", "menu": "Edit", "group": "find", "order": 1 },
+    { "id": "find.next", "title": "Find Next", "shortcut": "cmd+g", "menu": "Edit", "group": "find", "order": 2 },
+    { "id": "find.previous", "title": "Find Previous", "shortcut": "cmd+shift+g", "menu": "Edit", "group": "find", "order": 3 },
+    { "id": "find.hide", "title": "Hide Find Bar", "menu": "Edit", "group": "find", "order": 4, "palette": false }
+  ],
+  "settings": [
+    { "key": "find.caseSensitive", "title": "Case-sensitive find", "type": "bool", "default": false }
+  ]
+}
