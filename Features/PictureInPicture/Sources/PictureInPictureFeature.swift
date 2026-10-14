@@ -68,12 +68,14 @@ public final class PictureInPictureFeature: BrowserFeature {
         session = PiPSession(feature: self, tabID: tab.id, engineTab: engineTab, content: content, isCall: isCall,
                              windowID: window.id, startFrame: startFrame,
                              width: CGFloat(max(240, context.settings.int("pip.width"))))
+        context.runtime.holdAwake(tab.id, reason: "pip")
     }
 
     /// `expand` brings the user back to the tab; otherwise the video pauses and the tab stays where it was.
     func close(expand: Bool, reselecting: Bool = false) {
         guard let s = session else { return }
         session = nil
+        context.runtime.releaseAwake(s.tabID, reason: "pip")
         s.tearDown(pause: !expand && !reselecting)
         (context.engine as? EngineFloating)?.reattachAfterFloating(s.engineTab)
         if expand {

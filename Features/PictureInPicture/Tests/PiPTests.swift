@@ -62,6 +62,22 @@ struct PiPFeatureTests {
         #expect(!feature.shouldPopOut(video))
     }
 
+    /// A floating video's tab never hibernates, and stops being held once it's back.
+    @Test func floatingTabIsHeldAwake() throws {
+        let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(PictureInPictureFeature.self))
+        let video = h.openTab("https://video.example/watch")
+        h.fakeTab(video).simulateMedia(audio: true, video: true)
+        feature.popOut(video, from: h.window)
+        #expect(h.runtime.isHeldAwake(video.id))
+        _ = h.openTab("https://other.example")
+        h.runtime.discard(video)
+        #expect(video.isLoaded)
+        feature.close(expand: false)
+        #expect(!h.runtime.isHeldAwake(video.id))
+        #expect(h.engine.floatingTabs.isEmpty)
+    }
+
     @Test func callsFollowTheirOwnSetting() throws {
         let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)
         let feature = try #require(h.runtime.feature(PictureInPictureFeature.self))

@@ -3,7 +3,7 @@ import BrowserCore
 import Foundation
 
 /// In-memory engine for unit tests: navigation, titles, popups, media and extensions are simulated synchronously.
-public final class FakeEngine: BrowserEngine, EngineExtensions {
+public final class FakeEngine: BrowserEngine, EngineExtensions, EngineFloating {
     public let id = "fake"
     public var capabilities: EngineCapabilities = [.requestBlocking, .reparentableViews]
     public let hooks = EngineHooks()
@@ -30,6 +30,17 @@ public final class FakeEngine: BrowserEngine, EngineExtensions {
     }
 
     public func shutdown(completion: @escaping () -> Void) { completion() }
+
+    // MARK: Floating
+
+    public private(set) var floatingTabs: [ObjectIdentifier] = []
+
+    public func detachForFloating(_ tab: EngineTab) -> FloatingContent? {
+        floatingTabs.append(ObjectIdentifier(tab))
+        return .view(NSView())
+    }
+
+    public func reattachAfterFloating(_ tab: EngineTab) { floatingTabs.removeAll { $0 == ObjectIdentifier(tab) } }
 
     // MARK: Extensions (simulated)
 
