@@ -117,6 +117,17 @@ final class AutomationServer {
             }
             runtime.settings.set(key, value)
             reply(["ok": true])
+        case "views":
+            // View hierarchy of the key browser window: class, frame, hidden — for layout tests and debugging.
+            guard let w = window, let ns = shell?.nsWindow(for: w), let root = ns.contentView else { return reply(["ok": false, "error": "no window"]) }
+            func dump(_ v: NSView, _ depth: Int) -> [[String: Any]] {
+                guard depth < 40 else { return [] }
+                var out: [[String: Any]] = [["depth": depth, "class": String(describing: type(of: v)),
+                                             "frame": NSStringFromRect(v.frame), "hidden": v.isHidden]]
+                for sub in v.subviews { out += dump(sub, depth + 1) }
+                return out
+            }
+            reply(["ok": true, "views": dump(root, 0), "children": ns.childWindows?.map { NSStringFromRect($0.frame) } ?? []])
         case "quit":
             reply(["ok": true])
             NSApp.terminate(nil)
