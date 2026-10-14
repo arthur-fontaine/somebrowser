@@ -43,7 +43,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Instant hover hitbox + spring insert/close animations (R)
 - [x] Spaces with themes; two-finger swipe to switch with interactive spring (R, A)
 - [x] Auto-archive idle Today tabs (12 h default) + searchable archive (A)
-- [ ] Tab discarding / hibernation (U perf)
+- [x] Tab hibernation: idle background tabs (default 1h) and memory pressure; woken tabs keep back/forward (U perf)
 
 ## 3. Chrome & layout
 - [x] ⌘S hide sidebar → almost fullscreen; edge-hover reveals sidebar overlay (A, H shelf)
