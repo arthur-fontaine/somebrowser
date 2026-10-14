@@ -59,7 +59,15 @@ public final class ExtensionsFeature: BrowserFeature {
 
 @Observable
 final class ExtensionsModel {
-    var extensions: [BrowserExtension] = []
+    var extensions: [BrowserExtension] = [] {
+        didSet {
+            // Decoded once per change, never while the sidebar renders.
+            icons = Dictionary(uniqueKeysWithValues: extensions.compactMap { ext in
+                (ext.icon.flatMap { icons[ext.id] ?? NSImage(contentsOf: $0) }).map { (ext.id, $0) }
+            })
+        }
+    }
+    private(set) var icons: [String: NSImage] = [:]
     var pinned: [BrowserExtension] { extensions.filter(\.isPinned) }
 }
 
@@ -74,23 +82,27 @@ struct ExtensionButtons: View {
         if !model.extensions.isEmpty {
             HStack(spacing: 0) {
                 if showPinned {
-                    ForEach(model.pinned) { ext in ExtensionIcon(ext: ext) { run(ext.id) } }
+                    ForEach(model.pinned) { ext in
+                        ExtensionIcon(title: ext.name, image: model.icons[ext.id]) { run(ext.id) }
+                    }
                 }
-                ExtensionIcon(ext: nil, action: menu)
+                ExtensionIcon(title: "Extensions", image: nil, help: "Extensions (⌘⇧E)", action: menu)
             }
         }
     }
 }
 
 struct ExtensionIcon: View {
-    let ext: BrowserExtension?
+    let title: String
+    let image: NSImage?
+    var help: String?
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             Group {
-                if let ext, let icon = ext.icon, let image = NSImage(contentsOf: icon) {
+                if let image {
                     Image(nsImage: image).resizable().interpolation(.high).frame(width: 16, height: 16)
                 } else {
                     Image(systemName: "puzzlepiece.extension").font(.system(size: 13, weight: .medium))
@@ -102,7 +114,8 @@ struct ExtensionIcon: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
-        .help(ext?.name ?? "Extensions (⌘⇧E)")
+        .help(help ?? title)
+        .accessibilityLabel(title)
         .onHover { hovering = $0 }
     }
 }

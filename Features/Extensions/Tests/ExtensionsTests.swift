@@ -1,3 +1,4 @@
+import AppKit
 import BrowserCore
 import BrowserTesting
 import Foundation
@@ -16,6 +17,20 @@ struct ExtensionsTests {
         h.engine.simulateExtensions([ublock, notes])
         #expect(model.extensions.map(\.id) == ["ublock", "notes"])
         #expect(model.pinned.map(\.id) == ["ublock"])
+    }
+
+    @Test func iconsAreDecodedOncePerChange() throws {
+        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
+        let model = try #require(h.runtime.feature(ExtensionsFeature.self)?.model)
+        let png = FileManager.default.temporaryDirectory.appendingPathComponent("ext-icon-\(UUID().uuidString.prefix(6)).png")
+        let image = NSImage(size: NSSize(width: 16, height: 16), flipped: false) { r in NSColor.red.setFill(); r.fill(); return true }
+        try NSBitmapImageRep(data: image.tiffRepresentation!)!.representation(using: .png, properties: [:])!.write(to: png)
+        defer { try? FileManager.default.removeItem(at: png) }
+        h.engine.simulateExtensions([BrowserExtension(id: "a", name: "A", icon: png, isPinned: true), notes])
+        let first = try #require(model.icons["a"])
+        #expect(model.icons["notes"] == nil)
+        h.engine.simulateExtensions([BrowserExtension(id: "a", name: "A renamed", icon: png, isPinned: true)])
+        #expect(model.icons["a"] === first)
     }
 
     @Test func runsActionsOnTheSelectedPage() throws {
