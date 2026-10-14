@@ -1,0 +1,11 @@
+{
+  "id": "site-controls",
+  "name": "Site Controls",
+  "summary": "Radian's site popover: connection security, camera, microphone, sound, pop-out view, site data and permissions in one place.",
+  "entry": "SiteControlsFeature",
+  "provides": ["site-controls"],
+  "optional": ["permissions"],
+  "commands": [
+    { "id": "site-controls.show", "title": "Site Controls…", "shortcut": "cmd+opt+s", "menu": "Tools", "group": "site", "order": 1, "keywords": ["permissions", "camera", "microphone", "cookies", "security"] }
+  ]
+}
