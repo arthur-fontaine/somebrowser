@@ -28,6 +28,7 @@ public protocol BrowserEngine: AnyObject {
     func makeTab(_ request: EngineTabRequest) -> EngineTab
 
     /// Orderly shutdown (flush cookies, close browsers). Called from `applicationShouldTerminate`.
+    /// Call `completion` to let AppKit terminate, or end `runMainLoop` and exit the process yourself.
     func shutdown(completion: @escaping () -> Void)
 }
 

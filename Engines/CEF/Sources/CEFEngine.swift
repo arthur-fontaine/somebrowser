@@ -32,6 +32,8 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
         "no-pings": "",
         "no-default-browser-check": "",
         "no-first-run": "",
+        // Our runtime restores sessions; Chrome must not reopen its own windows at launch.
+        "no-startup-window": "",
         "metrics-recording-only": "",
         "disable-search-engine-choice-screen": "",
         "enable-blink-features": "DocumentPictureInPictureCefOptions",
@@ -44,6 +46,8 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
             throw NSError(domain: "CEF", code: 1, userInfo: [NSLocalizedDescriptionKey: "Chromium Embedded Framework could not be loaded"])
         }
         try FileManager.default.createDirectory(at: profileDirectory, withIntermediateDirectories: true)
+        // Chrome's own session files would reopen stock windows; tabs are restored by the browser runtime.
+        try? FileManager.default.removeItem(at: profileDirectory.appendingPathComponent("Default/Sessions"))
         runtime.delegate = self
         syncScripts()
         var switches = Self.privacySwitches
@@ -72,8 +76,14 @@ public final class CEFEngine: NSObject, BrowserEngine, CEFRuntimeDelegate {
         return page
     }
 
+    /// Closes every browser, then leaves CefRunMessageLoop; `runMainLoop` finishes with CefShutdown + exit.
+    /// AppKit's own termination is cancelled because its terminate-later wait would keep the loop alive
+    /// (and does not drain the main dispatch queue, so this runs synchronously on the main thread).
     public func shutdown(completion: @escaping () -> Void) {
-        runtime.closeAllBrowsers { [weak self] in self?.runtime.quitMessageLoop() }
+        runtime.closeAllBrowsers { [weak self] in
+            NSApp.reply(toApplicationShouldTerminate: false)
+            self?.runtime.quitMessageLoop()
+        }
     }
 
     func syncScripts() {

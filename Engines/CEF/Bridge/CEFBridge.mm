@@ -614,10 +614,13 @@ private:
     if (_retained.count == 0) { completion(); return; }
     _allClosed = [completion copy];
     for (CEFTab *tab in [_retained allObjects]) [tab close];
-    // Safety net: never hang quit on a stuck renderer.
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    // Safety net: never hang quit on a stuck renderer. A run-loop timer in every mode, because AppKit's
+    // terminate-later wait does not drain the main dispatch queue.
+    NSTimer *timer = [NSTimer timerWithTimeInterval:3 repeats:NO block:^(NSTimer *t) {
         if (self->_allClosed) { void (^done)(void) = self->_allClosed; self->_allClosed = nil; done(); }
-    });
+    }];
+    [NSRunLoop.mainRunLoop addTimer:timer forMode:NSRunLoopCommonModes];
+    [NSRunLoop.mainRunLoop addTimer:timer forMode:NSModalPanelRunLoopMode];
 }
 
 - (CefRefPtr<CefDictionaryValue>)extraInfo {
