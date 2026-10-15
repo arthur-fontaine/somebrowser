@@ -1,0 +1,12 @@
+{
+  "id": "reader",
+  "name": "Reader",
+  "summary": "Reader view: the page's article alone, in comfortable type (⌥⌘R).",
+  "entry": "ReaderFeature",
+  "provides": [],
+  "requires": [],
+  "commands": [
+    { "id": "reader.toggle", "title": "Reader", "shortcut": "opt+cmd+r", "menu": "View", "group": "reader", "order": 1, "keywords": ["read", "article", "readability", "clean"] }
+  ],
+  "settings": []
+}

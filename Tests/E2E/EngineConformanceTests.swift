@@ -10,10 +10,19 @@ struct EngineConformanceTests {
         "/one": "<!doctype html><title>One</title><body><a id='next' href='/two'>two</a><p>needle needle</p>",
         "/two": "<!doctype html><title>Two</title><body>second page</body>",
         "/three": "<!doctype html><title>Three</title><body>third</body>",
+        "/article": article(csp: nil),
+        "/strict-article": article(csp: "script-src 'none'; style-src 'none'; require-trusted-types-for 'script'"),
         "/early": "<!doctype html><title>Pending</title><script>document.title = window.__early === 1 ? 'early' : 'late';</script><body>early</body>",
         "/spoof": "<!doctype html><title>Spoof</title><script>setInterval(() => { if (window.__browser) for (let i = 0; i < 200; i++) window.__browser.post('__eval', { id: i, ok: true, value: 'spoofed' }); }, 5);</script><body>spoof</body>",
         "/strict": "<!doctype html><meta http-equiv='Content-Security-Policy' content=\"script-src 'none'; require-trusted-types-for 'script'\"><title>Strict</title><body>strict</body>",
     ]
+
+    static func article(csp: String?) -> String {
+        let paragraph = "The committee met on Tuesday to review the proposal in detail, weighing the costs of the new transit line against the benefits for the neighborhoods it would serve, and heard from residents who had waited years for a faster way into the city center."
+        return "<!doctype html>" + (csp.map { "<meta http-equiv='Content-Security-Policy' content=\"\($0)\">" } ?? "")
+            + "<title>Transit plan</title><body><nav><a href='/'>Home</a> <a href='/one'>One</a></nav><article><h1>City approves the transit plan</h1>"
+            + String(repeating: "<p>\(paragraph)</p>", count: 8) + "</article><footer>© Example News</footer></body>"
+    }
 
     func launch() throws -> (AppDriver, TestHTTPServer) {
         let server = try TestHTTPServer(pages: Self.pages)
@@ -107,6 +116,27 @@ struct EngineConformanceTests {
         for _ in 0..<20 where footprint >= 150 << 20 { Thread.sleep(forTimeInterval: 0.5); footprint = try app.footprint() }
         print("app footprint MB:", footprint >> 20)
         #expect(footprint > 0 && footprint < 150 << 20)
+        try app.quit()
+    }
+
+    /// Reader shows the article over the page, closes again, and works on a page with a strict CSP.
+    @Test func readerShowsTheArticle() throws {
+        let (app, server) = try launch()
+        let shown = "String((document.getElementById('__browser_reader')?.shadowRoot?.textContent || '').includes('City approves the transit plan'))"
+        for page in ["/article", "/strict-article"] {
+            try app.open(server.url(page))
+            try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Transit plan" }
+            try app.run("reader.toggle")
+            try app.waitUntil(timeout: 10) { try app.eval(shown) as? String == "true" }
+            try app.run("reader.toggle")
+            try app.waitUntil(timeout: 10) { try app.eval("String(!document.getElementById('__browser_reader'))") as? String == "true" }
+        }
+        // Not an article: nothing opens.
+        try app.open(server.url("/two"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Two" }
+        try app.run("reader.toggle")
+        Thread.sleep(forTimeInterval: 0.5)
+        #expect(try app.eval("String(!!document.getElementById('__browser_reader'))") as? String == "false")
         try app.quit()
     }
 
