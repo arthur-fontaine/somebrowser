@@ -7,6 +7,7 @@
   "commands": [
     { "id": "extensions.menu", "title": "Extensions…", "shortcut": "cmd+shift+e", "menu": "Tools", "group": "extensions", "order": 1, "keywords": ["add-ons", "plugins"] },
     { "id": "extensions.run", "title": "Run Extension", "palette": false },
+    { "id": "extensions.cycle", "title": "Next Pinned Extension", "shortcut": "cmd+e", "menu": "Tools", "group": "extensions", "order": 2, "keywords": ["popup", "cycle"] },
     { "id": "extensions.manage", "title": "Manage Extensions", "menu": "Tools", "group": "extensions", "order": 2 },
     { "id": "extensions.store", "title": "Chrome Web Store", "menu": "Tools", "group": "extensions", "order": 3 },
     { "id": "extensions.side-panel", "title": "Extension Side Panel", "menu": "View", "group": "extensions", "order": 1, "keywords": ["sidebar", "panel", "chrome.sidePanel"] }

@@ -12,6 +12,7 @@ Engines without extensions (WebKit) get no buttons and the commands do nothing.
 **Commands**
 - `extensions.menu` — Extensions… (cmd+shift+e)
 - `extensions.run` — runs one extension's action (argument `id`; automation and other features)
+- `extensions.cycle` — Next Pinned Extension (⌘E, Arc): each press runs the next pinned one
 - `extensions.manage` — Manage Extensions (`chrome://extensions`, where "Load unpacked" lives)
 - `extensions.store` — Chrome Web Store
 - `extensions.side-panel` — Extension Side Panel (argument `id`; else the open or last used panel)

@@ -43,6 +43,18 @@ struct ExtensionsTests {
         #expect(h.engine.ranActions.first?.tab === h.fakeTab(selected))
     }
 
+    @Test func commandECyclesPinnedExtensions() throws {
+        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
+        let second = BrowserExtension(id: "second", name: "Second", isPinned: true)
+        h.engine.simulateExtensions([ublock, second, notes])
+        _ = h.openTab("https://a.example")
+        for _ in 0..<3 { try h.run("extensions.cycle") }
+        #expect(h.engine.ranActions.map(\.id) == ["ublock", "second", "ublock"])
+        h.engine.simulateExtensions([notes])
+        try h.run("extensions.cycle")
+        #expect(h.engine.extensionMenus.count == 1)
+    }
+
     @Test func menuOpensOnTheSelectedPage() throws {
         let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
         let tab = h.openTab("https://a.example")

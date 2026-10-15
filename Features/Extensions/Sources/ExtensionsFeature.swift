@@ -24,6 +24,7 @@ public final class ExtensionsFeature: BrowserFeature {
         engine.onExtensionsChanged = { [weak self] in self?.model.extensions = self?.engine?.installedExtensions ?? [] }
 
         context.commands.handle("extensions.menu") { [weak self] inv in self?.showMenu(in: inv.window) }
+        context.commands.handle("extensions.cycle") { [weak self] inv in self?.cyclePinned(in: inv.window) }
         context.commands.handle("extensions.run") { [weak self] inv in
             if let id = inv.arguments["id"] { self?.run(id, in: inv.window) }
         }
@@ -66,6 +67,15 @@ public final class ExtensionsFeature: BrowserFeature {
         sidePanels.toggle(ext, in: window)
     }
 
+    /// Arc's ⌘E: each press runs the next pinned extension (its popup, usually); nothing pinned: the extensions menu.
+    func cyclePinned(in window: BrowserWindowState?) {
+        let pinned = model.pinned
+        guard !pinned.isEmpty else { return showMenu(in: window) }
+        let next = pinned.firstIndex { $0.id == model.lastCycled }.map { (pinned.index(after: $0)) % pinned.count } ?? 0
+        model.lastCycled = pinned[next].id
+        run(pinned[next].id, in: window)
+    }
+
     func showMenu(in window: BrowserWindowState?) {
         guard let engine, let tab = liveTab(in: window) else { return }
         if !engine.showExtensionsMenu(in: tab), let window { open(Self.manageURL, in: window) }
@@ -96,6 +106,8 @@ final class ExtensionsModel {
         }
     }
     private(set) var icons: [String: NSImage] = [:]
+    /// The pinned extension ⌘E ran last.
+    var lastCycled: String?
     var pinned: [BrowserExtension] { extensions.filter(\.isPinned) }
 }
 
