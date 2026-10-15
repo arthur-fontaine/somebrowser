@@ -23,7 +23,7 @@ FairPlay paths checked in the browser's WebKit tabs on 2026-10-16:
 | Path | Result |
 |---|---|
 | Safari's legacy key API (`WebKitMediaKeys`, `com.apple.fps.1_0`) with native HLS | Plays (EZDRM's live license) |
-| Modern EME with MediaSource (fMP4 cbcs, how Netflix-like players stream) | `encrypted` fires (`sinf`) and WebKit produces a valid FairPlay SPC (6.7 KB). Axinom's public test license server then refuses its own tokens ("an initialization vector must be provided with every key"); none of its published tokens carries one |
+| Modern EME with MediaSource (fMP4 cbcs), how Netflix-like players stream | Plays: EZDRM's public demo (Shaka's "Big Buck Bunny (FairPlay)") licensed, 1280×720 at 24 fps, no dropped frames. Opt-in E2E `fairPlayPlaysThroughMediaSource` (`BROWSER_E2E_NETWORK=1`). Axinom's vectors can't be used: its license server refuses its own published tokens, none of which carries the IV it requires |
 | Modern EME with native HLS | "decode error": an Apple bug Axinom's own player works around by using the legacy API |
 
 WebKit's feature flags in these tabs are WKWebView's defaults (EME, legacy EME, MediaSource and Managed MediaSource on),
