@@ -1,10 +1,12 @@
 import BrowserCore
 import Foundation
+import SQLite3
 import Testing
 @testable import FeatureSafari
 
-/// Drives the real Safari data through the feature's store, on throwaway favorites only ("<Brand.name> lab…"). Off by
-/// default: `SAFARI_LAB=add:<title>`, `remove:<title>` or `status`, then watch SafariBookmarksSyncAgent's log.
+/// Drives the real Safari data through the feature's store, on throwaway items only ("<Brand.name> lab…"). Off by
+/// default: `SAFARI_LAB=add:<title>`, `remove:<title>`, `group:<title>`, `ungroup:<title>`, `visit` or `status`, then
+/// watch SafariBookmarksSyncAgent's log.
 @Test(.enabled(if: ProcessInfo.processInfo.environment["SAFARI_LAB"] != nil))
 func safariLab() async throws {
     let home = FileManager.default.homeDirectoryForCurrentUser
@@ -14,7 +16,7 @@ func safariLab() async throws {
     let prefix = "\(Brand.name) lab"
     let action = ProcessInfo.processInfo.environment["SAFARI_LAB"]!
     let (verb, title) = (String(action.prefix { $0 != ":" }), String(action.drop { $0 != ":" }.dropFirst()))
-    try #require(verb == "status" || title.hasPrefix(prefix), "lab favorites only")
+    try #require(verb == "status" || verb == "visit" || title.hasPrefix(prefix), "lab items only")
     /// What the feature does after an edit.
     func upload() async throws {
         let start = Date()
@@ -23,6 +25,19 @@ func safariLab() async throws {
         })
     }
     switch verb {
+    case "group":
+        let tabs = ["one", "two"].map { n in
+            let url = URL(string: "https://example.com/somebrowser-lab-\(n)")!
+            return SafariBookmark(id: SafariStore.tabRowID(tab: UUID(), url: url, title: "Lab \(n)"), title: "Lab \(n)", url: url)
+        }
+        try store.mirrorTabGroup(title: title, tabs: tabs)
+        print("LAB group written", title, try store.tabGroups().first { $0.title == title }?.tabs.map(\.title) ?? [])
+    case "ungroup":
+        try store.removeTabGroup(title: title)
+        print("LAB group removed", title)
+    case "visit":
+        try store.addVisits([SafariVisit(url: URL(string: "https://example.com/somebrowser-lab-history")!, title: "\(prefix) visit", date: Date())])
+        print("LAB visit written")
     case "add":
         print("LAB added", try store.addFavorite(title: title, url: URL(string: "https://example.com/somebrowser-lab")!).id)
         try await upload()
@@ -32,7 +47,7 @@ func safariLab() async throws {
         print("LAB removed", match.count)
         try await upload()
     default:
-        let root = try PropertyListSerialization.propertyList(from: Data(contentsOf: store.bookmarksFile), format: nil) as! NSDictionary
+        let root = try PropertyListSerialization.propertyList(from: Data(contentsOf: store.bookmarksFile), options: .mutableContainers, format: nil) as! NSDictionary
         let bar = try SafariStore.bar(in: root)
         for leaf in bar["Children"] as? [NSDictionary] ?? [] {
             guard let name = (leaf["URIDictionary"] as? NSDictionary)?["title"] as? String, name.hasPrefix(prefix) else { continue }
@@ -40,5 +55,15 @@ func safariLab() async throws {
         }
         let changes = (root["Sync"] as? NSDictionary)?["Changes"] as? [NSDictionary] ?? []
         print("LAB pending changes", changes.map { "\($0["Type"] ?? "?") \($0["BookmarkUUID"] ?? "?")" })
+        if let file = store.tabGroupsFile {
+            try SafariStore.query(file) { db in
+                SafariStore.rows(db, """
+                SELECT g.title, t.title, t.server_id IS NOT NULL, t.added FROM bookmarks g JOIN bookmarks t ON t.parent = g.id AND t.type = 0
+                WHERE g.type = 1 AND g.title LIKE '\(prefix)%' AND g.deleted = 0 AND t.deleted = 0
+                """) { s in
+                    print("LAB group", SafariStore.text(s, 0), "tab", SafariStore.text(s, 1), "in iCloud:", sqlite3_column_int(s, 2) != 0, "added:", sqlite3_column_int(s, 3))
+                }
+            }
+        }
     }
 }
