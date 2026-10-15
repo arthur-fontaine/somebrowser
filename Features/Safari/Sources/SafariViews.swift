@@ -8,6 +8,7 @@ struct SafariStartSection: View {
     let model: SafariModel
     let window: BrowserWindowState
     let open: (URL, Bool) -> Void
+    let openInNewWindow: (URL) -> Void
     let connect: () -> Void
 
     var body: some View {
@@ -29,6 +30,7 @@ struct SafariStartSection: View {
                             FavoriteTile(favorite: favorite) { open(favorite.url, false) }
                                 .contextMenu {
                                     Button("Open in New Tab") { open(favorite.url, true) }
+                                    Button("Open in New Window") { openInNewWindow(favorite.url) }
                                     Button("Copy Link") {
                                         NSPasteboard.general.clearContents()
                                         NSPasteboard.general.setString(favorite.url.absoluteString, forType: .string)

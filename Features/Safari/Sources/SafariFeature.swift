@@ -45,6 +45,9 @@ public final class SafariFeature: BrowserFeature {
         context.ui.contribute("start-page.extras", id: "safari.start", order: 10) { [weak self] window in
             SafariStartSection(model: model, window: window,
                                open: { url, newTab in self?.open(url, in: window, newTab: newTab) },
+                               openInNewWindow: { url in
+                                   self?.context.shell?.openWindow(spaceID: window.spaceID, isPrivate: window.isPrivate, initialURL: url)
+                               },
                                connect: { self?.connect() })
         }
         context.ui.contribute(.overlay, id: "safari.cloud-tabs", order: 75) { [weak self] window in
