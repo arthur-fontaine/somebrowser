@@ -114,6 +114,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] `chrome://extensions` management reachable (Tools menu, command bar: `extensions.manage`)
 
 ## 9. Performance (U)
-- [~] Lazy feature activation (heavy work deferred) · paint shell before CEF init (todo)
+- [x] Lazy feature activation (heavy work deferred) · [-] paint shell before CEF init: measured 2026-10-15, warm launch
+      shows the window at ~350–450 ms and CEF initialization is ~80 ms of it — not worth windows before the run loop
 - [x] Budgets: app process < 150 MB (excl. renderers; ~110 MB); 500-tab model < 20 MB (~0.7 MB); switch tab < 16 ms (~6 ms)
 - [x] Perf regression tests: budgets checked in E2E (both engines) and Core tests
