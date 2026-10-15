@@ -7,7 +7,7 @@ import Testing
 /// Drives the real Safari data through the feature's store, on throwaway items only ("<Brand.name> lab…"). Off by
 /// default: `SAFARI_LAB=add:<title>`, `remove:<title>`, `group:<title>`, `ungroup:<title>`, `visit` or `status`, then
 /// watch SafariBookmarksSyncAgent's log.
-@Test(.enabled(if: ProcessInfo.processInfo.environment["SAFARI_LAB"] != nil))
+@MainActor @Test(.enabled(if: ProcessInfo.processInfo.environment["SAFARI_LAB"] != nil))
 func safariLab() async throws {
     let home = FileManager.default.homeDirectoryForCurrentUser
     let store = SafariStore(folders: SafariFolders(library: SafariAccess.Folder.library.url(home: home),
@@ -30,10 +30,13 @@ func safariLab() async throws {
             let url = URL(string: "https://example.com/somebrowser-lab-\(n)")!
             return SafariBookmark(id: SafariStore.tabRowID(tab: UUID(), url: url, title: "Lab \(n)"), title: "Lab \(n)", url: url)
         }
-        try store.mirrorTabGroup(title: title, tabs: tabs)
+        let file = try #require(store.tabGroupsFile)
+        let writer = try #require(SafariTabGroupWriter(database: file))
+        try await writer.mirror(title: title, tabs: tabs)
         print("LAB group written", title, try store.tabGroups().first { $0.title == title }?.tabs.map(\.title) ?? [])
     case "ungroup":
-        try store.removeTabGroup(title: title)
+        let file = try #require(store.tabGroupsFile)
+        try await SafariTabGroupWriter(database: file)?.remove(title: title)
         print("LAB group removed", title)
     case "visit":
         try store.addVisits([SafariVisit(url: URL(string: "https://example.com/somebrowser-lab-history")!, title: "\(prefix) visit", date: Date())])

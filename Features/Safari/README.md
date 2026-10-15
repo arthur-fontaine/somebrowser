@@ -61,21 +61,17 @@ within ~20 s.
 tabs: Safari hands this Mac's open tabs to its agent directly, over the entitled XPC call
 `saveTabsForCurrentDeviceWithDictionaryRepresentation:`, and the agent never uploads them from its database. So the
 feature takes two other routes:
-- **Tabs** (`safari.share-tabs`): a Tab Group named after this Mac, written into SafariTabs.db as WebBookmarks writes.
-  - A new row keeps `added` 1, and the group gets its scoped-favorites folder and its `folder_ancestors` rows.
-  - A closed tab is tombstoned (`deleted` 1), or simply removed if it never reached iCloud.
-  - Every change takes its own `_dav_generation`, and `generations` moves with it. The agent walks rows one generation
-    at a time (`dav_generation > LastSyncedRecordGeneration`, added, deleted or modified), so rows sharing a generation
-    are skipped.
-  - New rows mark what to upload in `modified_attributes`, using the bits from `+[WebBookmark
-    modifiedAttributesToFieldNames]`:
-    - group: Title and DateAdded;
-    - tab: Title, URL, DateLastViewed, DateAdded and ParentFolder.
-
-    Without these bits the agent builds an empty record and logs "Ignoring change lacking record". The agent adds the
-    Position itself.
-  - Rows are never modified: a tab whose page changed becomes a new row.
-  - Our own group isn't listed among Safari's here.
+- **Tabs** (`safari.share-tabs`): a Tab Group named after this Mac (`SafariTabGroupWriter`).
+  - Groups and new tabs are written by Safari's own code: WebBookmarks.framework is loaded at run time, and its
+    `WBTabGroupManager` (`insertTabGroup:afterTabGroup:`, `updateTabsInTabGroup:completionHandler:`) runs on
+    SafariTabs.db.
+  - That gives each row what the agent uploads: a CloudKit record and per-attribute CRDT generations in `sync_data`,
+    and a server id. Rows written by hand lack them, and the agent skips them ("Ignoring change lacking record", seen
+    live 2026-10-15).
+  - Closed tabs are removed the way the agent reads removals: a tombstone (`deleted` 1) with its own new
+    `_dav_generation` once uploaded, deleted outright before. WebBookmarks' own path (`flushDeletedTabsInTabGroup:`)
+    waits on Safari.
+  - A tab whose page changed becomes a new tab. Our own group isn't listed among Safari's here.
 - **History** (`safari.share-history`): visits from normal windows are written in batches into History.db as Safari
   writes its own: `origin` 0, the current generation, and items marked for Safari to recompute their counts.
 
@@ -85,7 +81,8 @@ Safari's next sync of each:
 - History: Safari launching, browsing in Safari, or the display sleeping or waking.
 
 Each write is one `BEGIN IMMEDIATE` transaction with a 5 s busy timeout. Private windows are never shared.
-Uploaded to iCloud: being verified (lab group and visit written 2026-10-15, waiting for Safari's sync).
+Verified 2026-10-15: a visit written here went up at Safari's next launch (`last_synced_generation` passed it).
+The Tab Group writer is tested on databases WebBookmarks creates; its live upload is being verified.
 
 **Live lab** — `Tests/LiveSafariLab.swift`, off by default, edits Safari's real files through the store. It only
 touches items named "<Brand.name> lab…". The verbs are `SAFARI_LAB="add:<name>"`, `"remove:<name>"`, `"group:<name>"`,

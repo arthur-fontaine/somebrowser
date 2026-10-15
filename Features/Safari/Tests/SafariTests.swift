@@ -149,46 +149,40 @@ struct StoreTests {
         return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int64(stmt, 0)) : -1
     }
 
-    /// Written as Safari writes: a group with its favorites folder and ancestry, tabs as added rows, a new generation
-    /// per change; closed tabs tombstoned once uploaded, removed before; nothing written when nothing changed.
-    @Test func mirrorsTabsIntoATabGroupLikeSafari() throws {
-        let s = try store()
-        let file = try #require(s.tabGroupsFile)
+    /// Written by Safari's own code (WebBookmarks) on a database it created: each tab carries what the sync agent
+    /// uploads (a CloudKit record in `sync_data`, a server id); closed tabs leave; nothing changes when nothing did.
+    @MainActor @Test func mirrorsTabsThroughSafarisOwnCode() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tabs-\(UUID().uuidString.prefix(6))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("SafariTabs.db")
+        let writer = try #require(SafariTabGroupWriter(database: file, createIfNeeded: true))
+        let s = SafariStore(folders: SafariFolders(library: dir, container: dir), backups: dir, localDeviceName: nil)
         let tab = { (n: Int) in SafariBookmark(id: SafariStore.tabRowID(tab: UUID(), url: URL(string: "https://\(n).example/")!, title: "\(n)"),
                                                title: "\(n)", url: URL(string: "https://\(n).example/")!) }
         let (a, b, c) = (tab(1), tab(2), tab(3))
-        try s.mirrorTabGroup(title: "This Mac", tabs: [a, b])
-        #expect(try s.tabGroups().map(\.title) == ["Empty", "Work", "This Mac", "Trip"])
-        #expect(try s.tabGroups()[2].tabs.map(\.url) == [a.url, b.url])
-        let group = value(file, "SELECT id FROM bookmarks WHERE title = 'This Mac'")
-        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE parent = \(group) AND type = 1 AND subtype = 1") == 1)
-        #expect(value(file, "SELECT count(*) FROM folder_ancestors") == 3)
-        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE parent = \(group) AND type = 0 AND added = 1 AND syncable = 1 AND dav_generation > 500") == 2)
-        // One generation per change, and what to upload marked, as Safari writes new rows.
-        #expect(value(file, "SELECT count(DISTINCT dav_generation) FROM bookmarks WHERE id = \(group) OR parent = \(group)") == 4)
-        #expect(value(file, "SELECT modified_attributes FROM bookmarks WHERE id = \(group)") == 17)
-        #expect(value(file, "SELECT modified_attributes FROM bookmarks WHERE parent = \(group) AND type = 0 LIMIT 1") == 91)
-        #expect(value(file, "SELECT value FROM sync_properties WHERE key = '_dav_generation'") == value(file, "SELECT generation FROM generations"))
-        let generation = value(file, "SELECT value FROM sync_properties WHERE key = '_dav_generation'")
-        #expect(generation > 500)
-        #expect(value(file, "SELECT generation FROM generations") > 500)
-        #expect(value(file, "SELECT num_children FROM bookmarks WHERE id = \(group)") == 3)
+        // Safari orders a group's tabs by their CRDT positions (in `sync_data`), not `order_index`: compare sets.
+        func shared() throws -> Set<String>? { try s.tabGroups().first { $0.title == "This Mac" }.map { Set($0.tabs.map(\.id)) } }
 
-        // a reached iCloud; then a and b close and c opens.
-        try SafariStore.transaction(file) { db in try SafariStore.run(db, "UPDATE bookmarks SET server_id = 'S-a', added = 0 WHERE external_uuid = ?", a.id) }
-        try s.mirrorTabGroup(title: "This Mac", tabs: [c])
-        #expect(try s.tabGroups()[2].tabs.map(\.id) == [c.id])
-        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(a.id)' AND deleted = 1 AND dav_generation > \(generation)") == 1)
-        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(b.id)'") == 0)
+        try await writer.mirror(title: "This Mac", tabs: [a, b])
+        #expect(try shared() == [a.id, b.id])
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid IN ('\(a.id)', '\(b.id)') AND sync_data IS NOT NULL AND server_id IS NOT NULL AND added = 1") == 2)
 
-        let settled = value(file, "SELECT value FROM sync_properties WHERE key = '_dav_generation'")
-        try s.mirrorTabGroup(title: "This Mac", tabs: [c])
-        #expect(value(file, "SELECT value FROM sync_properties WHERE key = '_dav_generation'") == settled)
+        try await writer.mirror(title: "This Mac", tabs: [b, c])
+        #expect(try shared() == [b.id, c.id])
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(a.id)'") == 0)  // never uploaded: gone
 
-        try s.removeTabGroup(title: "This Mac")
-        #expect(try !s.tabGroups().contains { $0.title == "This Mac" })
-        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(a.id)' AND deleted = 1") == 1)
-        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE id = \(group)") == 0)  // never uploaded: gone
+        // Once uploaded (the agent clears `added`), a closed tab leaves a tombstone with a new generation.
+        try SafariStore.transaction(file) { db in try SafariStore.run(db, "UPDATE bookmarks SET added = 0 WHERE external_uuid = ?", b.id) }
+        let before = value(file, "SELECT max(dav_generation) FROM bookmarks")
+        try await writer.mirror(title: "This Mac", tabs: [c])
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(b.id)' AND deleted = 1 AND dav_generation > \(before)") == 1)
+        #expect(try shared() == [c.id])
+        let generation = value(file, "SELECT max(dav_generation) FROM bookmarks")
+        try await writer.mirror(title: "This Mac", tabs: [c])
+        #expect(value(file, "SELECT max(dav_generation) FROM bookmarks") == generation)
+
+        try await writer.remove(title: "This Mac")
+        #expect(try shared() == nil)
     }
 
     /// Visits go in as Safari's own local ones (origin 0, the current generation), for its history sync to upload.
@@ -434,6 +428,10 @@ struct FeatureTests {
     /// history; private windows are left out of both.
     @Test func sharesTabsAndHistoryWithSafari() async throws {
         let home = try makeHome()
+        // Written through WebBookmarks: a database it made, not the hand-made fixture.
+        let tabsFile = SafariAccess.Folder.container.url(home: home).appendingPathComponent("SafariTabs.db")
+        try FileManager.default.removeItem(at: tabsFile)
+        _ = try #require(SafariTabGroupWriter(database: tabsFile, createIfNeeded: true))
         let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
         let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
         feature.mirrorDelay = .milliseconds(10)

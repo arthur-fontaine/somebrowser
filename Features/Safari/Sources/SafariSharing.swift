@@ -2,7 +2,7 @@ import BrowserCore
 import Foundation
 
 /// This browser on the iPhone: its open tabs as a Tab Group named after this Mac (`safari.share-tabs`), its history in
-/// Safari's (`safari.share-history`). Written into Safari's databases the way Safari writes; they go to iCloud with
+/// Safari's (`safari.share-history`). Written into Safari's databases as Safari writes them; they go to iCloud with
 /// Safari's next sync of each (its own activity, launch, display sleep or wake, or a change from the iPhone).
 /// Private windows are never shared.
 extension SafariFeature {
@@ -53,10 +53,11 @@ extension SafariFeature {
         return out
     }
 
+    /// Through Safari's own code (`SafariTabGroupWriter`): rows written otherwise never upload.
     func mirrorTabs() async {
-        guard let store, context.settings.bool("safari.share-tabs") else { return }
-        let (tabs, title) = (sharedTabs(), sharedGroupTitle)
-        await Task.detached(priority: .utility) { try? store.mirrorTabGroup(title: title, tabs: tabs) }.value
+        guard let file = store?.tabGroupsFile, context.settings.bool("safari.share-tabs"),
+              let writer = SafariTabGroupWriter(database: file) else { return }
+        try? await writer.mirror(title: sharedGroupTitle, tabs: sharedTabs())
     }
 
     // MARK: History
