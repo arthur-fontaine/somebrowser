@@ -190,6 +190,9 @@ struct CLI {
             let app = try build(release: flag("--release"))
             env["BROWSER_E2E_APP"] = app.appendingPathComponent("Contents/MacOS/\(p.brand.executableName)").path
             if ids.isEmpty { cmd += ["--filter", "BrowserE2ETests"] }
+            // One app at a time: instances in parallel take the front from each other (key windows exist only in
+            // the frontmost app) and slow each other's Chromium shutdown past the quit timeout.
+            cmd += ["--no-parallel"]
         }
         if !ids.isEmpty {
             let targets = ids.map { id -> String in
