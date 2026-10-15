@@ -15,16 +15,12 @@ func safariLab() async throws {
     let action = ProcessInfo.processInfo.environment["SAFARI_LAB"]!
     let (verb, title) = (String(action.prefix { $0 != ":" }), String(action.drop { $0 != ":" }.dropFirst()))
     try #require(verb == "status" || title.hasPrefix(prefix), "lab favorites only")
-    /// What the feature does after an edit: ask Safari to sync until its agent has taken the records.
+    /// What the feature does after an edit.
     func upload() async throws {
         let start = Date()
-        for delay in [2, 5, 10, 20, 40, 80] {
-            try await Task.sleep(for: .seconds(delay))
-            let pending = try store.pendingChanges()
+        await store.upload(attempts: [1, 3, 5, 10, 20, 40].map { .seconds($0) }, progress: { pending in
             print("LAB after \(Int(Date().timeIntervalSince(start))) s: \(pending) change records waiting")
-            if pending == 0 { return }
-            SafariStore.askSafariToSync()
-        }
+        })
     }
     switch verb {
     case "add":
