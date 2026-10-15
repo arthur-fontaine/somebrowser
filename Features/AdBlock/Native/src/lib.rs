@@ -19,11 +19,16 @@ fn out(s: String) -> *mut c_char {
     CString::new(s).map(|c| c.into_raw()).unwrap_or(ptr::null_mut())
 }
 
-/// Compiles filter lists (concatenated list text).
+/// Compiles filter lists (concatenated list text). `trusted_lists` may use trusted scriptlets (`trusted-*`, uBlock
+/// Origin's own lists); may be null.
 #[no_mangle]
-pub extern "C" fn adb_engine_new(lists: *const c_char) -> *mut Engine {
+pub extern "C" fn adb_engine_new(lists: *const c_char, trusted_lists: *const c_char) -> *mut Engine {
     let mut set = FilterSet::new(false);
     set.add_filter_list(text(lists).to_string(), ParseOptions::default());
+    if !trusted_lists.is_null() {
+        let trusted = ParseOptions { permissions: adblock::resources::PermissionMask::from_bits(1), ..ParseOptions::default() };
+        set.add_filter_list(text(trusted_lists).to_string(), trusted);
+    }
     Box::into_raw(Box::new(Engine::new_with_filter_set(set)))
 }
 

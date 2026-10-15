@@ -15,13 +15,17 @@ start browsing (an idle browser contacts nobody).
 
 **Resources** — `redirect=` filters answer with a harmless stand-in instead of failing the request
 (`RequestVerdict.respond`), and `##+js(…)` scriptlets run at document start, before the page's own scripts
-(`EngineHooks.addDocumentStartScript`). Both come from a resources file in adblock-rust's format, downloaded with the
-lists and loaded into the engines: today Brave's own (`brave/adblock-resources`); uBlock Origin's stand-ins and
-scriptlets, which Brave bundles through its component updater, are still to add.
+(`EngineHooks.addDocumentStartScript`): e.g. uBlock Origin's YouTube rules empty `ytInitialPlayerResponse.adPlacements`
+before the player reads it. The resources are the set Brave ships: uBlock Origin's stand-ins and scriptlets, assembled
+from uBO's latest GitHub release (`UboResources` bundles its ES modules for JavaScriptCore, as Brave's packager does
+with Node; re-assembled only when uBO releases), plus Brave's own (`brave/adblock-resources`). uBO's own lists are
+trusted (they may use `trusted-*` scriptlets), as in uBO. Brave distributes this set through its component updater,
+which requires Brave's credentials.
 
 **Commands** — `adblock.toggle-site`, `adblock.update-lists`. **Settings** — `adblock.enabled`,
 `adblock.supportCreators`, `adblock.cosmetic`.
 
-**Tests** — `./forkctl test adblock`.
+**Tests** — `./forkctl test adblock` (a miniature uBO build covers the module forms; set `UBO_EXTENSION_DIR` to an
+unpacked uBO release to check a new release still assembles).
 
 **Remove it** — `./forkctl feature disable adblock`.

@@ -1,6 +1,7 @@
 import BrowserCore
 import BrowserTesting
 import Foundation
+import JavaScriptCore
 import Testing
 @testable import FeatureAdblock
 
@@ -221,5 +222,161 @@ struct FeatureTests {
         h.runtime.siteSettings.set("adblock.enabled", .bool(false), for: "news.example")
         feature.syncSettings()
         #expect(h.engine.hooks.documentStartScript(for: page) == nil)
+    }
+}
+
+/// A miniature uBlock Origin build: every module form uBO uses.
+func makeUboExtension() throws -> URL {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("ubo-\(UUID().uuidString.prefix(6))")
+    let files: [String: String] = [
+        "js/resources/base.js": """
+        export const registeredScriptlets = [];
+        export const registerScriptlet = (fn, details) => {
+            details.fn = fn; fn.details = details;
+            if (Array.isArray(details.dependencies)) details.dependencies = details.dependencies.map(d => typeof d === 'function' ? d.details.name : d);
+            registeredScriptlets.push(details);
+        };
+        """,
+        "js/resources/safe-self.js": """
+        import { registerScriptlet } from './base.js';
+        export function safeSelf() { return { log: () => {} }; }
+        registerScriptlet(safeSelf, { name: 'safe-self.fn' });
+        """,
+        "js/resources/set-flag.js": """
+        import {
+            registerScriptlet,
+        } from './base.js';
+        import { safeSelf as getSafe } from './safe-self.js';
+        import { Parser as __Parser__ } from '../parser.js';
+        export function setFlag(name = '', value = '') { getSafe(); window[name] = value; }
+        registerScriptlet(setFlag, { name: 'set-flag.js', aliases: ['sf.js'], dependencies: [getSafe] });
+        export function trustedSetFlag(name = '') { window[name] = true; }
+        registerScriptlet(trustedSetFlag, { name: 'trusted-set-flag.js', requiresTrust: true });
+        export const Parser = __Parser__;
+        registerScriptlet(Parser, { name: 'parser.fn' });
+        """,
+        "js/parser.js": "export class Parser { parse(s) { return s; } }",
+        "js/resources/scriptlets.js": """
+        import './set-flag.js';
+        import { registeredScriptlets } from './base.js';
+        export const builtinScriptlets = registeredScriptlets;
+        """,
+        "js/redirect-resources.js": """
+        export default new Map([
+            [ 'noop.js', { alias: [ 'noopjs', 'abp-resource:blank-js' ], data: 'text' } ],
+            [ '1x1.gif', { alias: '1x1-transparent.gif', data: 'blob' } ],
+            [ 'missing.js', { } ],
+        ]);
+        """,
+        "web_accessible_resources/noop.js": "(function() {})();",
+        "web_accessible_resources/1x1.gif": "GIF89a",
+    ]
+    for (path, text) in files {
+        let url = root.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try text.write(to: url, atomically: true, encoding: .utf8)
+    }
+    return root
+}
+
+struct ResourcePipelineTests {
+    /// uBO's latest release is assembled once per release and merged with Brave's (Brave's win on a clash).
+    @Test func assemblesTheLatestUboReleaseOnce() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("adblock-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let ext = try makeUboExtension()
+        let zipURL = ext.deletingLastPathComponent().appendingPathComponent("\(ext.lastPathComponent).zip")
+        let ditto = Process()
+        ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        ditto.arguments = ["-c", "-k", "--keepParent", ext.path, zipURL.path]
+        try ditto.run()
+        ditto.waitUntilExit()
+        let zip = try Data(contentsOf: zipURL)
+        let assetURL = URL(string: "https://github.example/ubo.chromium.zip")!
+        let release = Data(#"{"tag_name":"1.0","assets":[{"name":"ubo.chromium.zip","browser_download_url":"\#(assetURL)"}]}"#.utf8)
+        let brave = Data(#"[{"name":"noop.js","kind":{"mime":"application/javascript"},"content":"\#(Data("brave()".utf8).base64EncodedString())"}]"#.utf8)
+        let store = FilterListStore(directory: dir, lists: [FilterList(id: "ublock-filters", url: URL(string: "https://lists.example/u.txt")!, kind: .ads, trusted: true)])
+        let downloads = Downloads()
+        let engines = try await store.update(contentRules: false) { url in
+            await downloads.note(url)
+            switch url {
+            case store.uboReleaseURL: return release
+            case assetURL: return zip
+            case store.resourcesURL: return brave
+            default: return Data("||ads.example/x.js$script,redirect=noop.js\nnews.example##+js(trusted-set-flag, on)\n".utf8)
+            }
+        }
+        #expect(engines.ads.check(url: "https://ads.example/x.js", source: "https://n.example/", type: "script")
+            == .respond(mimeType: "application/javascript", body: Data("brave()".utf8)))
+        #expect(engines.ads.cosmetic(for: "https://news.example/")?.injected_script.contains("trustedSetFlag(") == true)
+        _ = try await store.update(contentRules: false) { url in await downloads.note(url); return url == store.uboReleaseURL ? release : Data() }
+        #expect(await downloads.count(assetURL) == 1)
+    }
+
+    actor Downloads {
+        var urls: [URL] = []
+        func note(_ url: URL) { urls.append(url) }
+        func count(_ url: URL) -> Int { urls.filter { $0 == url }.count }
+    }
+}
+
+struct UboAssemblyTests {
+    @Test func assemblesStandInsAndScriptlets() throws {
+        let resources = try UboResources.assemble(extension: try makeUboExtension())
+        let byName = Dictionary(uniqueKeysWithValues: resources.map { ($0.name, $0) })
+        #expect(byName["noop.js"]?.aliases == ["noopjs", "abp-resource:blank-js"])
+        #expect(byName["1x1.gif"]?.kind.mime == "image/gif")
+        #expect(byName["missing.js"] == nil)
+        let setFlag = try #require(byName["set-flag.js"])
+        #expect(setFlag.aliases == ["sf.js"] && setFlag.dependencies == ["safe-self.fn"] && setFlag.permission == 0)
+        #expect(String(decoding: Data(base64Encoded: setFlag.content)!, as: UTF8.self).hasPrefix("function setFlag("))
+        #expect(byName["safe-self.fn"]?.kind.mime == "fn/javascript")
+        #expect(byName["trusted-set-flag.js"]?.permission == 1)
+        #expect(String(decoding: Data(base64Encoded: byName["parser.fn"]!.content)!, as: UTF8.self).hasPrefix("class Parser"))
+
+        let engine = AdBlockEngine(lists: "news.example##+js(sf, ready, yes)\nnews.example##+js(trusted-set-flag, nope)")
+        engine.useResources(json: String(decoding: try JSONEncoder().encode(resources), as: UTF8.self))
+        let script = try #require(engine.cosmetic(for: "https://news.example/")).injected_script
+        #expect(script.contains("setFlag(\"ready\", \"yes\")") && script.contains("function safeSelf("))
+        #expect(!script.contains("trustedSetFlag"))  // trusted scriptlets need a trusted list
+    }
+
+    @Test func reportsBrokenModules() throws {
+        let root = try makeUboExtension()
+        try "export function broken( {".write(to: root.appendingPathComponent("js/resources/set-flag.js"), atomically: true, encoding: .utf8)
+        #expect(throws: UboResources.AssemblyError.self) { try UboResources.scriptlets(root) }
+    }
+}
+
+/// Against a real unpacked uBlock Origin build (`UBO_EXTENSION_DIR`), to check a new uBO release still assembles.
+struct UboReleaseTests {
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["UBO_EXTENSION_DIR"] != nil))
+    func assemblesARealRelease() throws {
+        let root = URL(fileURLWithPath: ProcessInfo.processInfo.environment["UBO_EXTENSION_DIR"]!)
+        let resources = try UboResources.assemble(extension: root)
+        let names = Set(resources.map(\.name))
+        print("uBO resources:", resources.count, "scriptlets:", resources.filter { $0.kind.mime == "application/javascript" }.count)
+        #expect(names.isSuperset(of: ["noop.js", "google-ima.js", "set-constant.js", "json-prune.js", "safe-self.fn"]))
+        let engine = AdBlockEngine(lists: """
+        ||ads.example/ima3.js$script,redirect=google-ima.js
+        news.example##+js(set-constant, adsEnabled, false)
+        news.example##+js(json-prune, playerResponse.adPlacements)
+        """)
+        let json = String(decoding: try JSONEncoder().encode(resources), as: UTF8.self)
+        #expect(engine.useResources(json: json) == resources.count)
+        guard case .respond(let mime, let body) = engine.check(url: "https://ads.example/ima3.js", source: "https://news.example/", type: "script") else {
+            Issue.record("no stand-in"); return
+        }
+        #expect(mime == "application/javascript" && String(decoding: body, as: UTF8.self).contains("google"))
+        let script = try #require(engine.cosmetic(for: "https://news.example/")).injected_script
+        #expect(script.contains("setConstant(\"adsEnabled\", \"false\")") || script.contains("setConstant('adsEnabled', 'false')"))
+        #expect(script.contains("function safeSelf("))
+        #expect(script.contains("jsonPrune("))
+        // The assembled script is valid JavaScript.
+        let context = try #require(JSContext())
+        var error: String?
+        context.exceptionHandler = { _, e in error = e?.toString() }
+        context.evaluateScript("(function(){ return; \n" + script + "\n})")
+        #expect(error == nil)
     }
 }

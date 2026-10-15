@@ -6,9 +6,10 @@ import Foundation
 nonisolated final class AdBlockEngine: @unchecked Sendable {
     private let handle: OpaquePointer
 
-    /// Compiles filter list text (slow: do it off the main thread, then cache with `serialized`).
-    init(lists: String) {
-        handle = adb_engine_new(lists)
+    /// Compiles filter list text (slow: do it off the main thread, then cache with `serialized`). `trustedLists` may use
+    /// trusted scriptlets (uBlock Origin's own lists).
+    init(lists: String, trustedLists: String? = nil) {
+        handle = adb_engine_new(lists, trustedLists)
     }
 
     /// Restores a compiled engine; nil if the data comes from another adblock-rust version.

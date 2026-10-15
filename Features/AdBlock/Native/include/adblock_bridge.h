@@ -4,7 +4,7 @@
 
 typedef struct AdbEngine AdbEngine;
 
-AdbEngine *adb_engine_new(const char *lists);
+AdbEngine *adb_engine_new(const char *lists, const char *trusted_lists);
 AdbEngine *adb_engine_deserialize(const uint8_t *data, size_t len);
 uint8_t *adb_engine_serialize(const AdbEngine *engine, size_t *len);
 void adb_bytes_free(uint8_t *data, size_t len);
