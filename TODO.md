@@ -57,7 +57,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Command bar ⌘T: URL/search, open tabs, history, bookmarks, actions by name, site search (Tab), paste-and-go
 - [x] ⌘L edit current URL (in sidebar or centered bar)
 - [~] Full shortcut set (Arc + Horse tables), every action reachable from the keyboard (most done)
-- [~] Remappable shortcuts (done) + "prefer website" (second press runs browser action) (A)
+- [x] Remappable shortcuts + "prefer website shortcuts" (page first; browser on a second press or if unused) (A)
 - [x] Ctrl-Tab MRU switcher (A)
 - [x] Shortcut hints in tooltips/menus (A)
 
