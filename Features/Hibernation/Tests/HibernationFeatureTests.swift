@@ -47,6 +47,17 @@ struct HibernationFeatureTests {
         #expect(music.isLoaded && call.isLoaded && held.isLoaded)
     }
 
+    /// A tab with typed input isn't discarded until it navigates.
+    @Test func editedTabsStayAwakeUntilTheyNavigate() {
+        let form = idleTab("form.example", minutes: 300)
+        h.fakeTab(form).simulateScriptMessage("hibernation.edited", body: [:])
+        #expect(feature.hibernate(idleFor: 0) == 0)
+        #expect(form.isLoaded)
+        h.fakeTab(form).load(URL(string: "https://form.example/sent")!)
+        feature.hibernate(idleFor: 0)
+        #expect(!form.isLoaded)
+    }
+
     @Test func settingsChooseWhen() {
         let tab = idleTab("a.example", minutes: 20)
         h.runtime.settings.set("hibernation.after", .string("never"))

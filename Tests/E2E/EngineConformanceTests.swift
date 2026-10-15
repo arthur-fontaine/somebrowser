@@ -140,6 +140,26 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// A tab with typed input isn't hibernated.
+    @Test func editedTabsAreNotHibernated() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/article"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Transit plan" }
+        _ = try app.eval("(() => { const i = document.createElement('textarea'); document.body.append(i); i.value = 'draft'; i.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()")
+        Thread.sleep(forTimeInterval: 0.5)
+        try app.open(server.url("/two"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Two" }
+        try app.run("hibernation.hibernate-background")
+        let loaded = try app.state()["spaces"].flatMap { spaces -> Bool? in
+            for space in spaces as? [[String: Any]] ?? [] {
+                for t in (space["today"] as? [[String: Any]] ?? []) where (t["url"] as? String)?.hasSuffix("/article") == true { return t["loaded"] as? Bool }
+            }
+            return nil
+        }
+        #expect(loaded == true)
+        try app.quit()
+    }
+
     /// A hibernated tab wakes on its page with its back/forward history.
     @Test func hibernatedTabsWakeWithTheirHistory() throws {
         let (app, server) = try launch()

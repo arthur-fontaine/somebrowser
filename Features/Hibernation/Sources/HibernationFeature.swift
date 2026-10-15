@@ -12,7 +12,29 @@ public final class HibernationFeature: BrowserFeature {
         self.context = context
     }
 
+    /// Tells the browser when a page is typed into, so a half-written form is never discarded (again after a while:
+    /// a single-page app may have navigated in between).
+    static let editWatcher = """
+    (() => {
+      if (window.__browserEdited) return;
+      window.__browserEdited = true;
+      let last = 0;
+      document.addEventListener('input', () => {
+        if (Date.now() - last < 10000) return;
+        last = Date.now();
+        window.__browser && window.__browser.post('hibernation.edited', {});
+      }, { capture: true });
+    })();
+    """
+
     public func activate() {
+        // A page with typed input stays awake until it navigates away (Chrome protects such tabs too).
+        context.hooks.addUserScript(UserScript(source: Self.editWatcher, injectionTime: .documentEnd, mainFrameOnly: false, world: .isolated))
+        context.hooks.handleFrameMessages(named: "hibernation.edited") { [weak self] page, _ in
+            guard let self, let tab = self.context.tabs.allTabs.first(where: { $0.engineTab === page }) else { return }
+            self.context.runtime.holdAwake(tab.id, reason: "form")
+        }
+        context.events.subscribe(TabNavigated.self) { [weak self] e in self?.context.runtime.releaseAwake(e.tabID, reason: "form") }
         context.commands.handle("hibernation.hibernate-background") { [weak self] inv in
             guard let self else { return }
             let n = self.hibernate(idleFor: 0)
