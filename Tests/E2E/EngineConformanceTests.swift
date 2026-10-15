@@ -12,6 +12,7 @@ struct EngineConformanceTests {
         "/three": "<!doctype html><title>Three</title><body>third</body>",
         "/article": article(csp: nil),
         "/strict-article": article(csp: "script-src 'none'; style-src 'none'; require-trusted-types-for 'script'"),
+        "/boost": "<!doctype html><title>Boost</title><body><div id='zapme'>ad</div><script>window.__seen = getComputedStyle(document.body).backgroundColor + ' ' + getComputedStyle(document.getElementById('zapme')).display;</script></body>",
         "/early": "<!doctype html><title>Pending</title><script>document.title = window.__early === 1 ? 'early' : 'late';</script><body>early</body>",
         "/spoof": "<!doctype html><title>Spoof</title><script>setInterval(() => { if (window.__browser) for (let i = 0; i < 200; i++) window.__browser.post('__eval', { id: i, ok: true, value: 'spoofed' }); }, 5);</script><body>spoof</body>",
         "/strict": "<!doctype html><meta http-equiv='Content-Security-Policy' content=\"script-src 'none'; require-trusted-types-for 'script'\"><title>Strict</title><body>strict</body>",
@@ -157,6 +158,17 @@ struct EngineConformanceTests {
             return nil
         }
         #expect(loaded == true)
+        try app.quit()
+    }
+
+    /// A Boost's CSS (zapped elements included) is in place before the page's scripts run; its script runs once parsed.
+    @Test func boostsApplyBeforeThePage() throws {
+        let (app, server) = try launch()
+        let boost = ##"{"enabled":true,"css":"body { background: rgb(1, 2, 3) !important; }","js":"document.title += ' boosted';","zapped":["#zapme"]}"##
+        try app.call(["op": "setting", "key": "boosts.boost", "value": boost, "site": "127.0.0.1"])
+        try app.open(server.url("/boost"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Boost boosted" }
+        #expect(try app.eval("window.__seen") as? String == "rgb(1, 2, 3) none")
         try app.quit()
     }
 

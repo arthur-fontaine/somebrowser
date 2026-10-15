@@ -171,7 +171,8 @@ final class AutomationServer {
             case let d as Double: .double(d)
             default: .string("\(raw)")
             }
-            runtime.settings.set(key, value)
+            // With `site`, a per-site setting (site controls, Boosts…).
+            if let site = req["site"] as? String { runtime.siteSettings.set(key, value, for: site) } else { runtime.settings.set(key, value) }
             reply(["ok": true])
         case "views":
             // View hierarchy of the key browser window: class, frame, hidden — for layout tests and debugging.

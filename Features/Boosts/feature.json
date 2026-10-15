@@ -1,0 +1,14 @@
+{
+  "id": "boosts",
+  "name": "Boosts",
+  "summary": "Boosts (Arc): your CSS, your JavaScript and zapped elements, per site.",
+  "entry": "BoostsFeature",
+  "provides": [],
+  "requires": [],
+  "commands": [
+    { "id": "boosts.edit", "title": "Boost This Site…", "shortcut": "ctrl+cmd+b", "menu": "Tools", "group": "boosts", "order": 1, "keywords": ["css", "javascript", "customize", "style"] },
+    { "id": "boosts.zap", "title": "Zap Elements", "shortcut": "cmd+opt+z", "menu": "Tools", "group": "boosts", "order": 2, "keywords": ["hide", "remove", "element"] },
+    { "id": "boosts.toggle-site", "title": "Turn Boost On or Off for This Site", "menu": "Tools", "group": "boosts", "order": 3 }
+  ],
+  "settings": []
+}
