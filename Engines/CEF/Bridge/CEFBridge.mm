@@ -652,11 +652,14 @@ public:
 }
 
 - (void)browserClosed {
+    // Closed by Chrome, not by us (`chrome.tabs.remove` from an extension…): the tab goes too.
+    id<CEFTabDelegate> closedByChrome = self.isClosing ? nil : self.delegate;
     [self removeExtensionToolbar];
     _browser = nullptr;
     if (_client) _client->Detach();
     if (_windowDelegate && _windowDelegate->window()) _windowDelegate->window()->Close();
     [[CEFRuntime shared] unregisterTab:self];
+    [closedByChrome cefTabRequestsClose:self];
 }
 
 // MARK: Hidden extension toolbar (docs/decisions/0003)
