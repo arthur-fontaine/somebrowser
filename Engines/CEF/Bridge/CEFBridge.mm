@@ -887,6 +887,24 @@ private:
     IMPLEMENT_REFCOUNTING(AdoptingClient);
 };
 
+/// Foundation property-list values as CEF values (preferences may be dictionaries and lists).
+static CefRefPtr<CefValue> ToCefValue(id v) {
+    CefRefPtr<CefValue> value = CefValue::Create();
+    if ([v isKindOfClass:NSString.class]) value->SetString(CS(v));
+    else if ([v isKindOfClass:NSDictionary.class]) {
+        CefRefPtr<CefDictionaryValue> dict = CefDictionaryValue::Create();
+        for (NSString *key in (NSDictionary *)v) dict->SetValue(CS(key), ToCefValue(((NSDictionary *)v)[key]));
+        value->SetDictionary(dict);
+    } else if ([v isKindOfClass:NSArray.class]) {
+        CefRefPtr<CefListValue> list = CefListValue::Create();
+        for (id item in (NSArray *)v) list->SetValue(list->GetSize(), ToCefValue(item));
+        value->SetList(list);
+    } else if (CFGetTypeID((__bridge CFTypeRef)v) == CFBooleanGetTypeID()) value->SetBool([v boolValue]);
+    else if (strcmp([v objCType], @encode(double)) == 0 || strcmp([v objCType], @encode(float)) == 0) value->SetDouble([v doubleValue]);
+    else value->SetInt([v intValue]);
+    return value;
+}
+
 class BrowserApp : public CefApp, public CefBrowserProcessHandler {
 public:
     explicit BrowserApp(NSDictionary<NSString *, NSString *> *switches) : switches_(switches), adopting_(new AdoptingClient) {}
@@ -896,15 +914,10 @@ public:
         CefRefPtr<CefRequestContext> context = CefRequestContext::GetGlobalContext();
         NSDictionary<NSString *, id> *prefs = [CEFRuntime shared].profilePreferences;
         for (NSString *name in prefs) {
-            id v = prefs[name];
-            CefRefPtr<CefValue> value = CefValue::Create();
-            if ([v isKindOfClass:NSString.class]) value->SetString(CS(v));
-            else if (CFGetTypeID((__bridge CFTypeRef)v) == CFBooleanGetTypeID()) value->SetBool([v boolValue]);
-            else if (strcmp([v objCType], @encode(double)) == 0 || strcmp([v objCType], @encode(float)) == 0) value->SetDouble([v doubleValue]);
-            else value->SetInt([v intValue]);
             CefString error;
-            if (!context->SetPreference(CS(name), value, error)) NSLog(@"CEF preference %@ not set: %s", name, error.ToString().c_str());
+            if (!context->SetPreference(CS(name), ToCefValue(prefs[name]), error)) NSLog(@"CEF preference %@ not set: %s", name, error.ToString().c_str());
         }
+        [CEFRuntime shared].contextReady = YES;
     }
     void OnBeforeCommandLineProcessing(const CefString &process_type, CefRefPtr<CefCommandLine> command_line) override {
         for (NSString *key in switches_) {
@@ -951,6 +964,16 @@ private:
         _profilePreferences = @{};
     }
     return self;
+}
+
+- (void)setProfilePreference:(NSString *)name value:(id)value {
+    NSMutableDictionary *prefs = [self.profilePreferences mutableCopy];
+    prefs[name] = value;
+    self.profilePreferences = prefs;
+    if (!self.contextReady) return;  // applied when the context is initialized
+    CefString error;
+    if (!CefRequestContext::GetGlobalContext()->SetPreference(CS(name), ToCefValue(value), error))
+        NSLog(@"CEF preference %@ not set: %s", name, error.ToString().c_str());
 }
 
 - (BOOL)loadLibrary {

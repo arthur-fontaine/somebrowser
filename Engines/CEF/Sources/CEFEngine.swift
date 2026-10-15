@@ -24,6 +24,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         self.options = options
         super.init()
         hooks.onUserScriptsChanged = { [weak self] in self?.syncScripts() }
+        hooks.onDefaultSearchChanged = { [weak self] in self?.syncDefaultSearch() }
     }
 
     static let deadEndpoint = "http://127.0.0.1:9"
@@ -64,8 +65,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         ].joined(separator: ","),
     ]
 
-    /// Chrome's own search engine is never used for the omnibox (search is a feature); disabling it stops
-    /// the Google-specific services that hang off it.
+    /// Chrome's own search engine is never used for the omnibox (search is a feature); it is only enabled (as the
+    /// user's engine, see `syncDefaultSearch`) for Chrome UI that searches by itself.
     static let privacyPreferences: [String: Any] = [
         "default_search_provider.enabled": false,
         "search.suggest_enabled": false,
@@ -178,6 +179,25 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
 
     @discardableResult public func showExtensionsMenu(in tab: EngineTab) -> Bool {
         (tab as? CEFPage)?.tab?.showExtensionsMenu() ?? false
+    }
+
+    /// Chrome's default search follows the user's engine, for "Search … for" in the context menu. No suggestion URL,
+    /// favicon or preconnect: Chrome never contacts the engine on its own.
+    func syncDefaultSearch() {
+        guard let search = hooks.defaultSearch, let host = URL(string: search.template.replacingOccurrences(of: "%s", with: "q"))?.host() else {
+            runtime.setProfilePreference("default_search_provider.enabled", value: false)
+            return
+        }
+        runtime.setProfilePreference("default_search_provider_data.template_url_data", value: Self.templateURLData(name: search.name, keyword: host,
+                                     url: search.template.replacingOccurrences(of: "%s", with: "{searchTerms}")))
+        runtime.setProfilePreference("default_search_provider.enabled", value: true)
+    }
+
+    /// Chrome's TemplateURLData dictionary (components/search_engines/template_url_data_util.cc).
+    static func templateURLData(name: String, keyword: String, url: String) -> [String: Any] {
+        ["short_name": name, "keyword": keyword, "url": url, "suggestions_url": "", "favicon_url": "", "safe_for_autoreplace": false,
+         "prepopulate_id": 0, "input_encodings": ["UTF-8"], "alternate_urls": [String](), "sync_guid": "default-search-\(keyword)",
+         "preconnect_to_search_url": false, "prefetch_likely_navigations": false, "is_active": 1]
     }
 
     func syncScripts() {

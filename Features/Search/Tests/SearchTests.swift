@@ -58,3 +58,13 @@ struct SearchTests {
         #expect(fetched == 1)
     }
 }
+
+@MainActor
+struct DefaultSearchHookTests {
+    @Test func engineUIFollowsTheChosenEngine() throws {
+        let h = try TestHarness(features: [SearchFeature.self], manifestDirectory: #filePath)
+        #expect(h.engine.hooks.defaultSearch == DefaultSearchEngine(name: "DuckDuckGo", template: "https://duckduckgo.com/?q=%s"))
+        h.runtime.settings.set("search.engine", .string("kagi"))
+        #expect(h.engine.hooks.defaultSearch?.name == "Kagi")
+    }
+}

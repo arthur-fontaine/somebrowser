@@ -70,6 +70,10 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @property (nonatomic) int extensionToolbarWidth;
 /// Profile preferences applied when the default request context is initialized (bool, number or string values).
 @property (copy) NSDictionary<NSString *, id> *profilePreferences;
+/// Set once the profile exists (preferences given before are applied then).
+@property BOOL contextReady;
+/// Sets a profile preference now, or when the profile is created (main thread).
+- (void)setProfilePreference:(NSString *)name value:(id)value;
 /// Loads the framework (main process). Call before anything else.
 - (BOOL)loadLibrary;
 - (BOOL)initializeWithRootCachePath:(NSString *)path

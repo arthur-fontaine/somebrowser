@@ -12,6 +12,13 @@ public final class SearchFeature: BrowserFeature {
 
     public func activate() {
         context.capabilities.provide(SearchService.self, service)
+        // The engine's own UI (Chromium's "Search … for" menu item) searches with the same engine.
+        context.settings.observe("search.engine") { [weak self] _ in self?.syncEngine() }
+        syncEngine()
+    }
+
+    func syncEngine() {
+        context.hooks.defaultSearch = DefaultSearchEngine(name: service.engine.name, template: service.engine.search)
     }
 }
 

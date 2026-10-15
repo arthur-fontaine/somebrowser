@@ -118,10 +118,27 @@ public final class EngineHooks {
     /// The engine opened a page on its own (e.g. an extension called `chrome.tabs.create`). The runtime opens it as a tab.
     public var onEngineOpenedURL: ((URL) -> Void)?
 
+    // MARK: Search
+
+    /// The user's search engine, for engine UI that searches by itself (Chromium's "Search … for" context menu item).
+    public var defaultSearch: DefaultSearchEngine? { didSet { if defaultSearch != oldValue { onDefaultSearchChanged?() } } }
+    public var onDefaultSearchChanged: (() -> Void)?
+
     // MARK: User agent
 
     /// Brand token appended to the engine's user agent (from `Brand.userAgentBrand` by default).
     public var userAgentBrand: String?
+}
+
+public struct DefaultSearchEngine: Equatable, Sendable {
+    public var name: String
+    /// Search URL with `%s` for the terms.
+    public var template: String
+
+    public init(name: String, template: String) {
+        self.name = name
+        self.template = template
+    }
 }
 
 /// A page message and its sender, as reported by the engine (never by the page).
