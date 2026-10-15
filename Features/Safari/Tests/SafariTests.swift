@@ -554,6 +554,45 @@ struct FeatureTests {
         #expect(!feature.model.tabGroups.contains { $0.title == feature.sharedGroupTitle })
     }
 
+    /// The group edited on another device: a tab closed there closes here, a tab opened there opens here (in the
+    /// background) and keeps its row; the next mirror neither brings the closed one back nor duplicates the new one.
+    @Test func appliesTabsClosedOrOpenedOnTheIPhone() async throws {
+        let home = try makeHome()
+        let tabsFile = SafariAccess.Folder.container.url(home: home).appendingPathComponent("SafariTabs.db")
+        try FileManager.default.removeItem(at: tabsFile)
+        let iPhone = try #require(SafariTabGroupWriter(database: tabsFile, createIfNeeded: true))
+        let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
+        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
+        feature.mirrorDelay = .milliseconds(10)
+        feature.backgroundSync.app = FakeSafari()
+        feature.activate()
+        try h.run("safari.connect")
+        let store = try #require(feature.store)
+        func group() -> SafariTabGroup? { (try? store.tabGroups())?.first { $0.title == feature.sharedGroupTitle } }
+        func settle(_ done: () -> Bool) async throws { for _ in 0..<200 where !done() { try await Task.sleep(for: .milliseconds(10)) } }
+
+        let a = h.openTab("https://a.example/")
+        let b = h.openTab("https://b.example/")
+        try await settle { group()?.tabs.count == 2 && feature.sharedRows?.count == 2 }
+        let rows = try #require(group()?.tabs)
+        let rowB = try #require(rows.first { $0.url.host == "b.example" })
+
+        // On the iPhone: a closed, c opened.
+        let c = SafariBookmark(id: UUID().uuidString, title: "C", url: URL(string: "https://c.example/")!)
+        try await iPhone.mirror(title: feature.sharedGroupTitle, tabs: [rowB, c])
+        feature.refresh()
+        try await settle { h.runtime.tabs.tab(a.id) == nil && h.runtime.tabs.allTabs.contains { $0.url?.host == "c.example" } }
+        #expect(h.runtime.tabs.tab(a.id) == nil)
+        #expect(h.runtime.tabs.tab(b.id) != nil)
+        let opened = try #require(h.runtime.tabs.allTabs.first { $0.url?.host == "c.example" })
+        #expect(h.selectedTab?.id != opened.id)  // in the background
+
+        // The mirror that follows keeps the group as the iPhone left it.
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(Set(group()?.tabs.map(\.id) ?? []) == [rowB.id, c.id])
+        #expect(h.runtime.tabs.allTabs.filter { $0.url?.host == "c.example" }.count == 1)
+    }
+
     @Test func offersSafariForImport() async throws {
         let home = try makeHome()
         let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)

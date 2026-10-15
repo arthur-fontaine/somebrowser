@@ -22,6 +22,13 @@ public final class SafariFeature: BrowserFeature {
     var mirrorDelay: Duration = .seconds(10)
     var visitFlushDelay: Duration = .seconds(20)
     let backgroundSync = SafariBackgroundSync()
+    /// The shared Tab Group's rows and the tabs here they stand for, from the last mirror (`SafariSharing`); nil until
+    /// the browser's tabs first set the group.
+    var sharedRows: [String: UUID]?
+    /// Tabs opened here from a row added on another device: they keep that row while their page doesn't change.
+    var adoptedRows: [UUID: AdoptedRow] = [:]
+    /// Odd while a mirror runs: a refresh that overlapped one doesn't read remote changes from it.
+    var mirrorRevision = 0
     /// The last history generation written here: waiting until Safari uploads it.
     var historyGeneration = 0
     /// Swapped in tests, which mustn't reach the real Safari.
@@ -98,16 +105,20 @@ public final class SafariFeature: BrowserFeature {
         watchers.forEach { $0.cancel() }
         watchers = []
         watch([folders.library, folders.container].compactMap { $0 })
-        refresh()
+        refresh()  // first: applies what other devices changed in the shared group meanwhile
+        scheduleTabMirror()
     }
 
     func refresh() {
         guard let store else { return }
+        let revision = mirrorRevision
         Task.detached(priority: .utility) { [weak self] in
             let access = store.hasAccess
             let favorites = access ? (try? store.favorites()) ?? [] : []
             let devices = (try? store.cloudTabs()) ?? []
-            let tabGroups = ((try? store.tabGroups()) ?? []).filter { $0.title != store.localDeviceName }  // ours: this browser's tabs
+            let allGroups = (try? store.tabGroups()) ?? []
+            let ours = allGroups.first { $0.title == (store.localDeviceName ?? "Mac") }  // this browser's tabs
+            let tabGroups = allGroups.filter { $0.title != (store.localDeviceName ?? "Mac") }
             let history = access ? (try? store.history()) ?? [] : []
             await MainActor.run {
                 guard let self, self.store?.folders == store.folders else { return }
@@ -116,6 +127,7 @@ public final class SafariFeature: BrowserFeature {
                 self.model.devices = devices
                 self.model.tabGroups = tabGroups
                 self.model.history = history
+                if let ours, revision == self.mirrorRevision, revision % 2 == 0 { self.applyRemoteTabChanges(ours) }
             }
         }
     }

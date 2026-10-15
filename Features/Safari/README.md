@@ -75,6 +75,14 @@ feature takes two other routes:
     record's other fields, so the agent recreated the item on its next fetch (seen live). WebBookmarks' own delete
     path `flushDeletedTabsInTabGroup:` waits on Safari, so it isn't used.
   - A tab whose page changed becomes a new tab. Our own group isn't listed among Safari's here.
+  - The group is two-way. The feature keeps which row stands for which tab here, from the last mirror, saved in its
+    data folder (`SharedTabs.json`). When the agent writes another device's changes into SafariTabs.db, which it does
+    even with Safari closed:
+    - a row gone since that mirror was closed on the other device, so its tab closes here;
+    - a row this browser didn't write was opened there, so it opens here in the background, and that tab keeps the
+      row while its page doesn't change.
+
+    Refreshes that overlap a mirror are skipped. Without a saved map (first run), the browser's tabs set the group.
 - **History** (`safari.share-history`): visits from normal windows are written in batches into History.db as Safari
   writes its own: `origin` 0, the current generation, and items marked for Safari to recompute their counts.
 
