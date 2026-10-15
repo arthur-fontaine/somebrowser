@@ -23,7 +23,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     public init(options: [String: SettingValue]) {
         self.options = options
         super.init()
-        hooks.onUserScriptsChanged = { [weak self] in self?.syncScripts() }
+        hooks.observeUserScripts { [weak self] in self?.syncScripts() }
         hooks.onDefaultSearchChanged = { [weak self] in self?.syncDefaultSearch() }
     }
 

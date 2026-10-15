@@ -70,6 +70,10 @@ public final class BrowserRuntime {
             guard let self, let window = self.keyWindow else { return }
             self.openTab(url, in: window)
         }
+        engine.hooks.onRecreateTab = { [weak self] page, url in
+            // Not from inside the page's own callback.
+            DispatchQueue.main.async { self?.recreate(page, at: url) }
+        }
     }
 
     // MARK: Features
@@ -289,6 +293,22 @@ public final class BrowserRuntime {
         tab.engineTab = e
         events.publish(TabLiveChanged(tabID: tab.id, isLive: true))
         e.delegate = binding
+    }
+
+    /// Replaces a tab's page with a new one loading `url`; the engine may make another kind of page for it. Windows
+    /// showing the tab show the new page.
+    public func recreate(_ page: EngineTab, at url: URL) {
+        guard let tab = tabs.allTabs.first(where: { $0.engineTab === page }) else { return }
+        let shownIn = windows.filter { $0.viewport?.presentedTab === page }
+        for w in shownIn { w.viewport?.present(nil) }
+        tab.engineTab = nil
+        bindings[tab.id] = nil
+        page.close()
+        events.publish(TabLiveChanged(tabID: tab.id, isLive: false))
+        tab.url = url
+        tab.restorationData = nil
+        let e = live(tab)
+        for w in shownIn { w.viewport?.present(e) }
     }
 
     /// Reasons a tab must keep its page even in the background (it floats in picture in picture…).

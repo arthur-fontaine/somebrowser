@@ -31,21 +31,24 @@ public final class EngineHooks {
 
     /// WebKit content blockers (Apple JSON format), compiled by the engine. Identifier → JSON.
     public private(set) var contentRuleLists: [String: String] = [:]
-    public var onContentRuleListsChanged: (() -> Void)?
+    /// Several engines may share these hooks (CEF with WebKit for protected media): each observes.
+    private var contentRuleListObservers: [() -> Void] = []
+    public func observeContentRuleLists(_ observer: @escaping () -> Void) { contentRuleListObservers.append(observer) }
     /// The engine couldn't compile a rule list (WebKit: over its rule limit, unsupported regex…).
     public var onContentRuleListFailed: ((_ identifier: String, _ error: Error) -> Void)?
     public func setContentRuleList(_ json: String?, identifier: String) {
         contentRuleLists[identifier] = json
-        onContentRuleListsChanged?()
+        contentRuleListObservers.forEach { $0() }
     }
 
     // MARK: Scripts
 
     public private(set) var userScripts: [UserScript] = []
-    public var onUserScriptsChanged: (() -> Void)?
+    private var userScriptObservers: [() -> Void] = []
+    public func observeUserScripts(_ observer: @escaping () -> Void) { userScriptObservers.append(observer) }
     public func addUserScript(_ script: UserScript) {
         userScripts.append(script)
-        onUserScriptsChanged?()
+        userScriptObservers.forEach { $0() }
     }
 
     /// Scripts for one page: given the URL a main-frame document is about to load, a script to run in it before any of the
@@ -123,6 +126,10 @@ public final class EngineHooks {
 
     /// The engine opened a page on its own (e.g. an extension called `chrome.tabs.create`). The runtime opens it as a tab.
     public var onEngineOpenedURL: ((URL) -> Void)?
+
+    /// The engine wants a live tab made again at `url` (the next `makeTab` may give another kind of page: CEF moves pages
+    /// that need protected media to WebKit). The runtime replaces the tab's page in place.
+    public var onRecreateTab: ((EngineTab, URL) -> Void)?
 
     // MARK: Keyboard
 

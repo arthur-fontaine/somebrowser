@@ -17,8 +17,8 @@ public final class WebKitEngine: BrowserEngine {
 
     public init(options: [String: SettingValue]) {
         self.options = options
-        hooks.onUserScriptsChanged = { [weak self] in self?.refreshScripts() }
-        hooks.onContentRuleListsChanged = { [weak self] in self?.compileRuleLists() }
+        hooks.observeUserScripts { [weak self] in self?.refreshScripts() }
+        hooks.observeContentRuleLists { [weak self] in self?.compileRuleLists() }
     }
 
     public func bootstrap(profileDirectory: URL) throws {

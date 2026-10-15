@@ -123,6 +123,22 @@ struct RuntimeTests {
         #expect(a.isLoaded)
     }
 
+    /// The engine asks for a tab's page again (CEF moves pages needing protected media to WebKit): same tab, a new page
+    /// at the URL, shown where the old one was; the old one is closed.
+    @Test func recreatesATabsPageInPlace() async throws {
+        let h = try harness()
+        let a = h.openTab("https://a.example")
+        let old = h.fakeTab(a)
+        h.runtime.engine.hooks.onRecreateTab?(old, URL(string: "https://media.example/watch")!)
+        for _ in 0..<100 where h.fakeTab(a) === old { try await Task.sleep(for: .milliseconds(10)) }
+        let new = h.fakeTab(a)
+        #expect(new !== old)
+        #expect(old.isClosed)
+        #expect(new.state.url?.absoluteString == "https://media.example/watch")
+        #expect(h.viewport.presentedTab === new)
+        #expect(h.runtime.tabs.allTabs.count == 1)
+    }
+
     @Test func heldTabsStayAwakeAndIdleCountsFromLeaving() throws {
         let h = try harness()
         let a = h.openTab("https://a.example")
