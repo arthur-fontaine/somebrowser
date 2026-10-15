@@ -44,6 +44,10 @@ with Safari not running, untested. Deleting: **not offered yet**. A favorite rem
 record never left the Mac. The store now writes the record, but it hasn't been verified on the iPhone, so delete in
 Safari for now. Tabs and history are read-only: their stores belong to Safari's agents.
 
+**Live lab** — `Tests/LiveSafariLab.swift`, off by default, edits the real Bookmarks.plist through the store, only on
+favorites named "<Brand.name> lab…": `SAFARI_LAB="add:<name>"`, `"remove:<name>"` or `status`, then
+`swift test --filter safariLab`; read the agent with `log show --info --predicate 'process == "SafariBookmarksSyncAgent"'`.
+
 **Import** — offers Safari to the import sheet (`BrowserImportSource`): every bookmark except the Reading List
 (Favorites as a folder) and the history, through the same folder grants (asked for if needed).
 
