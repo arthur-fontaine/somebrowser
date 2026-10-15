@@ -107,7 +107,10 @@ to check that the feature still works (`forkctl test <feature>`).
       Chrome's own popups/permissions, `activeTab` proven by E2E (`extensionActionGetsActiveTab`)
 - [ ] Badges on the sidebar buttons — not in the toolbar's accessibility tree (checked: a pinned action exposes only its
       name); needs a source-build patch exposing ExtensionAction badge text to CEF
-- [ ] Drop the hidden omnibox's AI-mode popup renderer (46 MB, ADR-0003): find its gate or patch it in a source build
+- [ ] Drop the hidden omnibox's AI-mode popup renderer (~50 MB shared, one `chrome://omnibox-popup.top-chrome/omnibox_popup_aim.html`
+      per tab, ADR-0003): not gated by the features AiMode, AllowAiModeMatches, WebUIOmniboxFullPopup, OmniboxEverywhereComposebox,
+      ShowAiModeAction*, WebUIOmniboxDynamicAiModeButton, OmniboxPopupButton nor the prefs omnibox.ai_mode_settings=1 /
+      omnibox.show_ai_mode_omnibox_button=false (checked 2026-10-15); patch it in a source build
 - [x] `chrome://extensions` management reachable (Tools menu, command bar: `extensions.manage`)
 
 ## 9. Performance (U)
