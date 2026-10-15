@@ -825,17 +825,22 @@ static id AXButtonNamed(id e, NSString *name, int depth) {
     return container ? [AXKids(container).lastObject accessibilityPerformPress] : NO;
 }
 
-- (NSDictionary<NSString *, NSString *> *)extensionActionBadges {
-    NSMutableDictionary<NSString *, NSString *> *badges = [NSMutableDictionary dictionary];
+- (NSArray<NSArray<NSString *> *> *)extensionActionBadges {
+    NSMutableArray<NSArray<NSString *> *> *badges = [NSMutableArray array];
     id container = AXExtensionsContainer(self.toolbarWindow, 0);
     NSArray *buttons = container ? AXKids(container) : @[];
     for (id button in buttons) {
         if (button == buttons.lastObject) continue;  // the extensions menu
         NSString *name = AXName(button);
-        NSString *help = [button respondsToSelector:@selector(accessibilityHelp)] ? [button accessibilityHelp] : nil;
-        id value = [button respondsToSelector:@selector(accessibilityValue)] ? [button accessibilityValue] : nil;
-        NSString *badge = help.length ? help : ([value isKindOfClass:NSString.class] ? value : nil);
-        if (name.length && badge.length && ![badge isEqualToString:name]) badges[name] = badge;
+        // Chromium puts a view's description in its custom accessibility content on macOS ("description").
+        NSString *badge = nil;
+        if ([button respondsToSelector:@selector(accessibilityCustomContent)]) {
+            for (id item in [button performSelector:@selector(accessibilityCustomContent)]) {
+                if ([[item valueForKey:@"label"] isEqual:@"description"]) badge = [item valueForKey:@"value"];
+            }
+        }
+        if (!badge.length && [button respondsToSelector:@selector(accessibilityHelp)]) badge = [button accessibilityHelp];
+        [badges addObject:@[name ?: @"", badge.length && ![badge isEqualToString:name] ? badge : @""]];
     }
     return badges;
 }

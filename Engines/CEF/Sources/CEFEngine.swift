@@ -235,13 +235,15 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         (tab as? CEFPage)?.tab?.showExtensionsMenu() ?? false
     }
 
-    /// Read from the page's hidden toolbar (our Chromium build exposes badges to accessibility). An action's accessible
-    /// name starts with the extension's name.
+    /// Read from the page's hidden toolbar (our Chromium build exposes badges to accessibility). A button is named after
+    /// its action's title, which usually starts with the extension's name; otherwise buttons follow the pin order.
     public func actionBadges(in tab: EngineTab) -> [String: String] {
-        guard runtime.extensionToolbar, let byName = (tab as? CEFPage)?.tab?.extensionActionBadges(), !byName.isEmpty else { return [:] }
+        guard runtime.extensionToolbar, let buttons = (tab as? CEFPage)?.tab?.extensionActionBadges(), !buttons.isEmpty else { return [:] }
+        let pinned = installedExtensions.filter(\.isPinned)
         var badges: [String: String] = [:]
-        for ext in installedExtensions {
-            if let badge = byName.first(where: { $0.key.hasPrefix(ext.name) })?.value { badges[ext.id] = badge }
+        for (index, button) in buttons.enumerated() where button.count == 2 && !button[1].isEmpty {
+            let named = installedExtensions.first { !$0.name.isEmpty && button[0].hasPrefix($0.name) }
+            if let ext = named ?? (index < pinned.count ? pinned[index] : nil) { badges[ext.id] = button[1] }
         }
         return badges
     }
