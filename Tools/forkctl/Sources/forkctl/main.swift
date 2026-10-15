@@ -13,6 +13,8 @@ Everyday
   test [feature…] [--e2e]  Run unit/integration tests (all, or only the given feature ids);
                            --e2e builds the app and runs the end-to-end engine suite against it
   doctor                   Check toolchain, vendored engines, project health
+  ci [--no-e2e]            Everything a change must pass: validate, all unit tests (forkctl's too), the
+                           E2E suite on every engine, and a fork smoke test (customizations on a copy)
 
 Customize a fork (writes only Fork/, never upstream files)
   rename <Name> [--bundle-id id] [--scheme s]
@@ -68,6 +70,8 @@ struct CLI {
             try test(features: positional)
         case "doctor":
             try doctor()
+        case "ci":
+            try ci()
         case "rename":
             guard let name = positional.first else { throw ProjectError.invalid("usage: forkctl rename <Name>") }
             try ForkFile.update(root) { f in
@@ -198,6 +202,63 @@ struct CLI {
         }
         try buildCrates(p)
         try Shell.run(cmd, cwd: root, env: env)
+    }
+
+    /// Everything a change must pass, in order; stops at the first failure.
+    func ci() throws {
+        let p = try project()
+        func step(_ name: String, _ body: () throws -> Void) throws {
+            print("\n▸ \(name)")
+            let start = Date()
+            try body()
+            print("✓ \(name) (\(Int(Date().timeIntervalSince(start)))s)")
+        }
+        try step("validate") { try Generator.run(p); try validate(p) }
+        try step("forkctl tests") { try Shell.run(["swift", "test"], cwd: root.appendingPathComponent("Tools/forkctl")) }
+        try step("unit tests") { try test(features: []) }
+        if !flag("--no-e2e") {
+            for engine in p.engines.map(\.id).sorted() {
+                try step("E2E · \(engine)") {
+                    try Shell.run([root.appendingPathComponent("forkctl").path, "test", "--e2e"], cwd: root, env: ["FORKCTL_ENGINE": engine])
+                }
+            }
+            try Generator.run(p)  // back to the configured engine
+        }
+        try step("fork smoke test") { try forkSmokeTest() }
+        print("\nci passed")
+    }
+
+    /// A fork's usual customizations on a scratch copy of the working tree: they must validate and build, and leave
+    /// every upstream file untouched (so `git merge upstream/main` can't conflict).
+    func forkSmokeTest() throws {
+        let copy = FileManager.default.temporaryDirectory.appendingPathComponent("forkctl-smoke-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let files = try Shell.capture(["git", "ls-files", "-co", "--exclude-standard"], cwd: root).split(separator: "\n").map(String.init)
+        for file in files where !file.hasPrefix("Fork/") {
+            let source = root.appendingPathComponent(file), target = copy.appendingPathComponent(file)
+            guard FileManager.default.fileExists(atPath: source.path) else { continue }
+            try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: source, to: target)
+        }
+        // A throwaway repository standing for the fork's upstream checkout (unsigned: it never leaves the temp folder).
+        try Shell.run(["git", "init", "-q"], cwd: copy)
+        try Shell.run(["git", "add", "-A"], cwd: copy, quiet: true)
+        try Shell.run(["git", "-c", "commit.gpgsign=false", "-c", "user.name=forkctl", "-c", "user.email=forkctl@localhost",
+                       "commit", "-q", "-m", "upstream"], cwd: copy)
+        let forkctl = copy.appendingPathComponent("forkctl").path
+        for command in [["rename", "Kestrel", "--bundle-id", "dev.example.kestrel"], ["engine", "use", "webkit"],
+                        ["feature", "disable", "pip"], ["shortcut", "tabs.close", "cmd+shift+x"], ["setting", "search.engine", "\"kagi\""],
+                        ["feature", "new", "reading-list", "--fork"], ["validate", "--strict"], ["build"]] {
+            try Shell.run([forkctl] + command, cwd: copy)
+        }
+        let changed = try Shell.capture(["git", "status", "--porcelain"], cwd: copy).split(separator: "\n")
+            .map { String($0.dropFirst(3)) }.filter { !$0.hasPrefix("Fork/") }
+        guard changed.isEmpty else { throw ProjectError.invalid("fork customizations changed upstream files: \(changed)") }
+        let plist = copy.appendingPathComponent("build/Kestrel.app/Contents/Info.plist")
+        guard let info = NSDictionary(contentsOf: plist), info["CFBundleIdentifier"] as? String == "dev.example.kestrel" else {
+            throw ProjectError.invalid("the fork didn't build as Kestrel (dev.example.kestrel)")
+        }
+        print("fork: renamed, engine swapped, feature disabled, shortcut and setting changed, feature added — only Fork/ changed")
     }
 
     func feature() throws {
