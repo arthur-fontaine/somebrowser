@@ -21,15 +21,9 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] CI: `./forkctl ci` — validate, every unit test (forkctl's too), the E2E suite on every engine, and a fork smoke test
       (rename, engine swap, feature off/new, shortcut, setting on a copy: builds, and only `Fork/` changes). No git remote
       here, so no hosted workflow yet; a hosted Mac needs Chromium-sized disk for the CEF E2E
-- [~] CEF quit time: `CefShutdown` waits 0.4–6.5 s after every helper process has exited (measured 2026-10-15; the
-      main thread blocks on a Chromium event, symbols stripped). With several instances at once (parallel E2E suites,
-      another copy of the browser running) it passed AppDriver's 10 s. Windows are now hidden as quitting starts, so
-      it no longer shows; the wait itself needs CEF symbols to diagnose. E2E now runs one app at a time with a 20 s
-      bound. Under a load average of ~270 (other apps indexing), Chromium's watchdog ended three quits with its "hung"
-      code 2, and once the app idled in its run loop without starting shutdown (`commandBarOpensAndCloses`; quitting
-      with no page open, the synchronous path, was checked fine)
-
-## 1. Engines (U)
+- [x] CEF quit time: `CefShutdown` waited 0.4–6.5 s after every helper had exited on stock CEF 154 (2026-10-15). On our
+      Chromium 156 build quitting takes 0.17–0.24 s (3 runs, load average 40, 2026-10-16). Windows are hidden as quitting
+      starts anyway, and E2E runs one app at a time with a 20 s bound
 - [x] `cef-chrome`: Chrome-style CEF 154, page child windows + shell overlay window (ADR-0002); real clicks, typing, tree, clean quit verified
 - [x] CEF app bundle: 5 helpers, versioned framework layout, `CefAppProtocol`, ad-hoc signing (`forkctl build`)
 - [x] `webkit`: WKWebView engine behind the same protocols (fork option, fast tests)
