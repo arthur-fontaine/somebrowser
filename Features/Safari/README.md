@@ -68,9 +68,12 @@ feature takes two other routes:
   - That gives each row what the agent uploads: a CloudKit record and per-attribute CRDT generations in `sync_data`,
     and a server id. Rows written by hand lack them, and the agent skips them ("Ignoring change lacking record", seen
     live 2026-10-15).
-  - Closed tabs are removed the way the agent reads removals: a tombstone (`deleted` 1) with its own new
-    `_dav_generation` once uploaded, deleted outright before. WebBookmarks' own path (`flushDeletedTabsInTabGroup:`)
-    waits on Safari.
+  - Closed tabs and removed groups go through WebBookmarks too: `WBTabCollection deleteTabs:` and `deleteTabGroup:`
+    (tabs taken from a freshly loaded manager). Each leaves Safari's tombstone: parent -1, the record id, and the
+    deletion's generation in `sync_data`.
+  - Hand-made tombstones (`deleted` 1 in place) did go up "Deleted". But their deletion generation lost to the
+    record's other fields, so the agent recreated the item on its next fetch (seen live). WebBookmarks' own delete
+    path `flushDeletedTabsInTabGroup:` waits on Safari, so it isn't used.
   - A tab whose page changed becomes a new tab. Our own group isn't listed among Safari's here.
 - **History** (`safari.share-history`): visits from normal windows are written in batches into History.db as Safari
   writes its own: `origin` 0, the current generation, and items marked for Safari to recompute their counts.

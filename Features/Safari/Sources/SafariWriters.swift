@@ -12,7 +12,7 @@ nonisolated struct SafariVisit: Equatable, Sendable {
 /// Writing into Safari's history the way the history service does (macOS 27, its own statements), so Safari's history
 /// sync uploads it with its own visits. Each write is one transaction that waits for Safari.
 nonisolated extension SafariStore {
-    // MARK: Tab Groups (added through WebBookmarks: SafariTabGroupWriter)
+    // MARK: Tab Groups (written through WebBookmarks: SafariTabGroupWriter)
 
     /// The tabs in a Tab Group (by the group's `external_uuid`), from the live database.
     static func tabIDs(in file: URL, groupID: String) throws -> Set<String> {
@@ -26,35 +26,6 @@ nonisolated extension SafariStore {
             ids.insert(text(s, 0))
         }
         return ids
-    }
-
-    /// Removes rows of Safari's Tab Groups (and what's inside them) the way WebBookmarks' sync reads removals: a
-    /// tombstone (`deleted` 1) with its own new generation once uploaded (`added` 0), deleted outright before. A delete
-    /// needs no CloudKit record, unlike an add. WebBookmarks' own path (`flushDeletedTabsInTabGroup:`) waits on Safari.
-    static func removeTabGroupRows(in file: URL, externalIDs: [String]) throws {
-        guard !externalIDs.isEmpty else { return }
-        try transaction(file) { db in
-            var found: [(id: Int, parent: Int, uploaded: Bool)] = []
-            let list = externalIDs.map { "'\($0.replacingOccurrences(of: "'", with: "''"))'" }.joined(separator: ",")
-            rows(db, """
-            SELECT id, COALESCE(parent, -1), added = 0 FROM bookmarks WHERE deleted = 0 AND (external_uuid IN (\(list))
-                OR parent IN (SELECT id FROM bookmarks WHERE external_uuid IN (\(list))))
-            ORDER BY parent IN (SELECT id FROM bookmarks WHERE external_uuid IN (\(list))) DESC, id
-            """) { s in found.append((Int(sqlite3_column_int64(s, 0)), Int(sqlite3_column_int64(s, 1)), sqlite3_column_int(s, 2) != 0)) }
-            for row in found {  // children first
-                if row.uploaded {
-                    try run(db, "UPDATE sync_properties SET value = value + 1 WHERE key = '_dav_generation'")
-                    try run(db, "UPDATE generations SET generation = generation + 1")
-                    let generation = try int(db, "SELECT value FROM sync_properties WHERE key = '_dav_generation'")
-                    try run(db, "UPDATE bookmarks SET deleted = 1, dav_generation = ? WHERE id = ?", generation, row.id)
-                } else {
-                    try run(db, "DELETE FROM bookmarks WHERE id = ?", row.id)
-                }
-            }
-            for parent in Set(found.map(\.parent)) where parent >= 0 {
-                try run(db, "UPDATE bookmarks SET num_children = (SELECT count(*) FROM bookmarks WHERE parent = ?1 AND deleted = 0) WHERE id = ?1", parent)
-            }
-        }
     }
 
     /// A tab's id in the Tab Group: the same tab at the same page keeps it, anything else is a new tab.

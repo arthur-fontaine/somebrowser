@@ -150,7 +150,8 @@ struct StoreTests {
     }
 
     /// Written by Safari's own code (WebBookmarks) on a database it created: each tab carries what the sync agent
-    /// uploads (a CloudKit record in `sync_data`, a server id); closed tabs leave; nothing changes when nothing did.
+    /// uploads (a CloudKit record in `sync_data`, a server id); a closed tab leaves Safari's tombstone (parent -1, its
+    /// record id, the deletion's generation in `sync_data`); nothing changes when nothing did.
     @MainActor @Test func mirrorsTabsThroughSafarisOwnCode() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("tabs-\(UUID().uuidString.prefix(6))")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -166,23 +167,20 @@ struct StoreTests {
         try await writer.mirror(title: "This Mac", tabs: [a, b])
         #expect(try shared() == [a.id, b.id])
         #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid IN ('\(a.id)', '\(b.id)') AND sync_data IS NOT NULL AND server_id IS NOT NULL AND added = 1") == 2)
+        let recordOfA = value(file, "SELECT id FROM bookmarks WHERE external_uuid = '\(a.id)'")
 
         try await writer.mirror(title: "This Mac", tabs: [b, c])
         #expect(try shared() == [b.id, c.id])
-        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(a.id)'") == 0)  // never uploaded: gone
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE id = \(recordOfA)") == 0)
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE parent = -1 AND deleted = 1 AND sync_data IS NOT NULL") == 1)
 
-        // Once uploaded (the agent clears `added`), a closed tab leaves a tombstone with a new generation.
-        try SafariStore.transaction(file) { db in try SafariStore.run(db, "UPDATE bookmarks SET added = 0 WHERE external_uuid = ?", b.id) }
-        let before = value(file, "SELECT max(dav_generation) FROM bookmarks")
-        try await writer.mirror(title: "This Mac", tabs: [c])
-        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(b.id)' AND deleted = 1 AND dav_generation > \(before)") == 1)
-        #expect(try shared() == [c.id])
         let generation = value(file, "SELECT max(dav_generation) FROM bookmarks")
-        try await writer.mirror(title: "This Mac", tabs: [c])
+        try await writer.mirror(title: "This Mac", tabs: [b, c])
         #expect(value(file, "SELECT max(dav_generation) FROM bookmarks") == generation)
 
         try await writer.remove(title: "This Mac")
         #expect(try shared() == nil)
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE parent = -1 AND deleted = 1") >= 4)  // a, the group, its list, b, c
     }
 
     /// Visits go in as Safari's own local ones (origin 0, the current generation), for its history sync to upload.
