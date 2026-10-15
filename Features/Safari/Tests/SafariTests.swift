@@ -203,4 +203,18 @@ struct FeatureTests {
         #expect(feature.model.favorites.isEmpty)
         #expect(SafariAccess(grants: h.context.dataDirectory, home: home) { _, _ in nil }.restore() == nil)
     }
+
+    @Test func offersSafariForImport() async throws {
+        let home = try makeHome()
+        let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
+        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
+        feature.activate()
+        let source = try #require(h.runtime.capabilities.all(BrowserImportSource.self).first)
+        #expect(source.name == "Safari")
+        let data = try #require(await source.importData())  // asks for the folders, then reads
+        #expect(data.bookmarks == [.folder(title: "Favorites", children: [.link(title: "Apple", url: URL(string: "https://www.apple.com/")!),
+                                                                          .link(title: "Swift", url: URL(string: "https://swift.org/")!),
+                                                                          .folder(title: "Folder", children: [])])])
+        #expect(data.history.count == 2)
+    }
 }

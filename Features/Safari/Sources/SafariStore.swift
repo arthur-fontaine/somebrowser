@@ -93,6 +93,32 @@ nonisolated struct SafariStore: Sendable {
         return bar
     }
 
+    /// Every bookmark for import: Favorites, the Bookmarks Menu's contents and other folders (not the Reading List).
+    func bookmarkTree() throws -> [BookmarkNode] {
+        func nodes(_ list: NSDictionary) -> [BookmarkNode] {
+            (list["Children"] as? [NSDictionary] ?? []).compactMap { item in
+                switch item["WebBookmarkType"] as? String {
+                case "WebBookmarkTypeLeaf":
+                    guard let s = item["URLString"] as? String, let url = URL(string: s) else { return nil }
+                    return .link(title: (item["URIDictionary"] as? NSDictionary)?["title"] as? String ?? url.host() ?? s, url: url)
+                case "WebBookmarkTypeList":
+                    return .folder(title: item["Title"] as? String ?? "", children: nodes(item))
+                default:
+                    return nil
+                }
+            }
+        }
+        return try nodes(readBookmarks()).flatMap { node -> [BookmarkNode] in
+            guard case .folder(let title, let children) = node else { return [node] }
+            switch title {
+            case "BookmarksBar": return children.isEmpty ? [] : [.folder(title: "Favorites", children: children)]
+            case "BookmarksMenu": return children
+            case "com.apple.ReadingList": return []
+            default: return [node]
+            }
+        }
+    }
+
     static func leaves(of list: NSDictionary) -> [SafariBookmark] {
         (list["Children"] as? [NSDictionary] ?? []).compactMap { item in
             guard item["WebBookmarkType"] as? String == "WebBookmarkTypeLeaf", let id = item["WebBookmarkUUID"] as? String,

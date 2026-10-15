@@ -29,6 +29,9 @@ with Safari not running, untested. Deleting: **not offered** — Safari absorbed
 never synced the deletion (the agent takes deletions from Safari's own change log, over an entitled XPC connection),
 so it stayed on the iPhone. Delete in Safari. Tabs and history are read-only: their stores belong to Safari's agents.
 
+**Import** — offers Safari to the import sheet (`BrowserImportSource`): every bookmark except the Reading List
+(Favorites as a folder) and the history, through the same folder grants (asked for if needed).
+
 **Commands** — `safari.add-favorite`, `safari.cloud-tabs`, `safari.connect`, `safari.disconnect`.
 **Settings** — `safari.enabled`.
 

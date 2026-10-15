@@ -25,6 +25,7 @@ public final class SafariFeature: BrowserFeature {
     }
 
     public func activate() {
+        context.capabilities.contribute(BrowserImportSource.self, SafariImportSource(feature: self))
         guard context.settings.bool("safari.enabled") else { return }
         context.commands.handle("safari.add-favorite") { [weak self] inv in self?.addCurrentPage(in: inv.window) }
         context.commands.handle("safari.cloud-tabs") { [weak self] inv in
@@ -129,6 +130,23 @@ public final class SafariFeature: BrowserFeature {
         } catch {
             context.notify("Couldn't add to Safari Favorites", systemImage: "exclamationmark.triangle")
         }
+    }
+}
+
+/// Safari in the import sheet: its bookmarks and history (this Mac and the iPhone), through the same folder grants.
+final class SafariImportSource: BrowserImportSource {
+    let name = "Safari"
+    let bundleIdentifier = "com.apple.Safari"
+    private weak var feature: SafariFeature?
+
+    init(feature: SafariFeature) { self.feature = feature }
+
+    func importData() async -> ImportableData? {
+        guard let feature, feature.store != nil || feature.connect(), let store = feature.store else { return nil }
+        return await Task.detached(priority: .userInitiated) {
+            guard store.hasAccess else { return nil }
+            return ImportableData(bookmarks: (try? store.bookmarkTree()) ?? [], history: (try? store.history(limit: 200_000)) ?? [])
+        }.value
     }
 }
 
