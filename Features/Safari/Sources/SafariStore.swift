@@ -15,6 +15,13 @@ nonisolated struct SafariDevice: Identifiable, Equatable, Sendable {
     var tabs: [SafariBookmark]
 }
 
+/// A Safari Tab Group (synced through iCloud with the iPhone).
+nonisolated struct SafariTabGroup: Identifiable, Equatable, Sendable {
+    var id: String
+    var title: String
+    var tabs: [SafariBookmark]
+}
+
 /// Safari's own files. Safari's agents keep them in sync with the iPhone through iCloud, so reading them shows the
 /// iPhone's favorites, tabs and history; Favorites edited here go into Bookmarks.plist, Safari's own store.
 /// The folders come from `SafariAccess` (granted by the user, no Full Disk Access).
@@ -28,6 +35,7 @@ nonisolated struct SafariStore: Sendable {
     var bookmarksFile: URL { folders.library.appendingPathComponent("Bookmarks.plist") }
     var historyFile: URL { folders.library.appendingPathComponent("History.db") }
     var cloudTabsFile: URL? { folders.container?.appendingPathComponent("CloudTabs.db") }
+    var tabGroupsFile: URL? { folders.container?.appendingPathComponent("SafariTabs.db") }
 
     enum StoreError: Error, Equatable { case noAccess, malformed, notFound, busy }
 
@@ -236,6 +244,32 @@ nonisolated struct SafariStore: Sendable {
                     return device
                 }
             }.filter { !$0.tabs.isEmpty }
+        }
+    }
+
+    // MARK: Tab Groups
+
+    /// Safari's Tab Groups, in Safari's order, read-only: SafariTabs.db keeps them as folders (type 1, subtype 0) under
+    /// the root or a profile (subtype 2), their tabs as leaves (type 0); a group's subtype-1 folder holds its scoped
+    /// favorites, and deleted rows stay as tombstones until synced.
+    func tabGroups() throws -> [SafariTabGroup] {
+        guard let file = tabGroupsFile, FileManager.default.fileExists(atPath: file.path) else { return [] }
+        return try Self.query(file) { db in
+            var groups: [SafariTabGroup] = []
+            let sql = """
+            SELECT g.external_uuid, g.title, t.external_uuid, t.title, t.url FROM bookmarks g
+            LEFT JOIN bookmarks t ON t.parent = g.id AND t.type = 0 AND t.deleted = 0 AND t.hidden = 0
+            WHERE g.type = 1 AND g.subtype = 0 AND g.special_id = 0 AND g.hidden = 0 AND g.deleted = 0
+              AND g.parent IN (SELECT id FROM bookmarks WHERE parent IS NULL OR (type = 1 AND subtype = 2 AND deleted = 0))
+            ORDER BY g.parent, g.order_index, t.order_index
+            """
+            Self.rows(db, sql) { s in
+                let id = Self.text(s, 0)
+                if groups.last?.id != id { groups.append(SafariTabGroup(id: id, title: Self.text(s, 1), tabs: [])) }
+                guard sqlite3_column_type(s, 2) != SQLITE_NULL, let url = URL(string: Self.text(s, 4)) else { return }
+                groups[groups.count - 1].tabs.append(SafariBookmark(id: Self.text(s, 2), title: Self.text(s, 3), url: url))
+            }
+            return groups
         }
     }
 

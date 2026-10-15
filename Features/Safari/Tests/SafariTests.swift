@@ -54,6 +54,23 @@ func makeHome() throws -> URL {
     INSERT INTO cloud_tab_devices VALUES ('D1', x'', 'Arthur’s iPhone', 'com.apple.iphone', 0, 0, 2), ('D2', x'', 'Old iPad', 'com.apple.ipad', 0, 0, 1),
         ('D3', x'', 'This Mac', 'com.apple.macbookpro', 0, 0, 3);
     """)
+    // Tab Groups: the real table (macOS 27), with a profile, a group's scoped-favorites folder and tombstones.
+    sqlite(container.appendingPathComponent("SafariTabs.db"), """
+    CREATE TABLE bookmarks (id INTEGER PRIMARY KEY AUTOINCREMENT,special_id INTEGER DEFAULT 0,parent INTEGER, type INTEGER,title TEXT,url TEXT COLLATE NOCASE,num_children INTEGER DEFAULT 0,editable INTEGER DEFAULT 1,deletable INTEGER DEFAULT 1,hidden INTEGER DEFAULT 0,hidden_ancestor_count INTEGER DEFAULT 0,order_index INTEGER NOT NULL,external_uuid TEXT UNIQUE,read INTEGER DEFAULT NULL,last_modified REAL DEFAULT NULL,server_id TEXT, sync_key TEXT,sync_data BLOB,added INTEGER DEFAULT 1,deleted INTEGER DEFAULT 0,extra_attributes BLOB DEFAULT NULL,local_attributes BLOB DEFAULT NULL,fetched_icon BOOL DEFAULT 0, icon BLOB DEFAULT NULL,dav_generation INTEGER DEFAULT 0,locally_added BOOL DEFAULT 0,archive_status INTEGER DEFAULT 0,syncable BOOL DEFAULT 1,web_filter_status INTEGER DEFAULT 0, modified_attributes UNSIGNED BIG INT DEFAULT 0, date_closed REAL DEFAULT NULL, last_selected_child INTEGER DEFAULT NULL, subtype INTEGER DEFAULT 0, cookies_uuid TEXT DEFAULT NULL, local_storage_uuid TEXT DEFAULT NULL, session_storage_uuid TEXT DEFAULT NULL, topic_title TEXT, feature_text TEXT, fetched_feature_text BOOL DEFAULT 0, is_marked_for_expiration INTEGER);
+    INSERT INTO bookmarks (id, special_id, parent, type, subtype, hidden, deleted, order_index, external_uuid, title, url) VALUES
+        (0, 0, NULL, 1, 0, 0, 0, 0, 'root', '', NULL),
+        (1, 6, 0, 1, 0, 1, 0, 0, 'recovered', 'Recovered', NULL),
+        (10, 0, 0, 1, 0, 0, 0, 2, 'G-work', 'Work', NULL),
+        (11, 0, 10, 1, 1, 0, 0, 0, 'G-work-favorites', '', NULL),
+        (12, 0, 10, 0, 0, 0, 0, 2, 'T-mail', 'Mail', 'https://mail.example/'),
+        (13, 0, 10, 0, 0, 0, 0, 1, 'T-docs', 'Docs', 'https://docs.example/'),
+        (14, 0, 10, 0, 0, 0, 1, 3, 'T-gone', 'Gone', 'https://gone.example/'),
+        (15, 0, 0, 1, 0, 0, 1, 3, 'G-old', 'Old', NULL),
+        (16, 0, 0, 1, 0, 0, 0, 1, 'G-empty', 'Empty', NULL),
+        (20, 0, 0, 1, 2, 0, 0, 4, 'P-personal', '', NULL),
+        (21, 0, 20, 1, 0, 0, 0, 0, 'G-trip', 'Trip', NULL),
+        (22, 0, 21, 0, 0, 0, 0, 0, 'T-maps', 'Maps', 'https://maps.example/');
+    """)
     var db: OpaquePointer?
     sqlite3_open(container.appendingPathComponent("CloudTabs.db").path, &db)
     for (id, device, title, url, sort, pinned) in [("T1", "D1", "Maps", "https://maps.example/", 300, 0), ("T2", "D1", "Docs", "https://docs.example/", 100, 0),
@@ -99,6 +116,17 @@ struct StoreTests {
         #expect(history.map(\.url.host) == ["swift.org", "news.example"])
         #expect(history.first?.title == "Swift.org")
         #expect(history.first?.lastVisit == Date(timeIntervalSinceReferenceDate: 780_000_000))
+    }
+
+    /// Groups in Safari's order (the default profile's first), their tabs in order; tombstones, the scoped-favorites
+    /// folder and Safari's hidden folders left out.
+    @Test func readsTabGroups() throws {
+        let groups = try store().tabGroups()
+        #expect(groups.map(\.title) == ["Empty", "Work", "Trip"])
+        #expect(groups[1].tabs.map(\.title) == ["Docs", "Mail"])
+        #expect(groups[1].tabs.first?.url.host == "docs.example")
+        #expect(groups[2].tabs.map(\.id) == ["T-maps"])
+        #expect(groups[0].tabs.isEmpty)
     }
 
     /// Bytes as Safari writes them (Python's zlib), with two changes: the latest one wins.

@@ -74,6 +74,7 @@ public final class SafariFeature: BrowserFeature {
         model.hasAccess = false
         model.favorites = []
         model.devices = []
+        model.tabGroups = []
         model.history = []
     }
 
@@ -93,12 +94,14 @@ public final class SafariFeature: BrowserFeature {
             let access = store.hasAccess
             let favorites = access ? (try? store.favorites()) ?? [] : []
             let devices = (try? store.cloudTabs()) ?? []
+            let tabGroups = (try? store.tabGroups()) ?? []
             let history = access ? (try? store.history()) ?? [] : []
             await MainActor.run {
                 guard let self, self.store?.folders == store.folders else { return }
                 self.model.hasAccess = access
                 self.model.favorites = favorites
                 self.model.devices = devices
+                self.model.tabGroups = tabGroups
                 self.model.history = history
             }
         }
@@ -186,6 +189,7 @@ final class SafariModel {
     var hasAccess: Bool?
     var favorites: [SafariBookmark] = []
     var devices: [SafariDevice] = []
+    var tabGroups: [SafariTabGroup] = []
     var history: [HistoryEntry] = []
 }
 

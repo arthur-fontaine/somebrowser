@@ -100,7 +100,9 @@ to check that the feature still works (`forkctl test <feature>`).
       the command bar — verified with real data both ways: an iPhone favorite reaches the feature's store, a favorite added here
       reaches the iPhone (Safari running). Edits now go through Safari's change log and lock, and Safari is asked to
       upload them. Verified live: an added favorite was uploaded by Safari's agent within a second. Deleting verified
-      live too (record marked deleted in iCloud), offered in the start page menu; untested with Safari closed
+      live too (record marked deleted in iCloud), offered in the start page menu; untested with Safari closed. iPhone → here: iCloud Tabs and Tab Groups (read-only). Here → iPhone:
+      this browser's tabs can't join iCloud Tabs (entitled XPC only); a Tab Group written to SafariTabs.db could — not
+      done, awaiting the user's decision (risk to their groups)
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
 
 ## 7. Privacy & ads (B, U)

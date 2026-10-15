@@ -12,6 +12,7 @@ syncs in local files, decrypted (History and iCloud Tabs are end-to-end encrypte
 | `Bookmarks.plist` | `~/Library/Safari` | Favorites (the `BookmarksBar` list), read and written |
 | `History.db` | `~/Library/Safari` | Command bar suggestions |
 | `CloudTabs.db` | `~/Library/Containers/com.apple.Safari/Data/Library/Safari` | iCloud Tabs (this Mac left out; positions are zlib JSON) |
+| `SafariTabs.db` | same | Tab Groups, read-only (folders type 1 / subtype 0 under the root or a profile; tabs are leaves) |
 
 `SafariStore` reads them (databases from a private copy, since Safari holds them open) and writes Favorites back
 into Bookmarks.plist in Safari's binary format, keeping every key it doesn't know and a backup of the last 10 versions
@@ -55,7 +56,10 @@ two minutes, with Safari running on the Mac (Safari watches Bookmarks.plist and 
 with Safari not running, untested. An added favorite's upload was also verified on its own: in the agent's log,
 within a second of the edit. Deleting (start page context menu): verified the same way, the agent marked the record deleted in iCloud
 within ~20 s.
-Tabs and history are read-only: their stores belong to Safari's agents.
+Tabs, Tab Groups and history are read-only. This Mac's open tabs reach iCloud Tabs only when Safari hands them to its agent
+directly (`saveTabsForCurrentDeviceWithDictionaryRepresentation:`, entitled XPC; the agent never uploads them from its
+database), so this browser's tabs can't appear there. Writing a Tab Group into SafariTabs.db could carry them, but
+isn't done: it means writing to a live database holding the user's groups.
 
 **Live lab** — `Tests/LiveSafariLab.swift`, off by default, edits the real Bookmarks.plist through the store, only on
 favorites named "<Brand.name> lab…": `SAFARI_LAB="add:<name>"`, `"remove:<name>"` or `status`, then

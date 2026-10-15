@@ -41,7 +41,7 @@ struct SafariStartSection: View {
                         }
                     }
                 }
-                if !model.devices.isEmpty {
+                if !model.devices.isEmpty || !model.tabGroups.isEmpty {
                     Button { window.toggle(flag: SafariFeature.cloudTabsFlag) } label: {
                         Label("iCloud Tabs", systemImage: "icloud")
                             .padding(.horizontal, 12).padding(.vertical, 6)
@@ -84,7 +84,7 @@ struct FavoriteTile: View {
     }
 }
 
-/// The iPhone's (and other devices') open Safari tabs.
+/// The iPhone's (and other devices') open Safari tabs, then Safari's Tab Groups.
 struct CloudTabsPanel: View {
     let model: SafariModel
     let window: BrowserWindowState
@@ -101,22 +101,19 @@ struct CloudTabsPanel: View {
                         Button { window.flags.remove(SafariFeature.cloudTabsFlag) } label: { Image(systemName: "xmark") }
                             .buttonStyle(.borderless).keyboardShortcut(.cancelAction)
                     }
-                    if model.devices.isEmpty {
+                    if model.devices.isEmpty && model.tabGroups.isEmpty {
                         ContentUnavailableView("No iCloud Tabs", systemImage: "icloud.slash",
-                                               description: Text("Tabs open in Safari on your other devices appear here."))
+                                               description: Text("Tabs open in Safari on your other devices, and Safari's Tab Groups, appear here."))
                     } else {
                         List {
                             ForEach(model.devices) { device in
-                                Section(device.name) {
-                                    ForEach(device.tabs) { tab in
-                                        HStack {
-                                            Text(tab.title.isEmpty ? tab.url.absoluteString : tab.title).lineLimit(1)
-                                            Spacer()
-                                            Text(tab.url.host() ?? "").foregroundStyle(.tertiary).lineLimit(1)
-                                        }
-                                        .contentShape(Rectangle())
-                                        .onTapGesture { open(tab.url); window.flags.remove(SafariFeature.cloudTabsFlag) }
-                                    }
+                                Section(device.name) { ForEach(device.tabs) { tab in row(tab) } }
+                            }
+                            ForEach(model.tabGroups) { group in
+                                Section {
+                                    ForEach(group.tabs) { tab in row(tab) }
+                                } header: {
+                                    Label(group.title, systemImage: "square.on.square")
                                 }
                             }
                         }
@@ -130,5 +127,15 @@ struct CloudTabsPanel: View {
                 .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
             }
         }
+    }
+
+    private func row(_ tab: SafariBookmark) -> some View {
+        HStack {
+            Text(tab.title.isEmpty ? tab.url.absoluteString : tab.title).lineLimit(1)
+            Spacer()
+            Text(tab.url.host() ?? "").foregroundStyle(.tertiary).lineLimit(1)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { open(tab.url); window.flags.remove(SafariFeature.cloudTabsFlag) }
     }
 }
