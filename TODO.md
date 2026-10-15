@@ -94,7 +94,7 @@ to check that the feature still works (`forkctl test <feature>`).
 
 ## 7. Privacy & ads (B, U)
 - [x] adblock-rust (Brave engine) via Rust staticlib + C API crate (`forkctl` builds `"cargo"` crates); real lists verified in the app
-- [~] Brave default lists, cosmetic filtering (page-specific + generic), URL cleaning — scriptlets/redirect resources todo
+- [x] Brave default lists, cosmetic filtering (page-specific + generic), URL cleaning — scriptlets at document start and redirect stand-ins (uBO + Brave resources; YouTube rules verified live)
 - [x] Per-site allow toggle in site controls (with blocked counter)
 - [x] Creator-friendly mode: sites declaring Web Monetization keep their ads ("support creators", on by default); trackers stay blocked
 - [ ] Security Core: log/inspect every outbound connection made by the browser itself; permission broker (R)
