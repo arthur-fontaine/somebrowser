@@ -1,5 +1,6 @@
 import AppKit
 import BrowserCore
+import UniformTypeIdentifiers
 import WebKit
 
 final class WebKitTab: NSObject, EngineTab {
@@ -121,9 +122,22 @@ final class WebKitTab: NSObject, EngineTab {
         webView.evaluateJavaScript("window.getSelection && window.getSelection().removeAllRanges()")
     }
 
-    func showDevTools() {
+    func showDevTools(_ panel: DevToolsPanel) {
         // The inspector is reachable from the context menu ("Inspect Element") once isInspectable is set.
         webView.evaluateJavaScript("console.info('Right-click → Inspect Element to open Web Inspector')")
+    }
+
+    /// A web archive, where the user picks.
+    func savePage() {
+        guard let window = webView.window else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = (state.title.isEmpty ? "Page" : state.title) + ".webarchive"
+        panel.allowedContentTypes = [.webArchive]
+        let webView = self.webView
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url else { return }
+            webView.createWebArchiveData { result in if case .success(let data) = result { try? data.write(to: url, options: .atomic) } }
+        }
     }
 
     func printPage() {

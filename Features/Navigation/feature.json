@@ -13,8 +13,11 @@
     { "id": "navigation.zoom-in", "title": "Zoom In", "shortcut": "cmd+=", "alternateShortcuts": ["cmd+shift+="], "menu": "View", "group": "zoom", "order": 1 },
     { "id": "navigation.zoom-out", "title": "Zoom Out", "shortcut": "cmd+-", "menu": "View", "group": "zoom", "order": 2 },
     { "id": "navigation.zoom-reset", "title": "Actual Size", "shortcut": "cmd+0", "menu": "View", "group": "zoom", "order": 3 },
-    { "id": "navigation.devtools", "title": "Developer Tools", "shortcut": "cmd+opt+i", "menu": "Tools", "group": "dev", "order": 1, "keywords": ["inspect", "web inspector", "console"] },
-    { "id": "navigation.view-source", "title": "View Page Source", "shortcut": "cmd+opt+u", "menu": "Tools", "group": "dev", "order": 2 },
+    { "id": "navigation.devtools", "title": "Developer Tools", "shortcut": "cmd+opt+i", "alternateShortcuts": ["cmd+shift+i"], "menu": "Tools", "group": "dev", "order": 1, "keywords": ["inspect", "web inspector"] },
+    { "id": "navigation.console", "title": "JavaScript Console", "shortcut": "cmd+opt+j", "menu": "Tools", "group": "dev", "order": 2, "keywords": ["devtools", "log"] },
+    { "id": "navigation.inspect-element", "title": "Inspect Element", "shortcut": "cmd+opt+c", "menu": "Tools", "group": "dev", "order": 3, "keywords": ["devtools", "pick"] },
+    { "id": "navigation.view-source", "title": "View Page Source", "shortcut": "cmd+opt+u", "menu": "Tools", "group": "dev", "order": 4 },
+    { "id": "navigation.save-page", "title": "Save Page As…", "shortcut": "cmd+shift+s", "menu": "File", "group": "save", "order": 1, "keywords": ["download", "export", "html"] },
     { "id": "navigation.copy-url", "title": "Copy URL", "shortcut": "cmd+shift+c", "menu": "Edit", "group": "copy", "order": 1, "keywords": ["share", "link", "super copy"] },
     { "id": "navigation.copy-markdown", "title": "Copy URL as Markdown", "shortcut": "cmd+opt+shift+c", "menu": "Edit", "group": "copy", "order": 2 }
   ],

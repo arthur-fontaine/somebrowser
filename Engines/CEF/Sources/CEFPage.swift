@@ -119,8 +119,15 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         tab?.stopFinding()
     }
 
-    func showDevTools() { tab?.showDevTools() }
+    func showDevTools(_ panel: DevToolsPanel) {
+        switch panel {
+        case .default: tab?.showDevTools()
+        case .console: tab?.runChromeCommand(CEFChromeCommandConsole)
+        case .inspectElement: tab?.runChromeCommand(CEFChromeCommandInspect)
+        }
+    }
     func printPage() { tab?.print() }
+    func savePage() { tab?.runChromeCommand(CEFChromeCommandSavePage) }
 
     func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void) {
         guard let view = window?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return completion(nil) }

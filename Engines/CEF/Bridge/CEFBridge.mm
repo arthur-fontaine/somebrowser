@@ -16,6 +16,7 @@
 #include "include/cef_client.h"
 #include "include/cef_parser.h"
 #include "include/cef_color_ids.h"
+#include "include/cef_command_ids.h"
 #include "include/cef_stream.h"
 #include "include/wrapper/cef_stream_resource_handler.h"
 #include "include/views/cef_box_layout.h"
@@ -444,10 +445,14 @@ public:
         [[CEFRuntime shared] download:item callback:callback];
     }
 
-    // Chrome's own commands (its accelerators, app menu) are disabled: our menus own every action.
+    // Chrome's own commands (its accelerators, app menu) are disabled: our menus own every action, and run the few
+    // Chrome commands they need through -runChromeCommand:.
     bool OnChromeCommand(CefRefPtr<CefBrowser> browser, int command_id, cef_window_open_disposition_t disposition) override {
-        return true;
+        if (command_id != allowedCommand_) return true;
+        allowedCommand_ = 0;
+        return false;
     }
+    void AllowChromeCommand(int command_id) { allowedCommand_ = command_id; }
 
     /// The Chrome toolbar only exists for extension actions: none of its other buttons (each may preload UI).
     bool IsChromeToolbarButtonVisible(cef_chrome_toolbar_button_type_t) override { return false; }
@@ -460,6 +465,7 @@ private:
     CefRefPtr<FilterHandler> filter_;
     std::deque<CEFTab *> pendingPopups_;
     CefRefPtr<CefRegistration> devtools_;
+    int allowedCommand_ = 0;
     std::string scriptID_;
     int pendingAdd_ = 0;
     std::set<int> staleAdds_;
@@ -880,6 +886,15 @@ static id AXButtonNamed(id e, NSString *name, int depth) {
     CefWindowInfo info;
     CefBrowserSettings settings;
     _browser->GetHost()->ShowDevTools(info, nullptr, settings, CefPoint());
+}
+
+static_assert(CEFChromeCommandSavePage == IDC_SAVE_PAGE && CEFChromeCommandConsole == IDC_DEV_TOOLS_CONSOLE &&
+              CEFChromeCommandInspect == IDC_DEV_TOOLS_INSPECT, "Chrome command ids changed");
+
+- (void)runChromeCommand:(int)commandID {
+    if (!_browser || !_client) return;
+    _client->AllowChromeCommand(commandID);
+    _browser->GetHost()->ExecuteChromeCommand(commandID, CEF_WOD_CURRENT_TAB);
 }
 
 - (void)setFocus:(BOOL)focus { if (_browser) _browser->GetHost()->SetFocus(focus); }

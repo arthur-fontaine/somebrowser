@@ -139,7 +139,10 @@ public final class FakeEngineTab: EngineTab {
         state.findResult = FindResult(matches: text.isEmpty ? 0 : 3, activeIndex: forward ? 1 : 3)
     }
     public func stopFinding() { state.findResult = nil }
-    public func showDevTools() {}
+    public private(set) var devToolsPanels: [DevToolsPanel] = []
+    public func showDevTools(_ panel: DevToolsPanel) { devToolsPanels.append(panel) }
+    public private(set) var savePageCount = 0
+    public func savePage() { savePageCount += 1 }
     public private(set) var printCount = 0
     public func printPage() { printCount += 1 }
     public func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void) { completion(nil) }

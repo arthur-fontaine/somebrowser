@@ -29,9 +29,12 @@ public protocol EngineTab: AnyObject {
     func find(_ text: String, forward: Bool, caseSensitive: Bool)
     func stopFinding()
 
-    func showDevTools()
+    /// Developer tools for the page, opened on `panel`.
+    func showDevTools(_ panel: DevToolsPanel)
     /// The system print panel for the page.
     func printPage()
+    /// Saves the page to a file the user picks (the engine's own save panel).
+    func savePage()
     func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void)
     /// Navigation history blob for session restore (nil if unsupported).
     func restorationData() -> Data?
@@ -93,6 +96,15 @@ public enum OpenDisposition: String, Sendable {
 }
 
 /// Events from a live tab. All calls happen on the main thread.
+/// Where developer tools open.
+public enum DevToolsPanel: Sendable {
+    case `default`, console, inspectElement
+}
+
+public extension EngineTab {
+    func showDevTools() { showDevTools(.default) }
+}
+
 public protocol EngineTabDelegate: AnyObject {
     /// The page opened another page. The engine already created `newTab` (it may hold an opener reference).
     func engineTab(_ tab: EngineTab, didOpen newTab: EngineTab, url: URL?, disposition: OpenDisposition, userGesture: Bool)

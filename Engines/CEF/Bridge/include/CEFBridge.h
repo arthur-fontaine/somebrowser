@@ -8,6 +8,11 @@ NS_ASSUME_NONNULL_BEGIN
 @interface BrowserCEFApplication : NSApplication
 @end
 
+/// Chrome's command ids (cef_command_ids.h) the browser runs itself.
+static const int CEFChromeCommandSavePage = 35004;
+static const int CEFChromeCommandConsole = 40005;
+static const int CEFChromeCommandInspect = 40023;
+
 typedef NS_ENUM(NSInteger, CEFDisposition) {
     CEFDispositionForegroundTab = 0,
     CEFDispositionBackgroundTab = 1,
@@ -124,6 +129,8 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 - (void)find:(NSString *)text forward:(BOOL)forward matchCase:(BOOL)matchCase findNext:(BOOL)findNext;
 - (void)stopFinding;
 - (void)showDevTools;
+/// Runs one of Chrome's own commands (the page's other Chrome commands stay off: our menus own them).
+- (void)runChromeCommand:(int)commandID;
 - (void)setFocus:(BOOL)focus;
 - (void)close;
 @end

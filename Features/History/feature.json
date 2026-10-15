@@ -6,7 +6,7 @@
   "provides": ["history"],
   "frameworks": [],
   "commands": [
-    { "id": "history.show", "title": "Show History", "shortcut": "cmd+y", "menu": "History", "group": "panel", "order": 1 },
+    { "id": "history.show", "title": "Show History", "shortcut": "cmd+y", "alternateShortcuts": ["cmd+shift+h"], "menu": "History", "group": "panel", "order": 1 },
     { "id": "history.clear-today", "title": "Clear Today's History", "menu": "History", "group": "clear", "order": 1 },
     { "id": "history.clear-all", "title": "Clear All History…", "menu": "History", "group": "clear", "order": 2 }
   ],

@@ -27,6 +27,15 @@ struct NavigationTests {
         #expect(throws: CommandError.self) { try h.run("navigation.reload") }
     }
 
+    @Test func developerToolsOpenOnTheAskedPanelAndPagesSave() throws {
+        let h = try harness()
+        let page = h.fakeTab(h.openTab("https://a.example"))
+        for command in ["navigation.devtools", "navigation.console", "navigation.inspect-element"] { try h.run(command) }
+        #expect(page.devToolsPanels == [.default, .console, .inspectElement])
+        try h.run("navigation.save-page")
+        #expect(page.savePageCount == 1)
+    }
+
     @Test func zoomStepsAndIsRememberedPerHost() throws {
         let h = try harness()
         let tab = h.openTab("https://a.example")

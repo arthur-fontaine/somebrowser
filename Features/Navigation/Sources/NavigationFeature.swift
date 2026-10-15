@@ -32,6 +32,9 @@ public final class NavigationFeature: BrowserFeature {
         c.handle("navigation.zoom-out", isEnabled: { live($0) != nil }) { [weak self] in self?.zoom(live($0), by: -1) }
         c.handle("navigation.zoom-reset", isEnabled: { live($0) != nil }) { [weak self] in self?.zoom(live($0), by: 0) }
         c.handle("navigation.devtools", isEnabled: { live($0) != nil }) { live($0)?.showDevTools() }
+        c.handle("navigation.console", isEnabled: { live($0) != nil }) { live($0)?.showDevTools(.console) }
+        c.handle("navigation.inspect-element", isEnabled: { live($0) != nil }) { live($0)?.showDevTools(.inspectElement) }
+        c.handle("navigation.save-page", isEnabled: { live($0) != nil }) { live($0)?.savePage() }
         c.handle("navigation.view-source", isEnabled: { live($0)?.state.url != nil }) { [weak self] inv in
             guard let self, let w = inv.window, let url = live(inv)?.state.url else { return }
             self.context.runtime.openTab(URL(string: "view-source:\(url.absoluteString)"), in: w,
