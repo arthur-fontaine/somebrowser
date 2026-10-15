@@ -102,7 +102,8 @@ to check that the feature still works (`forkctl test <feature>`).
 ## 8. Extensions (U)
 - [x] MV3 content scripts / background workers (E2E: content script ↔ service worker messaging and storage)
 - [x] Chrome Web Store install (uBlock Origin Lite: install dialog, blocking, auto-update verified)
-- [~] Load unpacked: `--load-extension` works (E2E fixture); developer-mode "Load unpacked" picker on `chrome://extensions` to verify
+- [x] Load unpacked: `--load-extension` (E2E fixtures); developer mode's "Load unpacked" on `chrome://extensions` opens the native
+      directory picker (verified 2026-10-15)
 - [x] Extension actions + popups via an invisible Chrome toolbar (ADR-0003): pinned buttons + menu in the sidebar,
       Chrome's own popups/permissions, `activeTab` proven by E2E (`extensionActionGetsActiveTab`)
 - [ ] Badges on the sidebar buttons — not in the toolbar's accessibility tree (checked: a pinned action exposes only its
