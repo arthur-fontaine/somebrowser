@@ -96,13 +96,18 @@ to check that the feature still works (`forkctl test <feature>`).
 - [~] Passkeys via platform authenticator: Chromium uses `ASAuthorizationWebBrowserPublicKeyCredentialManager` by itself
       once the build carries the entitlement — no code of ours; verify with a signed build
 - [x] Touch ID: the system's own prompts inside Apple Passwords (helper) and Sign in with Apple (AppSSO), as in the tweets
-- [~] Safari sync without Full Disk Access (two open-panel grants): Favorites on the start page, iCloud Tabs, history in
-      the command bar — verified with real data both ways: an iPhone favorite reaches the feature's store, a favorite added here
-      reaches the iPhone (Safari running). Edits now go through Safari's change log and lock, and Safari is asked to
-      upload them. Verified live: an added favorite was uploaded by Safari's agent within a second. Deleting verified
-      live too (record marked deleted in iCloud), offered in the start page menu; untested with Safari closed. iPhone → here: iCloud Tabs and Tab Groups (read-only). Here → iPhone:
-      this browser's tabs can't join iCloud Tabs (entitled XPC only); a Tab Group written to SafariTabs.db could — not
-      done, awaiting the user's decision (risk to their groups)
+- [x] Safari sync without Full Disk Access (two open-panel grants), checked with real data and the user's iPhone
+      (2026-10-15):
+      - **Favorites, both ways.** Add and delete are written through Safari's change log and lock, then Safari is asked
+        to upload.
+      - **iCloud Tabs, iPhone to here only.** This browser's tabs can't join iCloud Tabs: only Safari can hand tabs to
+        its agent (entitled XPC).
+      - **Tab Groups.** Safari's are shown here. This browser's own tabs go to the iPhone as a Tab Group named after the
+        Mac, written by WebBookmarks itself; adding and removing were seen on the iPhone.
+      - **History, both ways.** Safari's appears in the command bar. Visits from here go into History.db, and one
+        uploaded at Safari's launch.
+      - **Upload timing.** Uploads need Safari to sync. When Safari isn't running, it's launched hidden and quit after.
+      - **Still open:** the full loop inside the app, and the user's first look at the KRAAFT-ARTHUR-F group.
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
 
 ## 7. Privacy & ads (B, U)
