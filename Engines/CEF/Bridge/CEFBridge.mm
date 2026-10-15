@@ -82,6 +82,7 @@ static CefString CS(NSString *s) { return CefString(s ? s.UTF8String : ""); }
 - (void)registerTab:(CEFTab *)tab;
 - (void)unregisterTab:(CEFTab *)tab;
 - (void)updateAnchor;
+- (void)allowAnchor;
 - (CefRefPtr<CefDictionaryValue>)extraInfo;
 - (nullable NSString *)filter:(const std::string &)url firstParty:(const std::string &)fp type:(const char *)type;
 - (void)chromeOpened:(NSString *)url;
@@ -1009,7 +1010,7 @@ public:
             if (!context->SetPreference(CS(name), ToCefValue(prefs[name]), error)) NSLog(@"CEF preference %@ not set: %s", name, error.ToString().c_str());
         }
         [CEFRuntime shared].contextReady = YES;
-        [[CEFRuntime shared] updateAnchor];  // now: extensions load at startup and may open a tab at once
+        [[CEFRuntime shared] allowAnchor];
     }
     void OnBeforeCommandLineProcessing(const CefString &process_type, CefRefPtr<CefCommandLine> command_line) override {
         for (NSString *key in switches_) {
@@ -1040,6 +1041,7 @@ private:
     std::map<uint32_t, CefRefPtr<CefDownloadItemCallback>> _downloadCallbacks;
     void (^_allClosed)(void);
     CEFTab *_anchor;
+    BOOL _anchorAllowed;
     BOOL _quitting;
 }
 
@@ -1132,10 +1134,18 @@ private:
 /// anchor (no page, never shown) stands in until a page opens; Chrome makes the tab in a window of its own, adopted as
 /// any other. Only extensions see it, as a blank tab, and only while no page is open. Its cost: ~9 MB in this
 /// process, no renderer (measured 2026-10-15; the hidden toolbar it doesn't get would add two); none without extensions.
+/// Made first at startup, it delayed the restored page by ~150 ms: after a first launch it waits (`anchorStartupDelay`).
+/// A first launch has nothing to restore, and extensions installing then open their welcome pages at once.
+- (void)allowAnchor {
+    void (^allow)(void) = ^{ self->_anchorAllowed = YES; [self updateAnchor]; };
+    if (self.anchorStartupDelay <= 0) allow();
+    else dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(self.anchorStartupDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), allow);
+}
+
 - (void)updateAnchor {
     BOOL pages = NO;
     for (CEFTab *t in _retained) if (!t.isAnchor && !t.isPrivate && !t.isClosing) { pages = YES; break; }
-    BOOL needed = self.contextReady && self.extensionsInstalled && !_quitting && !pages;
+    BOOL needed = _anchorAllowed && self.extensionsInstalled && !_quitting && !pages;
     if (needed && !_anchor) {
         _anchor = [[CEFTab alloc] initAnchor];
     } else if (!needed && _anchor) {

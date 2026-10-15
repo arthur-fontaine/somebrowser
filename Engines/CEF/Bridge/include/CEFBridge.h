@@ -77,6 +77,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @property (nonatomic) int extensionToolbarWidth;
 /// Extensions are installed (or loaded unpacked): keep a Chrome window for them while no page is open.
 @property (nonatomic) BOOL extensionsInstalled;
+/// How long after startup that window may first be made (0: at once). Restored pages usually make it unneeded, and
+/// making it first adds ~150 ms to the launch.
+@property (nonatomic) NSTimeInterval anchorStartupDelay;
 /// Profile preferences applied when the default request context is initialized (bool, number or string values).
 @property (copy) NSDictionary<NSString *, id> *profilePreferences;
 /// Set once the profile exists (preferences given before are applied then).

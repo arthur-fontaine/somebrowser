@@ -96,6 +96,9 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         // `chromeToolbar: "none"` (engine option) drops the hidden toolbar: no extension actions, slightly less memory.
         runtime.extensionToolbar = options["chromeToolbar"]?.stringValue != "none"
         let profile = profileDirectory.appendingPathComponent("Default", isDirectory: true)
+        // A first launch restores nothing: the extensions' window is made at once (their welcome pages open then).
+        let firstLaunch = !FileManager.default.fileExists(atPath: profile.appendingPathComponent("Preferences").path)
+        runtime.anchorStartupDelay = firstLaunch ? 0 : 2
         try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
         self.profile = profile
         reloadExtensions()

@@ -50,7 +50,8 @@ Chrome's window chrome (tab strip, side panel, omnibox), which decides what diff
   extensions that keep a pop-out window and close it later. With no page open (an empty window, a first launch),
   Chrome would have no window to start from ("No current window", so welcome pages opened on install were lost):
   while extensions are installed, the engine keeps a page-less window that is never shown until a page opens. It
-  costs ~9 MB and no renderer, and extensions see it as one blank tab then. Commands that work on "the tabs of this
+  costs ~9 MB and no renderer, and extensions see it as one blank tab then. After a first launch it's made 2 s after
+  startup, if no page was restored: made first, it delayed the restored page by ~150 ms. Commands that work on "the tabs of this
   window" see one tab: Vimium's in-page keys work, its tab keys (`J`/`K`, `x`) do nothing (the browser's own
   shortcuts switch and close tabs).
 - *Not working:* `downloads.download` from a service worker or popup (CEF cancels downloads tied to none of its pages;
