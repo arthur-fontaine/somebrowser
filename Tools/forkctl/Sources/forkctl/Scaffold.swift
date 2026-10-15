@@ -58,7 +58,7 @@ enum Scaffold {
                 }
 
                 public func activate() {
-                    context.commands.handle("\(id).hello") { _ in
+                    context.commands.handle("\(id).hello") { [context] _ in
                         context.notify("Hello from \(title)")
                     }
                 }
