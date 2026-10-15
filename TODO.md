@@ -110,9 +110,9 @@ to check that the feature still works (`forkctl test <feature>`).
       - **History, both ways.** Safari's appears in the command bar. Visits from here go into History.db, and one
         uploaded at Safari's launch.
       - **Upload timing.** Uploads need Safari to sync. When Safari isn't running, it's launched hidden and quit after.
-      - **Full loop, run in the app:** two pages opened, the KRAAFT-ARTHUR-F group written, Safari launched hidden 30 s
+      - **Full loop, run in the app:** two pages opened, the Mac's group (named after the Mac) written, Safari launched hidden 30 s
         later, the group and the visits uploaded, then Safari quit.
-      - **On the iPhone:** the KRAAFT-ARTHUR-F group shows the browser's tabs. Closed tabs and deleted groups leave and
+      - **On the iPhone:** the Mac's group (named after the Mac) shows the browser's tabs. Closed tabs and deleted groups leave and
         stay gone (confirmed by the user; deletions go through WebBookmarks).
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
 - [x] Netflix and other DRM services (U): pages asking for protected media move to a WebKit tab with FairPlay (ADR-0004;

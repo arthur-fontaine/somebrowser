@@ -105,7 +105,7 @@ make, which is entitled. So while an idle Safari is open, the shared group's edi
 (seen live 2026-10-15). They went up at its next hidden launch once it had quit.
 Verified 2026-10-15 in the app, with Safari quit:
 - two pages opened here at 15:27:16;
-- at 15:28:05 Safari was launched hidden, uploaded the KRAAFT-ARTHUR-F group with both tabs, and history reached the
+- at 15:28:05 Safari was launched hidden, uploaded the Mac's group (named after the Mac) with both tabs, and history reached the
   visits' generation;
 - Safari was quit again by 15:28:15.
 Verified 2026-10-15: a visit written here went up at Safari's next launch (`last_synced_generation` passed it).
