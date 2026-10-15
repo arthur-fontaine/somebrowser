@@ -1,0 +1,14 @@
+{
+  "id": "split-view",
+  "name": "Split View",
+  "summary": "Split View (Arc): two tabs side by side in one window.",
+  "entry": "SplitViewFeature",
+  "provides": [],
+  "requires": [],
+  "commands": [
+    { "id": "split-view.open", "title": "Split View with Previous Tab", "shortcut": "ctrl+shift+=", "menu": "Tabs", "group": "split", "order": 1, "keywords": ["side by side", "pane", "two tabs"] },
+    { "id": "split-view.swap", "title": "Switch Split Pane", "shortcut": "ctrl+shift+]", "menu": "Tabs", "group": "split", "order": 2, "keywords": ["focus", "other pane"] },
+    { "id": "split-view.close", "title": "Close Split View", "shortcut": "ctrl+shift+-", "menu": "Tabs", "group": "split", "order": 3 }
+  ],
+  "settings": []
+}

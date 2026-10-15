@@ -20,6 +20,8 @@ public struct SlotID: Hashable, Sendable, ExpressibleByStringLiteral, CustomStri
     public static let contentOverlay: SlotID = "content-overlay"
     /// Shown instead of the web content when the window has no selected tab (start page).
     public static let emptyContent: SlotID = "empty-content"
+    /// Beside the web content, to its right (split view): a contribution that shows nothing takes no room.
+    public static let contentTrailing: SlotID = "content-trailing"
 }
 
 public struct SlotContribution: Identifiable {

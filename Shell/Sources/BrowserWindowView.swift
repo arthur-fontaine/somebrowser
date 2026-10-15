@@ -25,7 +25,10 @@ struct BrowserWindowView: View {
                 }
                 VStack(spacing: 0) {
                     SlotHost(.toolbar, window: window)
-                    content
+                    HStack(spacing: 0) {
+                        content
+                        SlotHost(.contentTrailing, window: window)
+                    }
                 }
                 .padding([.top, .bottom, .trailing], Self.contentInset)
                 .padding(.leading, window.isSidebarVisible ? 0 : Self.contentInset)

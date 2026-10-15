@@ -196,6 +196,30 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// Split view: two pages side by side; switching panes swaps them; closing leaves one.
+    @Test func splitViewShowsTwoPages() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/one"))
+        try app.open(server.url("/two"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Two" }
+        /// Page frames on screen: Chromium pages are child windows, WebKit pages are web views.
+        let pages = { () throws -> [String] in
+            let views = try app.call(["op": "views"])
+            let windows = (views["windows"] as? [[String: Any]] ?? []).filter { $0["class"] as? String == "CefNSWindow" && $0["visible"] as? Bool == true }
+            let webViews = (views["views"] as? [[String: Any]] ?? []).filter { $0["class"] as? String == "WKWebView" && $0["hidden"] as? Bool == false }
+            return (windows + webViews).compactMap { $0["frame"] as? String }
+        }
+        #expect(try pages().count == 1)
+        try app.run("split-view.open")
+        try app.waitUntil(timeout: 10) { try Set(pages()).count == 2 }
+        try app.run("split-view.swap")
+        try app.waitUntil(timeout: 10) { try app.eval("document.title") as? String == "One" }
+        try app.waitUntil(timeout: 10) { try Set(pages()).count == 2 }
+        try app.run("split-view.close")
+        try app.waitUntil(timeout: 10) { try pages().count == 1 }
+        try app.quit()
+    }
+
     /// A hibernated tab wakes on its page with its back/forward history.
     @Test func hibernatedTabsWakeWithTheirHistory() throws {
         let (app, server) = try launch()
