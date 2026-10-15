@@ -74,7 +74,7 @@ product name (use `Brand.name`).
 
 ## Running the real app in tests
 
-Launch with `BROWSER_DATA_DIR=<tmp>` (isolated profile) and `BROWSER_AUTOMATION_SOCKET=<path>`; send
+Launch with `BROWSER_DATA_DIR=<tmp>` (isolated profile and settings: `<tmp>/settings.plist`) and `BROWSER_AUTOMATION_SOCKET=<path>`; send
 newline-delimited JSON: `{"op":"open","url":…}`, `{"op":"navigate","url":…}`, `{"op":"run","command":"tabs.close"}`,
 `{"op":"state"}` (tabs, windows, the app's memory footprint), `{"op":"eval","js":…}`, `{"op":"setting","key":…,"value":…}`,
 `{"op":"views"}`, `{"op":"documentStart","js":…,"prefix":…}`, `{"op":"key","key":"f","modifiers":["cmd"],"keyCode":3,"page":true}`

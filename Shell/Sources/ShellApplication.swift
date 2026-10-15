@@ -10,7 +10,7 @@ public enum ShellApplication {
         let engine = engineType.init(options: engineOptions)
         let dataDirectory = Self.dataDirectory()
         let runtime = BrowserRuntime(engine: engine, registrations: features, settingOverrides: settingOverrides,
-                                     dataDirectory: dataDirectory, userDefaults: .standard)
+                                     dataDirectory: dataDirectory, userDefaults: Self.settingsStorage())
         let controller = ShellController(runtime: runtime)
         runtime.shell = controller
         app.delegate = controller
@@ -24,6 +24,13 @@ public enum ShellApplication {
             exit(1)
         }
         engine.runMainLoop { controller.engineDidBecomeReady() }
+    }
+
+    /// Settings live with the data: a data directory given with BROWSER_DATA_DIR (tests, automation) gets its own
+    /// `settings.plist` and never changes the real profile's settings.
+    static func settingsStorage() -> UserDefaults? {
+        guard ProcessInfo.processInfo.environment["BROWSER_DATA_DIR"] != nil else { return .standard }
+        return UserDefaults(suiteName: dataDirectory().appendingPathComponent("settings").path)
     }
 
     static func dataDirectory() -> URL {
