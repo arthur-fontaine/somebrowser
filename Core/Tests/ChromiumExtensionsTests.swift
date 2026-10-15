@@ -20,7 +20,9 @@ struct ChromiumExtensionsTests {
                          "manifest": ["name": "My Ext", "icons": ["128": "icon.png"]]],
             "disabled": ["location": 1, "path": "disabled/1_0", "disable_reasons": [1], "manifest": ["name": "Off"]],
             "pdf": ["location": 5, "path": "/internal/pdf", "manifest": ["name": "Chromium PDF Viewer"]],
-            "alpha": ["location": 1, "path": "alpha/2_0", "manifest": ["name": "Alpha", "action": ["default_icon": "a.png"]]],
+            "alpha": ["location": 1, "path": "alpha/2_0", "open_side_panel_on_icon_click": true,
+                      "manifest": ["name": "Alpha", "action": ["default_icon": "a.png"], "side_panel": ["default_path": "panel.html"],
+                                   "chrome_url_overrides": ["newtab": "/tab.html"]]],
         ]
         try write(["extensions": ["settings": settings]], "Secure Preferences")
         try write(["extensions": ["pinned_extensions": ["unpacked", "ublockid"]]], "Preferences")
@@ -40,6 +42,17 @@ struct ChromiumExtensionsTests {
         #expect(list[0].icon?.path == "/Users/me/dev/my-ext/icon.png")
         #expect(list[1].icon?.lastPathComponent == "32.png")
         #expect(list[2].icon?.path.hasSuffix("Extensions/alpha/2_0/a.png") == true)
+    }
+
+    @Test func readsSidePanelAndNewTabPage() throws {
+        let profile = try makeProfile()
+        defer { try? FileManager.default.removeItem(at: profile) }
+        let list = ChromiumExtensions.read(profile: profile)
+        let alpha = try #require(list.first { $0.id == "alpha" })
+        #expect(alpha.sidePanelPath == "panel.html" && alpha.opensSidePanelOnClick)
+        #expect(alpha.newTabPagePath.flatMap(alpha.page)?.absoluteString == "chrome-extension://alpha/tab.html")
+        let other = try #require(list.first { $0.id == "ublockid" })
+        #expect(other.sidePanelPath == nil && !other.opensSidePanelOnClick && other.newTabPagePath == nil)
     }
 
     @Test func localizesNamesWithFallbacks() throws {

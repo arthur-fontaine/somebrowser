@@ -23,6 +23,9 @@ nonisolated public enum ChromiumExtensions {
             let name = localized(manifest["name"] as? String ?? id, root: root, manifest: manifest, locale: locale)
             var ext = BrowserExtension(id: id, name: name, icon: icon(manifest, root: root), isPinned: pinned.contains(id))
             ext.isFromWebStore = entry["from_webstore"] as? Bool ?? false
+            ext.sidePanelPath = (manifest["side_panel"] as? [String: Any])?["default_path"] as? String
+            ext.opensSidePanelOnClick = entry["open_side_panel_on_icon_click"] as? Bool ?? false
+            ext.newTabPagePath = (manifest["chrome_url_overrides"] as? [String: Any])?["newtab"] as? String
             out.append(ext)
         }
         return out.sorted { a, b in

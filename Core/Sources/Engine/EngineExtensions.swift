@@ -10,12 +10,23 @@ nonisolated public struct BrowserExtension: Identifiable, Equatable, Sendable {
     public var isPinned: Bool
     /// Installed from the Chrome Web Store (so it can be installed again from there).
     public var isFromWebStore = false
+    /// The side panel's page (`side_panel.default_path`), relative to the extension.
+    public var sidePanelPath: String?
+    /// Its toolbar button opens the side panel (`sidePanel.setPanelBehavior({ openPanelOnActionClick: true })`).
+    public var opensSidePanelOnClick = false
+    /// The page it puts in place of the new tab page (`chrome_url_overrides.newtab`), relative to the extension.
+    public var newTabPagePath: String?
 
     public init(id: String, name: String, icon: URL? = nil, isPinned: Bool = false) {
         self.id = id
         self.name = name
         self.icon = icon
         self.isPinned = isPinned
+    }
+
+    /// One of the extension's pages: `chrome-extension://<id>/<path>`.
+    public func page(_ path: String) -> URL? {
+        URL(string: "chrome-extension://\(id)/" + (path.hasPrefix("/") ? String(path.dropFirst()) : path))
     }
 }
 
