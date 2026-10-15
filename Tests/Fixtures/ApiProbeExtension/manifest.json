@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "E2E API Probe",
+  "version": "1.0",
+  "description": "Test fixture: runs extension APIs on request from its content script and reports through storage.",
+  "background": { "service_worker": "worker.js" },
+  "content_scripts": [{ "matches": ["http://127.0.0.1/*"], "js": ["content.js"], "run_at": "document_idle" }],
+  "permissions": ["tabs", "storage", "scripting", "offscreen", "identity", "sidePanel"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "action": { "default_title": "Probe" },
+  "commands": { "probe": { "suggested_key": { "default": "Ctrl+Shift+Y", "mac": "MacCtrl+Shift+Y" }, "description": "Probe" } },
+  "side_panel": { "default_path": "panel.html" },
+  "chrome_url_overrides": { "newtab": "newtab.html" },
+  "devtools_page": "devtools.html"
+}
