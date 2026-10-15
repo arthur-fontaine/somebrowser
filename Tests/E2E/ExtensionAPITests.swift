@@ -95,7 +95,8 @@ struct ExtensionAPITests {
     }
 
     /// With no page open (a first launch), an extension's welcome page still opens as a tab: `tabs.create` needs a
-    /// Chrome window to start from, and each page here is one ("No current window" before).
+    /// Chrome window to start from, and each page here is one ("No current window" before). With every tab closed
+    /// again, the browser still quits cleanly (only that page-less window left).
     @Test func welcomePagesOpenWithNoPageOpen() throws {
         let fixture = Self.fixture.deletingLastPathComponent().appendingPathComponent("WelcomeExtension")
         let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-welcome-\(UUID().uuidString.prefix(6))")
@@ -106,6 +107,8 @@ struct ExtensionAPITests {
         try app.waitUntil(timeout: 20) { try app.tabs().contains { $0.title == "Welcome" } }
         _ = try app.eval("chrome.storage.local.get().then(r => document.title = r.welcome); 1")
         try app.waitUntil(timeout: 10) { try app.eval("document.title") as? String == "ok" }
+        _ = try app.run("tabs.close")
+        try app.waitUntil(timeout: 10) { try app.tabs().isEmpty }
         try app.quit()
     }
 
