@@ -5,6 +5,9 @@
   "entry": "AddressBarFeature",
   "provides": ["address-bar"],
   "optional": ["command-bar", "site-controls"],
+  "commands": [
+    { "id": "address-bar.developer-mode", "title": "Developer Mode for This Site", "shortcut": "ctrl+d", "menu": "Tools", "group": "dev", "order": 5, "keywords": ["localhost", "port", "full url", "dev"] }
+  ],
   "settings": [
     { "key": "address-bar.position", "title": "Address bar position", "type": "choice", "default": "sidebar", "options": ["sidebar", "toolbar"] },
     { "key": "address-bar.showFullURL", "title": "Show the full URL", "type": "bool", "default": false }

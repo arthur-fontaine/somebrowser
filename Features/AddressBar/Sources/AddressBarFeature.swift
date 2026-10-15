@@ -10,6 +10,23 @@ public final class AddressBarFeature: BrowserFeature {
     public func activate() {
         place()
         context.settings.observe("address-bar.position") { [weak self] _ in self?.place() }
+        context.commands.handle("address-bar.developer-mode", isEnabled: { [weak self] inv in self?.site(in: inv.window) != nil }) { [weak self] inv in
+            self?.toggleDeveloperMode(in: inv.window)
+        }
+    }
+
+    func site(in window: BrowserWindowState?) -> (site: String, url: URL)? {
+        guard let window, let url = context.runtime.selectedTab(in: window)?.url, ["http", "https"].contains(url.scheme),
+              let site = SiteSettingsStore.site(for: url) else { return nil }
+        return (site, url)
+    }
+
+    /// Developer mode (Arc, ⌃D) for the current site: where you really are (port, path, query) in the address.
+    func toggleDeveloperMode(in window: BrowserWindowState?) {
+        guard let (site, url) = site(in: window) else { return }
+        let on = !AddressFormatter.developerMode(url, store: context.siteSettings)
+        context.siteSettings.set(AddressFormatter.developerKey, .bool(on), for: site)
+        context.notify(on ? "Developer mode on for \(site)" : "Developer mode off for \(site)", systemImage: "hammer", window: window)
     }
 
     /// The pill lives in exactly one slot depending on the setting.
@@ -25,6 +42,28 @@ public final class AddressBarFeature: BrowserFeature {
 }
 
 enum AddressFormatter {
+    static let developerKey = "address-bar.developer"
+
+    /// Local development servers, where developer mode is on unless turned off.
+    static func isLocal(_ url: URL?) -> Bool {
+        guard let host = url?.host()?.lowercased() else { return false }
+        return ["localhost", "127.0.0.1", "::1"].contains(host) || [".localhost", ".test", ".local"].contains { host.hasSuffix($0) }
+    }
+
+    static func developerMode(_ url: URL?, store: SiteSettingsStore) -> Bool {
+        guard let url, ["http", "https"].contains(url.scheme), let site = SiteSettingsStore.site(for: url) else { return false }
+        return store.bool(developerKey, for: site) ?? isLocal(url)
+    }
+
+    /// Developer mode's address: host, port, path and query.
+    static func developerDisplay(_ url: URL) -> String {
+        var text = url.host() ?? ""
+        if let port = url.port { text += ":\(port)" }
+        if url.path() != "/" { text += url.path() }
+        if let query = url.query() { text += "?" + query }
+        return text
+    }
+
     /// What the pill shows: the host without `www.` (Arc), or the full URL.
     static func display(_ url: URL?, full: Bool) -> String {
         guard let url else { return "" }
@@ -59,7 +98,8 @@ struct AddressPill: View {
         let tab = runtime.selectedTab(in: window)
         let live = tab?.live
         let url = live?.url ?? tab?.url
-        let text = AddressFormatter.display(url, full: showFullURL)
+        let developer = AddressFormatter.developerMode(url, store: runtime.siteSettings)
+        let text = developer && !showFullURL ? url.map(AddressFormatter.developerDisplay) ?? "" : AddressFormatter.display(url, full: showFullURL)
         HStack(spacing: 6) {
             if runtime.commands.isHandled("site-controls.show") {
                 Button { try? runtime.commands.run("site-controls.show", window: window) } label: {
@@ -68,7 +108,9 @@ struct AddressPill: View {
                 }
                 .buttonStyle(.plain).foregroundStyle(.secondary).help("Site Controls")
             }
-            if let symbol = live.flatMap({ AddressFormatter.symbol(for: $0.security) }) {
+            if developer {
+                Image(systemName: "hammer.fill").font(.system(size: 10)).foregroundStyle(.secondary).help("Developer mode (⌃D)")
+            } else if let symbol = live.flatMap({ AddressFormatter.symbol(for: $0.security) }) {
                 Image(systemName: symbol).font(.system(size: 10)).foregroundStyle(.orange)
             }
             Text(text.isEmpty ? "Search or enter address" : text)
@@ -76,7 +118,7 @@ struct AddressPill: View {
                 .foregroundStyle(text.isEmpty ? .tertiary : .primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: showFullURL ? .leading : .center)
+                .frame(maxWidth: .infinity, alignment: showFullURL || developer ? .leading : .center)
             if hovering, let url {
                 Button {
                     NSPasteboard.general.clearContents()
