@@ -23,8 +23,11 @@ to check that the feature still works (`forkctl test <feature>`).
       here, so no hosted workflow yet; a hosted Mac needs Chromium-sized disk for the CEF E2E
 - [~] CEF quit time: `CefShutdown` waits 0.4–6.5 s after every helper process has exited (measured 2026-10-15; the
       main thread blocks on a Chromium event, symbols stripped). With several instances at once (parallel E2E suites,
-      another copy of the browser running) it passes AppDriver's 10 s, which explains the E2E quit timeouts. Windows
-      are now hidden as quitting starts, so it no longer shows; the wait itself needs CEF symbols to diagnose
+      another copy of the browser running) it passed AppDriver's 10 s. Windows are now hidden as quitting starts, so
+      it no longer shows; the wait itself needs CEF symbols to diagnose. E2E now runs one app at a time with a 20 s
+      bound. Under a load average of ~270 (other apps indexing), Chromium's watchdog ended three quits with its "hung"
+      code 2, and once the app idled in its run loop without starting shutdown (`commandBarOpensAndCloses`; quitting
+      with no page open, the synchronous path, was checked fine)
 
 ## 1. Engines (U)
 - [x] `cef-chrome`: Chrome-style CEF 154, page child windows + shell overlay window (ADR-0002); real clicks, typing, tree, clean quit verified
