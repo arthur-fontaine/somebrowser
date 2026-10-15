@@ -237,12 +237,22 @@ struct AccessTests {
     }
 }
 
+nonisolated final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func increment() { lock.withLock { count += 1 } }
+}
+
 @MainActor
 struct FeatureTests {
     @Test func connectingShowsSafariDataAndEditsFlowBack() async throws {
         let home = try makeHome()
         let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
         let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
+        let asked = Counter()
+        feature.askSafariToSync = { asked.increment() }
+        feature.uploadAttempts = Array(repeating: .milliseconds(20), count: 50)
         feature.activate()
         #expect(feature.model.hasAccess == false)
 
@@ -254,7 +264,19 @@ struct FeatureTests {
 
         _ = h.openTab("https://new.example/page")
         try h.run("safari.add-favorite")
-        #expect(try feature.store?.favorites().last?.url.host == "new.example")
+        let store = try #require(feature.store)
+        #expect(try store.favorites().last?.url.host == "new.example")
+
+        // Safari is asked to sync until its agent has taken the record (here: the test clears the log).
+        for _ in 0..<100 where asked.value < 2 { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(asked.value >= 2)
+        let root = try PropertyListSerialization.propertyList(from: Data(contentsOf: store.bookmarksFile), options: .mutableContainers, format: nil) as! NSMutableDictionary
+        (root["Sync"] as! NSMutableDictionary).removeObject(forKey: "Changes")
+        try PropertyListSerialization.data(fromPropertyList: root, format: .binary, options: 0).write(to: store.bookmarksFile)
+        try await Task.sleep(for: .milliseconds(100))
+        let settled = asked.value
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(asked.value == settled)
 
         let provider = SafariHistoryOmnibox(model: feature.model, runtime: h.runtime)
         #expect(provider.items(for: "swift", in: h.window).first?.subtitle == "swift.org")

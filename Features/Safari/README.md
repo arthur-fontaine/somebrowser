@@ -26,9 +26,13 @@ in the feature's data folder. Both folders are watched, so changes show up live.
   synced items `BookmarkServerID`, plus `DeletedBookmarkSyncData` for a Delete. Without a record, an edit stays on this
   Mac: that's why a deletion never reached the iPhone. Safari's rule for redundant records is kept: a Delete replaces
   pending records, and cancels an Add that never reached iCloud.
-- **When it uploads.** The agent doesn't watch the file. It syncs bookmarks when Safari saves its own edits (Safari
-  asks over an entitled XPC connection), when iCloud pushes a bookmark change from another device, or when the account
-  changes. Records written here wait in the file for the next of these.
+- **When it uploads.** The agent doesn't watch the file. It syncs bookmarks when Safari asks over an entitled XPC
+  connection, when iCloud pushes a bookmark change from another device, or when the account changes. Safari asks after
+  saving its own edits, and when it receives the agent's distributed notification
+  `com.apple.SafariBookmarksSync.UpdateReceived` while it holds change records. Records loaded from the file count.
+  So after an edit the feature posts that notification, again at growing intervals, until the change log is empty
+  (`uploadEdits`): Safari notices the file a few seconds after it changes (13 s seen). With Safari closed, the records
+  wait for Safari's next sync.
 
 **Access, no Full Disk Access** — "Connect to Safari…" (or the start page button) opens an open panel on each
 folder; clicking Allow is explicit consent, which macOS honors for Safari's protected data. `SafariAccess` keeps the

@@ -93,6 +93,20 @@ nonisolated struct SafariStore: Sendable {
         changes.add(change)
     }
 
+    /// Change records Safari's sync agent hasn't taken yet.
+    func pendingChanges() throws -> Int {
+        ((try readBookmarks()["Sync"] as? NSDictionary)?["Changes"] as? NSArray)?.count ?? 0
+    }
+
+    /// The agent posts this after each bookmark sync (`WBSSafariBookmarksSyncAgentDidUpdateBookmarksNotificationName`),
+    /// and Safari answers it by asking the agent to sync the changes Safari holds, which include records written here
+    /// once Safari has reloaded the file. Only Safari can ask: the agent requires an Apple entitlement. Delivered at once,
+    /// or Safari in the background would only get it when next activated.
+    static func askSafariToSync() {
+        DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.apple.SafariBookmarksSync.UpdateReceived"),
+                                                                     object: nil, userInfo: nil, deliverImmediately: true)
+    }
+
     /// Reads, changes and writes Bookmarks.plist under Safari's lock, so neither Safari nor its sync agent writes in between.
     private func editBookmarks(_ change: (NSMutableDictionary) throws -> Void) throws {
         try SafariFileLock(folder: folders.library).withLock {

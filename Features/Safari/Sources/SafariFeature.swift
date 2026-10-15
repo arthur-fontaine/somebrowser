@@ -13,6 +13,11 @@ public final class SafariFeature: BrowserFeature {
     var store: SafariStore?
     private var watchers: [DispatchSourceFileSystemObject] = []
     private var pendingRefresh = false
+    private var upload: Task<Void, Never>?
+    /// Swapped in tests, which mustn't reach the real Safari.
+    var askSafariToSync: @Sendable () -> Void = SafariStore.askSafariToSync
+    /// Safari notices the file changed seconds later (13 s seen), so ask again until the agent has taken the records.
+    var uploadAttempts: [Duration] = [2, 5, 10, 20, 40, 80, 160].map { .seconds($0) }
     static let cloudTabsFlag = "safari.cloud-tabs"
 
     public convenience init(context: FeatureContext) {
@@ -126,9 +131,25 @@ public final class SafariFeature: BrowserFeature {
         do {
             let item = try store.addFavorite(title: tab.displayTitle, url: url)
             model.favorites.append(item)
+            uploadEdits()
             context.notify("Added to Safari Favorites", systemImage: "star.fill")
         } catch {
             context.notify("Couldn't add to Safari Favorites", systemImage: "exclamationmark.triangle")
+        }
+    }
+
+    /// Gets the change records just written to iCloud: Safari's agent doesn't watch the file (README, "Writing like Safari").
+    /// Needs Safari running; otherwise they go with Safari's next sync.
+    func uploadEdits() {
+        guard let store else { return }
+        upload?.cancel()
+        let (ask, attempts) = (askSafariToSync, uploadAttempts)
+        upload = Task.detached(priority: .utility) {
+            for delay in attempts {
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled, let pending = try? store.pendingChanges(), pending > 0 else { return }
+                ask()
+            }
         }
     }
 }
