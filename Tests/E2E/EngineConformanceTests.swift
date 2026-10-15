@@ -260,6 +260,21 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// MV3: a content script runs on the page and talks to its service worker (messaging and storage).
+    @Test func contentScriptsTalkToTheirWorker() throws {
+        let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/ContentScriptExtension")
+        let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-cs-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: data) }
+        let server = try TestHTTPServer(pages: Self.pages)
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path],
+                                arguments: ["--load-extension=\(fixture.path)"])
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 20) { try app.eval("String(document.documentElement.dataset.extension)") as? String == "worker:32" }
+        try app.quit()
+    }
+
     @Test func quitsCleanly() throws {
         let (app, _) = try launch()
         try app.quit(timeout: 8)

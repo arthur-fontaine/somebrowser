@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "E2E Content Script",
+  "version": "1.0",
+  "description": "Test fixture: a content script asks the service worker for a value and shows it in the page.",
+  "background": { "service_worker": "worker.js" },
+  "content_scripts": [
+    { "matches": ["http://127.0.0.1/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "permissions": ["storage"]
+}
