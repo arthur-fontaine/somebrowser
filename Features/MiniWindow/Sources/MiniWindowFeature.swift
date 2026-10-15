@@ -20,7 +20,8 @@ public final class MiniWindowFeature: BrowserFeature {
             self.open(url)
             return true
         }
-        context.commands.handle("mini-window.new") { [weak self] _ in self?.open(nil) }
+        // `url` argument: open that page (Air Traffic Control routes links here).
+        context.commands.handle("mini-window.new") { [weak self] inv in _ = self?.open(inv.arguments["url"].flatMap(URL.init(string:))) }
         context.commands.handle("mini-window.move-to-main", isEnabled: { inv in inv.window?.flags.contains(Self.flag) ?? false }) { [weak self] inv in
             guard let w = inv.window else { return }
             self?.moveToMain(w)

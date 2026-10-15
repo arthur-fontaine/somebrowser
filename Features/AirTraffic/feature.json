@@ -1,0 +1,12 @@
+{
+  "id": "air-traffic",
+  "name": "Air Traffic Control",
+  "summary": "Air Traffic Control (Arc): rules send links from other apps to a Space, a mini window or the main window.",
+  "entry": "AirTrafficFeature",
+  "provides": [],
+  "requires": [],
+  "commands": [
+    { "id": "air-traffic.edit", "title": "Air Traffic Control…", "menu": "Spaces", "group": "rules", "order": 1, "keywords": ["route", "links", "rules", "space"] }
+  ],
+  "settings": []
+}

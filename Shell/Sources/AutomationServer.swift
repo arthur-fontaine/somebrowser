@@ -104,6 +104,11 @@ final class AutomationServer {
             guard let s = req["url"] as? String, let url = URL(string: s), let window else { return reply(["ok": false, "error": "bad url or no window"]) }
             let tab = runtime.openTab(url, in: window)
             reply(["ok": true, "tab": tab.id.uuidString])
+        case "openExternal":
+            // As if another app opened the link (Air Traffic Control, mini windows).
+            guard let s = req["url"] as? String, let url = URL(string: s) else { return reply(["ok": false, "error": "bad url"]) }
+            NSApp.delegate?.application?(NSApp, open: [url])
+            reply(["ok": true])
         case "navigate":
             // Browser-initiated navigation of the selected tab (like typing in the address bar).
             guard let s = req["url"] as? String, let url = URL(string: s), let window, let tab = runtime.selectedTab(in: window) else {

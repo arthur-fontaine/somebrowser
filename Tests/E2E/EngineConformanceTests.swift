@@ -172,6 +172,30 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// Air Traffic Control: links from other apps follow the rules; a main-window rule beats mini windows.
+    @Test func linksFromOtherAppsFollowTheRules() throws {
+        let server = try TestHTTPServer(pages: Self.pages)
+        let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-atc-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: data) }
+        let rules = data.appendingPathComponent("Features/air-traffic/rules.json")
+        try FileManager.default.createDirectory(at: rules.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let json = #"[{"id":"\#(UUID())","pattern":"127.0.0.1/one","destination":{"mainWindow":{}}},"#
+            + #"{"id":"\#(UUID())","pattern":"127.0.0.1/two","destination":{"miniWindow":{}}}]"#
+        try json.write(to: rules, atomically: true, encoding: .utf8)
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path])
+        let windows = { (try app.state()["windows"] as? [[String: Any]]) ?? [] }
+        let start = try windows().count
+        try app.call(["op": "openExternal", "url": server.url("/one")])
+        try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.url.hasSuffix("/one") } }
+        #expect(try windows().count == start)
+        // No rule: mini windows take links from other apps (the default), which the rule above overrode.
+        try app.call(["op": "openExternal", "url": server.url("/three")])
+        try app.waitUntil(timeout: 15) { try windows().count == start + 1 }
+        try app.call(["op": "openExternal", "url": server.url("/two")])
+        try app.waitUntil(timeout: 15) { try windows().filter { ($0["flags"] as? [String])?.contains("mini-window") == true }.count == 2 }
+        try app.quit()
+    }
+
     /// A hibernated tab wakes on its page with its back/forward history.
     @Test func hibernatedTabsWakeWithTheirHistory() throws {
         let (app, server) = try launch()
