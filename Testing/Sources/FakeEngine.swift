@@ -145,7 +145,9 @@ public final class FakeEngineTab: EngineTab {
     public func savePage() { savePageCount += 1 }
     public private(set) var printCount = 0
     public func printPage() { printCount += 1 }
-    public func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void) { completion(nil) }
+    /// What `snapshot` gives (nil: the page can't be captured).
+    public var snapshotImage: NSImage?
+    public func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void) { completion(snapshotImage) }
 
     public func restorationData() -> Data? {
         try? JSONEncoder().encode(["urls": history.map(\.absoluteString), "index": [String(historyIndex)]])

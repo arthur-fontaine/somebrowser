@@ -129,6 +129,8 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 - (void)find:(NSString *)text forward:(BOOL)forward matchCase:(BOOL)matchCase findNext:(BOOL)findNext;
 - (void)stopFinding;
 - (void)showDevTools;
+/// The visible page as PNG (nil if the page can't be captured).
+- (void)captureScreenshot:(void (^)(NSData *_Nullable png))completion;
 /// Runs one of Chrome's own commands (the page's other Chrome commands stay off: our menus own them).
 - (void)runChromeCommand:(int)commandID;
 - (void)setFocus:(BOOL)focus;

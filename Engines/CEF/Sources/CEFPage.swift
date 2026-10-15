@@ -129,12 +129,14 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
     func printPage() { tab?.print() }
     func savePage() { tab?.runChromeCommand(CEFChromeCommandSavePage) }
 
+    /// The visible page in points (its pixels at the screen's scale).
     func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void) {
-        guard let view = window?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return completion(nil) }
-        view.cacheDisplay(in: view.bounds, to: rep)
-        let image = NSImage(size: view.bounds.size)
-        image.addRepresentation(rep)
-        completion(image)
+        guard let tab, let size = window?.contentView?.bounds.size else { return completion(nil) }
+        tab.captureScreenshot { png in
+            guard let png, let image = NSImage(data: png) else { return completion(nil) }
+            image.size = size
+            completion(image)
+        }
     }
 
     func restorationData() -> Data? {

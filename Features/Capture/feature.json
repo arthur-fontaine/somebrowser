@@ -1,0 +1,12 @@
+{
+  "id": "capture",
+  "name": "Capture",
+  "summary": "Capture (Arc): freeze the page, drag over a part of it, and it's on the clipboard (or saved).",
+  "entry": "CaptureFeature",
+  "provides": [],
+  "commands": [
+    { "id": "capture.start", "title": "Capture…", "shortcut": "cmd+shift+2", "menu": "Tools", "group": "capture", "order": 1, "keywords": ["screenshot", "snip", "image", "copy"] },
+    { "id": "capture.visible", "title": "Capture Visible Page", "menu": "Tools", "group": "capture", "order": 2, "keywords": ["screenshot", "image", "copy"] }
+  ],
+  "settings": []
+}

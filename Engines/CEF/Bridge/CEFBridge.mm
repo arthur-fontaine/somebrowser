@@ -319,7 +319,26 @@ public:
         pendingAdd_ = host->ExecuteDevToolsMethod(0, "Page.addScriptToEvaluateOnNewDocument", params);
     }
 
+    /// The visible page as PNG, from the renderer (Page.captureScreenshot): a GPU-drawn page can't be cached from its view.
+    void CaptureScreenshot(CefRefPtr<CefBrowser> browser, void (^completion)(NSData *)) {
+        CefRefPtr<CefBrowserHost> host = browser->GetHost();
+        if (!devtools_) devtools_ = host->AddDevToolsMessageObserver(this);
+        CefRefPtr<CefDictionaryValue> params = CefDictionaryValue::Create();
+        params->SetString("format", "png");
+        int id = host->ExecuteDevToolsMethod(0, "Page.captureScreenshot", params);
+        if (id) captures_[id] = [completion copy]; else completion(nil);
+    }
+
     void OnDevToolsMethodResult(CefRefPtr<CefBrowser> browser, int message_id, bool success, const void *result, size_t result_size) override {
+        auto capture = captures_.find(message_id);
+        if (capture != captures_.end()) {
+            void (^done)(NSData *) = capture->second;
+            captures_.erase(capture);
+            CefRefPtr<CefValue> value = success ? CefParseJSON(result, result_size, JSON_PARSER_RFC) : nullptr;
+            std::string data = value && value->GetType() == VTYPE_DICTIONARY ? value->GetDictionary()->GetString("data").ToString() : "";
+            done(data.empty() ? nil : [[NSData alloc] initWithBase64EncodedString:NS(data) options:0]);
+            return;
+        }
         bool current = message_id == pendingAdd_;
         bool stale = staleAdds_.erase(message_id) > 0;
         if ((!current && !stale) || !success) { if (current) pendingAdd_ = 0; return; }
@@ -466,6 +485,7 @@ private:
     std::deque<CEFTab *> pendingPopups_;
     CefRefPtr<CefRegistration> devtools_;
     int allowedCommand_ = 0;
+    std::map<int, void (^)(NSData *)> captures_;
     std::string scriptID_;
     int pendingAdd_ = 0;
     std::set<int> staleAdds_;
@@ -890,6 +910,11 @@ static id AXButtonNamed(id e, NSString *name, int depth) {
 
 static_assert(CEFChromeCommandSavePage == IDC_SAVE_PAGE && CEFChromeCommandConsole == IDC_DEV_TOOLS_CONSOLE &&
               CEFChromeCommandInspect == IDC_DEV_TOOLS_INSPECT, "Chrome command ids changed");
+
+- (void)captureScreenshot:(void (^)(NSData *))completion {
+    if (!_browser || !_client) return completion(nil);
+    _client->CaptureScreenshot(_browser, completion);
+}
 
 - (void)runChromeCommand:(int)commandID {
     if (!_browser || !_client) return;
