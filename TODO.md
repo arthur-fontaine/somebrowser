@@ -29,7 +29,8 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Chrome's default search engine follows the `search` feature's engine (context menu "Search for…"); idle net log clean
 - [-] Silence the `ListAccounts` retries to the dead loopback endpoint: measured 2026-10-15, five instant failures at
       startup with backoff (0–38 s), then none; `signin.allowed=false` doesn't stop them — not worth more
-- [ ] Remote-CI recipe for a source build with ungoogled patches + H.264/AAC (U, documented)
+- [x] Recipe for a source build with ungoogled patches + H.264/AAC (`docs/recipes/ungoogled-cef.md`; forks pin their build
+      in `Fork/Engines/CEF/vendor.json`) — the build itself not run here yet (needs a large Mac) (U)
 - [-] `cef-alloy` engine (deferred; no extensions)
 
 ## 2. Sidebar & tabs

@@ -30,6 +30,7 @@ This file is for coding agents and humans customizing the browser. Read it fully
 | `Defaults/` | Upstream defaults: `fork.json` (brand, engine, settings), entitlements, icon |
 | `Fork/` | Your fork's overrides (create it with any fork verb) |
 | `docs/decisions/` | Architecture decisions (read 0001–0003 before touching engines) |
+| `docs/recipes/` | Longer how-tos (an ungoogled CEF source build) |
 
 ## Recipes
 
@@ -41,6 +42,7 @@ This file is for coding agents and humans customizing the browser. Read it fully
 | Rename the browser | `./forkctl rename "Kestrel" --bundle-id dev.me.kestrel` |
 | Change the icon | `./forkctl icon path/to/1024.png` |
 | Swap the engine | `./forkctl engine list` · `./forkctl engine use webkit` |
+| Use your own CEF build | pin it in `Fork/Engines/CEF/vendor.json`, then `./forkctl vendor cef` (`docs/recipes/ungoogled-cef.md`) |
 | Remove / add back a feature | `./forkctl feature disable pip` · `./forkctl feature enable pip` |
 | Create a feature | `./forkctl feature new reading-list` (upstream) or `--fork` (lives in `Fork/Features/`) |
 | Replace an upstream feature | create it with `--fork`, set `"replaces": "<upstream-id>"` in its `feature.json` |

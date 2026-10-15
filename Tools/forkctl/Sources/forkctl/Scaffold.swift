@@ -99,10 +99,17 @@ enum Vendor {
         var sha1: String
     }
 
+    /// The CEF build to use: a fork's own (`Fork/Engines/CEF/vendor.json`, e.g. an ungoogled source build, see
+    /// docs/recipes/ungoogled-cef.md) or upstream's pin.
+    static func cefPin(root: URL) throws -> Pin {
+        let fork = root.appendingPathComponent("Fork/Engines/CEF/vendor.json")
+        return try readJSON(Pin.self, at: FileManager.default.fileExists(atPath: fork.path) ? fork : root.appendingPathComponent("Engines/CEF/vendor.json"))
+    }
+
     /// Downloads the pinned CEF minimal distribution into the user cache (shared across clones/forks),
     /// verifies it, builds `libcef_dll_wrapper` and links it as `Vendor/cef`.
     static func cef(root: URL) throws {
-        let pin = try readJSON(Pin.self, at: root.appendingPathComponent("Engines/CEF/vendor.json"))
+        let pin = try cefPin(root: root)
         let cache = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Caches/somebrowser-vendor/cef")
         try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
