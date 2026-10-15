@@ -15,32 +15,29 @@ nonisolated extension SafariStore {
     // MARK: Tab Groups
 
     /// Makes the Tab Group `title` hold exactly `tabs` (ids are the rows' `external_uuid`): new tabs are added rows
-    /// (`added` 1), closed ones are tombstoned (`deleted` 1) or, never uploaded, removed; every change takes a new
-    /// `_dav_generation`, which is what the agent uploads (`dav_generation > LastSyncedRecordGeneration`). A tab that
-    /// changed is a new id: rows are only added or deleted, never modified.
+    /// (`added` 1, with the attributes to upload marked in `modified_attributes`), closed ones are tombstoned (`deleted` 1)
+    /// or, never uploaded, removed. Each change takes its own `_dav_generation`: the agent walks changes one generation
+    /// at a time (`dav_generation > LastSyncedRecordGeneration`). A tab that changed is a new id: rows are only added or
+    /// deleted, never modified.
     func mirrorTabGroup(title: String, tabs: [SafariBookmark]) throws {
         guard let file = tabGroupsFile else { throw StoreError.noAccess }
         try Self.transaction(file) { db in
             let root = try Self.int(db, "SELECT id FROM bookmarks WHERE parent IS NULL AND type = 1 ORDER BY id LIMIT 1")
-            var generation: Int?
+            var changed = false
             func nextGeneration() throws -> Int {
-                if let generation { return generation }
-                try Self.run(db, "UPDATE sync_properties SET value = value + 1 WHERE key = '_dav_generation'")
-                try Self.run(db, "UPDATE generations SET generation = generation + 1")
-                let value = try Self.int(db, "SELECT value FROM sync_properties WHERE key = '_dav_generation'")
-                generation = value
-                return value
+                changed = true
+                return try Self.nextGeneration(db)
             }
             var group = try? Self.int(db, "SELECT id FROM bookmarks WHERE parent = ? AND type = 1 AND subtype = 0 AND title = ? AND deleted = 0 LIMIT 1",
                                       root, title)
             if group == nil {
                 let order = try Self.int(db, "SELECT COALESCE(MAX(order_index), -1) + 1 FROM bookmarks WHERE parent = ? AND deleted = 0 AND syncable = 1", root)
-                let id = try Self.insertRow(db, title: title, url: nil, parent: root, type: 1, subtype: 0, order: order, attributes: nil,
-                                            generation: try nextGeneration())
+                let id = try Self.insertRow(db, title: title, url: nil, parent: root, type: 1, subtype: 0, order: order,
+                                            attributes: try Self.attributes(), modified: [.title, .dateAdded], generation: try nextGeneration())
                 try Self.run(db, "INSERT INTO folder_ancestors (folder_id, ancestor_id) VALUES (?, ?)", id, root)
                 // Every group has a folder for its scoped favorites.
-                let favorites = try Self.insertRow(db, title: "", url: nil, parent: id, type: 1, subtype: 1, order: 0, attributes: nil,
-                                                   generation: try nextGeneration())
+                let favorites = try Self.insertRow(db, title: "", url: nil, parent: id, type: 1, subtype: 1, order: 0, attributes: try Self.attributes(),
+                                                   modified: [.title, .dateAdded, .parentFolder], generation: try nextGeneration())
                 try Self.run(db, "INSERT INTO folder_ancestors (folder_id, ancestor_id) VALUES (?, ?), (?, ?)", favorites, root, favorites, id)
                 try Self.run(db, "UPDATE bookmarks SET num_children = (SELECT count(*) FROM bookmarks WHERE parent = ?1 AND deleted = 0) WHERE id = ?1", root)
                 group = id
@@ -59,13 +56,13 @@ nonisolated extension SafariStore {
                 }
             }
             var order = try Self.int(db, "SELECT COALESCE(MAX(order_index), 0) + 1 FROM bookmarks WHERE parent = ? AND deleted = 0", group)
-            let viewed = try PropertyListSerialization.data(fromPropertyList: ["DateLastViewed": Date()], format: .binary, options: 0)
             for tab in tabs where existing[tab.id] == nil {
                 _ = try Self.insertRow(db, title: tab.title, url: tab.url.absoluteString, parent: group, type: 0, subtype: 0, order: order,
-                                       attributes: viewed, generation: try nextGeneration(), uuid: tab.id)
+                                       attributes: try Self.attributes(viewed: true), modified: [.title, .url, .dateLastViewed, .dateAdded, .parentFolder],
+                                       generation: try nextGeneration(), uuid: tab.id)
                 order += 1
             }
-            if generation != nil {
+            if changed {
                 try Self.run(db, "UPDATE bookmarks SET num_children = (SELECT count(*) FROM bookmarks WHERE parent = ?1 AND deleted = 0) WHERE id = ?1", group)
             }
         }
@@ -78,26 +75,53 @@ nonisolated extension SafariStore {
             let root = try Self.int(db, "SELECT id FROM bookmarks WHERE parent IS NULL AND type = 1 ORDER BY id LIMIT 1")
             guard let group = try? Self.int(db, "SELECT id FROM bookmarks WHERE parent = ? AND type = 1 AND subtype = 0 AND title = ? AND deleted = 0 LIMIT 1",
                                             root, title) else { throw StoreError.notFound }
-            try Self.run(db, "UPDATE sync_properties SET value = value + 1 WHERE key = '_dav_generation'")
-            try Self.run(db, "UPDATE generations SET generation = generation + 1")
-            let generation = try Self.int(db, "SELECT value FROM sync_properties WHERE key = '_dav_generation'")
             let members = "(id = ?1 OR parent = ?1 OR parent IN (SELECT id FROM bookmarks WHERE parent = ?1))"
             try Self.run(db, "DELETE FROM bookmarks WHERE \(members) AND server_id IS NULL", group)
-            try Self.run(db, "UPDATE bookmarks SET deleted = 1, dav_generation = ?2 WHERE \(members) AND deleted = 0", group, generation)
+            var uploaded: [Int] = []
+            Self.rows(db, "SELECT id FROM bookmarks WHERE (id = \(group) OR parent = \(group) OR parent IN (SELECT id FROM bookmarks WHERE parent = \(group))) AND deleted = 0 ORDER BY id = \(group), id DESC") { s in
+                uploaded.append(Int(sqlite3_column_int64(s, 0)))
+            }
+            for id in uploaded {  // children first, the group last
+                try Self.run(db, "UPDATE bookmarks SET deleted = 1, dav_generation = ? WHERE id = ?", try Self.nextGeneration(db), id)
+            }
             try Self.run(db, "UPDATE bookmarks SET num_children = (SELECT count(*) FROM bookmarks WHERE parent = ?1 AND deleted = 0) WHERE id = ?1", root)
         }
     }
 
+    /// WebBookmarks' `modified_attributes` bits (`+[WebBookmark modifiedAttributesToFieldNames]`): what the agent uploads
+    /// for a row. The agent sets Position itself.
+    struct ModifiedAttributes: OptionSet {
+        let rawValue: Int
+        static let title = Self(rawValue: 1), url = Self(rawValue: 2), position = Self(rawValue: 4), dateLastViewed = Self(rawValue: 8)
+        static let dateAdded = Self(rawValue: 16), parentFolder = Self(rawValue: 64)
+    }
+
+    /// Takes the next generation, as Safari does for each change (the two counters move together).
+    static func nextGeneration(_ db: OpaquePointer?) throws -> Int {
+        try run(db, "UPDATE sync_properties SET value = value + 1 WHERE key = '_dav_generation'")
+        try run(db, "UPDATE generations SET generation = generation + 1")
+        return try int(db, "SELECT value FROM sync_properties WHERE key = '_dav_generation'")
+    }
+
+    /// A new row's `extra_attributes`, as Safari writes them.
+    static func attributes(viewed: Bool = false) throws -> Data {
+        var attributes: [String: Any] = ["com.apple.Bookmark": ["DateAdded": Date()]]
+        if viewed { attributes["DateLastViewed"] = Date() }
+        return try PropertyListSerialization.data(fromPropertyList: attributes, format: .binary, options: 0)
+    }
+
     /// Safari's own INSERT (WebBookmarks), with the defaults a new row gets; `added` keeps its default, 1.
     private static func insertRow(_ db: OpaquePointer?, title: String, url: String?, parent: Int, type: Int, subtype: Int, order: Int,
-                                  attributes: Data?, generation: Int, uuid: String = UUID().uuidString) throws -> Int {
+                                  attributes: Data, modified: ModifiedAttributes, generation: Int, uuid: String = UUID().uuidString) throws -> Int {
         try run(db, """
         INSERT INTO bookmarks (title, url, parent, type, external_uuid, order_index, extra_attributes, fetched_icon, icon, locally_added,
             archive_status, web_filter_status, hidden_ancestor_count, editable, local_attributes, syncable, dav_generation, last_selected_child,
             subtype, topic_title, feature_text, fetched_feature_text)
         VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, 0, 0, 0, 1, NULL, 1, ?, NULL, ?, NULL, NULL, 0)
         """, title, url, parent, type, uuid, order, attributes, generation, subtype)
-        return Int(sqlite3_last_insert_rowid(db))
+        let id = Int(sqlite3_last_insert_rowid(db))
+        try run(db, "UPDATE bookmarks SET modified_attributes = ? WHERE id = ?", modified.rawValue, id)
+        return id
     }
 
     /// A tab's row id: the same tab at the same page keeps it, anything else is a new row.

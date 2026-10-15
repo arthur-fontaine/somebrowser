@@ -164,6 +164,11 @@ struct StoreTests {
         #expect(value(file, "SELECT count(*) FROM bookmarks WHERE parent = \(group) AND type = 1 AND subtype = 1") == 1)
         #expect(value(file, "SELECT count(*) FROM folder_ancestors") == 3)
         #expect(value(file, "SELECT count(*) FROM bookmarks WHERE parent = \(group) AND type = 0 AND added = 1 AND syncable = 1 AND dav_generation > 500") == 2)
+        // One generation per change, and what to upload marked, as Safari writes new rows.
+        #expect(value(file, "SELECT count(DISTINCT dav_generation) FROM bookmarks WHERE id = \(group) OR parent = \(group)") == 4)
+        #expect(value(file, "SELECT modified_attributes FROM bookmarks WHERE id = \(group)") == 17)
+        #expect(value(file, "SELECT modified_attributes FROM bookmarks WHERE parent = \(group) AND type = 0 LIMIT 1") == 91)
+        #expect(value(file, "SELECT value FROM sync_properties WHERE key = '_dav_generation'") == value(file, "SELECT generation FROM generations"))
         let generation = value(file, "SELECT value FROM sync_properties WHERE key = '_dav_generation'")
         #expect(generation > 500)
         #expect(value(file, "SELECT generation FROM generations") > 500)

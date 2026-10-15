@@ -64,8 +64,16 @@ feature takes two other routes:
 - **Tabs** (`safari.share-tabs`): a Tab Group named after this Mac, written into SafariTabs.db as WebBookmarks writes.
   - A new row keeps `added` 1, and the group gets its scoped-favorites folder and its `folder_ancestors` rows.
   - A closed tab is tombstoned (`deleted` 1), or simply removed if it never reached iCloud.
-  - Every change takes a new `_dav_generation` and bumps `generations`. The agent uploads rows with
-    `dav_generation > LastSyncedRecordGeneration` that are added, deleted or modified.
+  - Every change takes its own `_dav_generation`, and `generations` moves with it. The agent walks rows one generation
+    at a time (`dav_generation > LastSyncedRecordGeneration`, added, deleted or modified), so rows sharing a generation
+    are skipped.
+  - New rows mark what to upload in `modified_attributes`, using the bits from `+[WebBookmark
+    modifiedAttributesToFieldNames]`:
+    - group: Title and DateAdded;
+    - tab: Title, URL, DateLastViewed, DateAdded and ParentFolder.
+
+    Without these bits the agent builds an empty record and logs "Ignoring change lacking record". The agent adds the
+    Position itself.
   - Rows are never modified: a tab whose page changed becomes a new row.
   - Our own group isn't listed among Safari's here.
 - **History** (`safari.share-history`): visits from normal windows are written in batches into History.db as Safari
