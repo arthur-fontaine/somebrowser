@@ -137,8 +137,8 @@ to check that the feature still works (`forkctl test <feature>`).
       service workers — CEF hosts each page as its own popup-type Chrome window and cancels page-less downloads: patch
       CEF in the source build
 - [-] `omnibox` keywords: the command bar replaces Chrome's omnibox; CEF can't hand it input
-- [ ] Check: Chrome activating a page that isn't the presented one (DevTools closing, `window.focus()` in a background
-      tab) may order its window in detached from the browser window (seen once while DevTools were adopted as a tab)
+- [x] Checked: `window.focus()` in a background tab (app in front or not) leaves no page window detached from the browser
+      window; the one seen came from DevTools being adopted as a tab (fixed)
 
 ## 9. Performance (U)
 - [x] Lazy feature activation (heavy work deferred) · [-] paint shell before CEF init: measured 2026-10-15, warm launch
