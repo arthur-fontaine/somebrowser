@@ -21,8 +21,10 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] CI: `./forkctl ci` — validate, every unit test (forkctl's too), the E2E suite on every engine, and a fork smoke test
       (rename, engine swap, feature off/new, shortcut, setting on a copy: builds, and only `Fork/` changes). No git remote
       here, so no hosted workflow yet; a hosted Mac needs Chromium-sized disk for the CEF E2E
-- [ ] Rare CEF quit flake in E2E (1 of ~200 launches, 2026-10-15): after `quit` the app idles in its run loop, shutdown
-      apparently never starts (AppDriver's timeout sample); not reproduced in 5 reruns of the test
+- [~] CEF quit time: `CefShutdown` waits 0.4–6.5 s after every helper process has exited (measured 2026-10-15; the
+      main thread blocks on a Chromium event, symbols stripped). With several instances at once (parallel E2E suites,
+      another copy of the browser running) it passes AppDriver's 10 s, which explains the E2E quit timeouts. Windows
+      are now hidden as quitting starts, so it no longer shows; the wait itself needs CEF symbols to diagnose
 
 ## 1. Engines (U)
 - [x] `cef-chrome`: Chrome-style CEF 154, page child windows + shell overlay window (ADR-0002); real clicks, typing, tree, clean quit verified
