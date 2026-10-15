@@ -114,6 +114,19 @@ struct ExtensionsTests {
         #expect(panels.panels[h.window.id] == nil)
     }
 
+    @Test func providesAnExtensionsNewTabPage() throws {
+        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
+        let provider = try #require(h.runtime.capabilities.newTabPage)
+        h.engine.simulateExtensions([ublock])
+        #expect(provider.newTabPage(in: h.window) == nil)
+        var tab = notes
+        tab.newTabPagePath = "tab.html"
+        h.engine.simulateExtensions([ublock, tab])
+        #expect(provider.newTabPage(in: h.window)?.absoluteString == "chrome-extension://notes/tab.html")
+        h.runtime.settings.set("extensions.newTabPage", .bool(false))
+        #expect(provider.newTabPage(in: h.window) == nil)
+    }
+
     @Test func managementAndStoreOpenTabs() throws {
         let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
         try h.run("extensions.store")

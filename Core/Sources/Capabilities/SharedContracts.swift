@@ -132,9 +132,17 @@ public enum FuzzyMatch {
     }
 }
 
+/// A page that new tabs open on instead of the command bar: an extension's replacement new tab page
+/// (`chrome_url_overrides.newtab`), as Chrome does.
+public protocol NewTabPageProvider: AnyObject {
+    /// Nil to keep the command bar (none installed, turned off, private windows…).
+    func newTabPage(in window: BrowserWindowState) -> URL?
+}
+
 public extension CapabilityRegistry {
     var search: SearchService? { resolve(SearchService.self) }
     var history: HistoryService? { resolve(HistoryService.self) }
+    var newTabPage: NewTabPageProvider? { resolve(NewTabPageProvider.self) }
 }
 
 /// Per-site permission decisions (the permission broker — Radian's "Security Core" idea: every grant

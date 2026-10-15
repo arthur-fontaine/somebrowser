@@ -16,9 +16,16 @@ public final class CommandBarFeature: BrowserFeature {
         context.ui.contribute(.overlay, id: "command-bar", order: 100) { window in
             CommandBarOverlay(window: window, model: model)
         }
-        context.commands.handle("command-bar.open") { inv in
-            guard let w = inv.window else { return }
-            if model.session(w)?.mode == .newTab { model.close(w) } else { model.open(w, mode: .newTab) }
+        context.commands.handle("command-bar.open") { [weak self] inv in
+            guard let self, let w = inv.window else { return }
+            if model.session(w)?.mode == .newTab {
+                model.close(w)
+            } else if let page = self.context.capabilities.newTabPage?.newTabPage(in: w) {
+                self.context.runtime.openTab(page, in: w)
+                self.context.shell?.focusContent(in: w)
+            } else {
+                model.open(w, mode: .newTab)
+            }
         }
         context.commands.handle("command-bar.edit-url") { inv in
             guard let w = inv.window else { return }

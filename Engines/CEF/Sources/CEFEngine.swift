@@ -62,6 +62,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
             "NetworkTimeServiceQuerying", "AimServerEligibilityEnabled", "AimServerRequestOnStartupEnabled",
             // The hidden Chrome toolbar would otherwise preload a WebUI renderer for its bubbles.
             "PreloadTopChromeWebUI", "WebUIOmniboxPopup",
+            // Chrome's footer under extension pages ("set by …", customize): window chrome pages here don't have.
+            "NtpFooter",
         ].joined(separator: ","),
     ]
 

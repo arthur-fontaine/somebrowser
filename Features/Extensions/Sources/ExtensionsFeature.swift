@@ -33,6 +33,7 @@ public final class ExtensionsFeature: BrowserFeature {
             [weak self] inv in self?.toggleSidePanel(inv.arguments["id"], in: inv.window)
         }
         sidePanels.activate { [weak model] id in model?.icons[id] }
+        context.capabilities.provide(NewTabPageProvider.self, self)
 
         let model = self.model, settings = context.settings
         context.ui.contribute("sidebar.header", id: "extensions.buttons", order: 200) { [weak self] window in
@@ -73,6 +74,14 @@ public final class ExtensionsFeature: BrowserFeature {
     func open(_ url: URL, in window: BrowserWindowState?) {
         guard let window else { return }
         context.runtime.openTab(url, in: window)
+    }
+}
+
+/// An extension that replaces the new tab page gets new tabs, as in Chrome (the first one, pinned first, if several do).
+extension ExtensionsFeature: NewTabPageProvider {
+    public func newTabPage(in window: BrowserWindowState) -> URL? {
+        guard !window.isPrivate, context.settings.bool("extensions.newTabPage") else { return nil }
+        return model.extensions.lazy.compactMap { ext in ext.newTabPagePath.flatMap(ext.page) }.first
     }
 }
 

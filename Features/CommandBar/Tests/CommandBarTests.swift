@@ -14,6 +14,11 @@ final class StubSearch: SearchService {
     func suggestions(for query: String) async -> [String] { [] }
 }
 
+final class StubNewTabPage: NewTabPageProvider {
+    var page: URL?
+    func newTabPage(in window: BrowserWindowState) -> URL? { page }
+}
+
 final class StubProvider: OmniboxProvider {
     func items(for query: String, in window: BrowserWindowState) -> [OmniboxItem] {
         [OmniboxItem(id: "hist", title: "History hit", icon: .system("clock"), kind: "History", score: 0.7) { _ in }]
@@ -37,6 +42,21 @@ struct CommandBarTests {
         #expect(model.session(h.window)?.mode == .newTab)
         try h.run("command-bar.open")
         #expect(!h.window.flags.contains(CommandBarModel.flag))
+    }
+
+    /// An extension's new tab page replaces the command bar for new tabs, as in Chrome.
+    @Test func newTabsOpenOnAReplacementNewTabPage() throws {
+        let h = try TestHarness(features: [CommandBarFeature.self], manifestDirectory: #filePath, activate: false)
+        let stub = StubNewTabPage()
+        h.runtime.capabilities.provide(NewTabPageProvider.self, stub)
+        h.activate()
+        stub.page = URL(string: "chrome-extension://abc/tab.html")
+        try h.run("command-bar.open")
+        #expect(h.selectedTab?.url == stub.page)
+        #expect(!h.window.flags.contains(CommandBarModel.flag))
+        stub.page = nil
+        try h.run("command-bar.open")
+        #expect(h.window.flags.contains(CommandBarModel.flag))
     }
 
     @Test func typingAURLOpensANewTab() throws {

@@ -3,6 +3,7 @@
   "name": "Extensions",
   "summary": "Chrome extensions from the sidebar: pinned actions and the extensions menu; popups, permissions and options are Chrome's own.",
   "entry": "ExtensionsFeature",
+  "provides": ["new-tab-page"],
   "commands": [
     { "id": "extensions.menu", "title": "Extensions…", "shortcut": "cmd+shift+e", "menu": "Tools", "group": "extensions", "order": 1, "keywords": ["add-ons", "plugins"] },
     { "id": "extensions.run", "title": "Run Extension", "palette": false },
@@ -11,6 +12,7 @@
     { "id": "extensions.side-panel", "title": "Extension Side Panel", "menu": "View", "group": "extensions", "order": 1, "keywords": ["sidebar", "panel", "chrome.sidePanel"] }
   ],
   "settings": [
-    { "key": "extensions.showPinned", "title": "Show pinned extensions in the sidebar", "type": "bool", "default": true }
+    { "key": "extensions.showPinned", "title": "Show pinned extensions in the sidebar", "type": "bool", "default": true },
+    { "key": "extensions.newTabPage", "title": "Open new tabs on an extension's new tab page (instead of the command bar)", "type": "bool", "default": true }
   ]
 }
