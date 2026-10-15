@@ -208,6 +208,17 @@ final class AutomationServer {
         }
     }
 
+    /// Installed extensions, with their badge on the key window's selected page (what its sidebar shows).
+    private func extensionsState() -> [[String: Any]] {
+        guard let engine = runtime.engine as? EngineExtensions else { return [] }
+        let window = runtime.keyWindow ?? runtime.windows.first
+        let page = window.flatMap { runtime.selectedTab(in: $0)?.engineTab }
+        let badges = page.map { engine.actionBadges(in: $0) } ?? [:]
+        return engine.installedExtensions.map {
+            ["id": $0.id, "name": $0.name, "pinned": $0.isPinned, "badge": badges[$0.id] ?? ""]
+        }
+    }
+
     /// This process's physical footprint in bytes (Activity Monitor's "Memory"), renderers and GPU excluded.
     static func footprint() -> Int {
         var info = task_vm_info_data_t()
@@ -234,9 +245,7 @@ final class AutomationServer {
             "memory": ["footprint": Self.footprint()],
             "engine": runtime.engine.id,
             "features": runtime.activationOrder,
-            "extensions": ((runtime.engine as? EngineExtensions)?.installedExtensions ?? []).map {
-                ["id": $0.id, "name": $0.name, "pinned": $0.isPinned]
-            },
+            "extensions": extensionsState(),
             "windows": runtime.windows.map { w in
                 [
                     "id": w.id.uuidString,

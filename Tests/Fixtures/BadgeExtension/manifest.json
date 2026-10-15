@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "E2E Badge",
+  "version": "1.0",
+  "description": "Test fixture: a badge on its action, and a download from its service worker.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2c4JKXFKRlj5zxFmuFYPybBxz8pMDciHM8xdQjos8DBL0qV+Ykw4HW6TLnI5OaicTNhqdb1KKGsWZYLRNRJBh0pA+ydjHRw71T9cMUCgQGiE65QYULoPDANPEMnxkj8Vsb5WmW/mHOVZynsfxHYoPMk+4HlSUEIPRkZDkoitVIGVJoKcJoc/iDuhIcwoKbdbuEwA1O5I1sJINlF99prOdE/QMFEdmaMfY9c/+sKnshCnyzQgUHokcjQf8S4Ht+G7YjuclJJrfxsuQtCBUrOEE6xKxFJg42SXxJ6Hw6tzco4dQQ9N0UtwgvIcURiz5GFsgFng4teW+klQd4UhftlevQIDAQAB",
+  "background": { "service_worker": "worker.js" },
+  "permissions": ["downloads"],
+  "action": { "default_title": "Badge" }
+}

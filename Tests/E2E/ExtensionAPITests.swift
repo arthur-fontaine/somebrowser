@@ -112,6 +112,33 @@ struct ExtensionAPITests {
         try app.quit()
     }
 
+    /// Our Chromium build (Engines/CEF/patches): a pinned action's badge reaches the sidebar, and a download an
+    /// extension's service worker starts goes through the browser instead of being canceled. Skipped on stock CEF.
+    @Test func badgesAndWorkerDownloadsWithOurChromium() throws {
+        let fixture = Self.fixture.deletingLastPathComponent().appendingPathComponent("BadgeExtension")
+        let id = "efegbkdelhbcpnapggllgffbmklhmlgf"  // from the fixture manifest's `key`
+        let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-badge-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: data) }
+        let profile = data.appendingPathComponent("Engine/cef-chrome/Default")
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: ["extensions": ["pinned_extensions": [id]]]).write(to: profile.appendingPathComponent("Preferences"))
+        let server = try TestHTTPServer(pages: Self.pages)
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path],
+                                arguments: ["--load-extension=\(fixture.path)"])
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        guard try (app.eval("navigator.userAgent") as? String ?? "").contains("Chrome/156") else { try app.quit(); return }
+        let badge = { (try app.state()["extensions"] as? [[String: Any]])?.first { $0["id"] as? String == id }?["badge"] as? String }
+        try app.waitUntil(timeout: 30) { try badge() == "7" }
+        let downloads = data.appendingPathComponent("Downloads")
+        try app.waitUntil(timeout: 20) {
+            let files = (try? FileManager.default.contentsOfDirectory(at: downloads, includingPropertiesForKeys: nil)) ?? []
+            return files.contains { (try? String(contentsOf: $0, encoding: .utf8)) == "hello" }
+        }
+        try app.quit()
+    }
+
     /// Chrome would draw the panel in its window chrome: the button opens it in a pane beside the content.
     @Test func sidePanelOpensFromTheButton() throws {
         guard let s = try launch() else { return }
