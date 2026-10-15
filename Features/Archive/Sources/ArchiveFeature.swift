@@ -58,7 +58,7 @@ public final class ArchiveFeature: BrowserFeature {
                 let branch = ids.compactMap { tabs.tab($0) }
                 guard !branch.isEmpty, branch.count == ids.count else { continue }  // folders are never archived
                 let busy = branch.contains { t in
-                    visible.contains(t.id) || now.timeIntervalSince(t.lastActiveAt) < threshold
+                    visible.contains(t.id) || context.runtime.isHeldAwake(t.id) || now.timeIntervalSince(t.lastActiveAt) < threshold
                         || t.live?.isPlayingAudio == true || t.live?.isCapturingCamera == true || t.live?.isCapturingMicrophone == true
                 }
                 guard !busy else { continue }
