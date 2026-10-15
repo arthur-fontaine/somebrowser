@@ -68,9 +68,12 @@ nonisolated enum ChromiumImport {
     }
 
     static func read(_ profile: URL, historyLimit: Int = 200_000) -> ImportedData {
-        ImportedData(bookmarks: bookmarks(profile.appendingPathComponent("Bookmarks")),
-                     history: history(profile.appendingPathComponent("History"), limit: historyLimit),
-                     extensions: ChromiumExtensions.read(profile: profile).filter(\.isFromWebStore))
+        var marks = bookmarks(profile.appendingPathComponent("Bookmarks"))
+        // Arc: its Spaces' pinned tabs, kept outside the profile.
+        let spaces = ArcSidebar.bookmarks(ArcSidebar.file(forProfile: profile), profileDirectory: profile.lastPathComponent)
+        if !spaces.isEmpty { marks.insert(.folder(title: "Arc Spaces", children: spaces), at: 0) }
+        return ImportedData(bookmarks: marks, history: history(profile.appendingPathComponent("History"), limit: historyLimit),
+                            extensions: ChromiumExtensions.read(profile: profile).filter(\.isFromWebStore))
     }
 
     /// The bookmarks bar's items, then "Other Bookmarks" and "Mobile Bookmarks" as folders.

@@ -77,7 +77,8 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] History panel ⌘Y (A, H) · Copy URL / as Markdown (A)
 - [~] Import from Arc, Atlas, Chrome, Dia, Helium (+ Brave, Edge, Vivaldi): bookmarks → pinned folder, history,
       Web Store extensions with one-click Add — verified with this Mac's Chrome profiles. Safari (via the Safari feature's grants) done; Arc's
-      own sidebar (`StorableSidebar.json`, no data here) todo; Atlas path is community-reported (R)
+      Spaces' pinned tabs from `StorableSidebar.json` (format per arc-export, tested with a fixture: no Arc sidebar here to
+      check); Atlas path is community-reported (R)
 - [x] Split view: two tabs side by side (⌃⇧= / ⌃⇧] / ⌃⇧-), pane in the `content-trailing` slot; engines let a page belong to
       one viewport at a time (A)
 - [x] Air Traffic Control: rules route links from other apps to a Space, a mini window or the main window (A)

@@ -39,7 +39,49 @@ func makeUserData() throws -> URL {
     return appSupport
 }
 
+/// Arc's `StorableSidebar.json` (shape as arc-export reads it): two Spaces in two profiles, a nested pinned folder, a
+/// Today tab (not imported).
+func makeArcSidebar(in appSupport: URL) throws -> URL {
+    let arc = appSupport.appendingPathComponent("Arc")
+    let profile = arc.appendingPathComponent("User Data/Default")
+    try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+    let sidebar: [String: Any] = ["sidebar": ["containers": [
+        ["global": [String: Any]()],
+        ["spaces": [
+            "s1", ["id": "s1", "title": "Work", "newContainerIDs": [["pinned": [String: Any]()], "P1", ["unpinned": [String: Any]()], "U1"]],
+            "s2", ["id": "s2", "title": "Home", "newContainerIDs": [["pinned": [String: Any]()], "P2"],
+                   "profile": ["custom": ["_0": ["directoryBasename": "Profile 1"]]]],
+        ] as [Any],
+         "items": [
+            "P1", ["id": "P1", "childrenIds": ["t2", "f1"]],
+            "t1", ["id": "t1", "parentID": "f1", "data": ["tab": ["savedURL": "https://linear.app/", "savedTitle": "Linear"]]],
+            "t2", ["id": "t2", "parentID": "P1", "title": "Mail", "data": ["tab": ["savedURL": "https://mail.example/", "savedTitle": "Inbox"]]],
+            "f1", ["id": "f1", "parentID": "P1", "title": "Tools", "childrenIds": ["t1"], "data": ["list": [String: Any]()]],
+            "u1", ["id": "u1", "parentID": "U1", "data": ["tab": ["savedURL": "https://today.example/"]]],
+            "P2", ["id": "P2", "childrenIds": ["t3"]],
+            "t3", ["id": "t3", "parentID": "P2", "data": ["tab": ["savedURL": "https://home.example/", "savedTitle": "Home"]]],
+         ] as [Any]],
+    ] as [Any]]]
+    try JSONSerialization.data(withJSONObject: sidebar).write(to: arc.appendingPathComponent("StorableSidebar.json"))
+    return profile
+}
+
 struct ReaderTests {
+    @Test func readsArcSpacesPinnedTabs() throws {
+        let appSupport = FileManager.default.temporaryDirectory.appendingPathComponent("arc-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: appSupport) }
+        let profile = try makeArcSidebar(in: appSupport)
+        let file = ArcSidebar.file(forProfile: profile)
+        let work: BookmarkNode = .folder(title: "Work", children: [
+            .link(title: "Mail", url: URL(string: "https://mail.example/")!),
+            .folder(title: "Tools", children: [.link(title: "Linear", url: URL(string: "https://linear.app/")!)]),
+        ])
+        #expect(ArcSidebar.bookmarks(file, profileDirectory: "Default") == [work])
+        #expect(ArcSidebar.bookmarks(file, profileDirectory: "Profile 1")
+            == [.folder(title: "Home", children: [.link(title: "Home", url: URL(string: "https://home.example/")!)])])
+        #expect(ChromiumImport.read(profile).bookmarks.first == .folder(title: "Arc Spaces", children: [work]))
+    }
+
     @Test func discoversProfilesWithData() throws {
         let appSupport = try makeUserData()
         let profiles = ChromiumImport.profiles(applicationSupport: appSupport)
