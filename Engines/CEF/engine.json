@@ -1,7 +1,7 @@
 {
   "id": "cef-chrome",
   "name": "Chromium (CEF, Chrome style)",
-  "summary": "Chromium through the Chromium Embedded Framework, Chrome-style browsers hosted as child windows (Chrome extensions, chrome:// pages).",
+  "summary": "Chromium through the Chromium Embedded Framework, Chrome-style browsers hosted as child windows (Chrome extensions, chrome:// pages); pages needing protected media (Netflix…) play in WebKit with FairPlay.",
   "module": "EngineCEF",
   "entry": "CEFEngine",
   "bundler": "cef",
@@ -12,7 +12,8 @@
       "unsafeCFlags": ["-I$(VENDOR)/cef", "-std=c++20", "-fno-exceptions", "-fno-rtti", "-fobjc-call-cxx-cdtors", "-DNDEBUG", "-D__STDC_CONSTANT_MACROS", "-D__STDC_FORMAT_MACROS", "-Wno-deprecated-declarations"],
       "unsafeLinkerFlags": ["$(VENDOR)/cef/build/libcef_dll_wrapper/libcef_dll_wrapper.a"],
       "frameworks": ["Cocoa"] },
-    { "name": "EngineCEF", "path": "Engines/CEF/Sources", "language": "swift", "dependencies": ["BrowserCore", "CEFBridge"] },
+    { "name": "EngineWebKit", "path": "Engines/WebKit/Sources", "language": "swift", "dependencies": ["BrowserCore"], "frameworks": ["WebKit"] },
+    { "name": "EngineCEF", "path": "Engines/CEF/Sources", "language": "swift", "dependencies": ["BrowserCore", "CEFBridge", "EngineWebKit"] },
     { "name": "BrowserHelper", "path": "Engines/CEF/Helper", "language": "objcxx", "type": "executable",
       "unsafeCFlags": ["-I$(VENDOR)/cef", "-std=c++20", "-fno-exceptions", "-fno-rtti", "-DNDEBUG", "-D__STDC_CONSTANT_MACROS", "-D__STDC_FORMAT_MACROS"],
       "unsafeLinkerFlags": ["$(VENDOR)/cef/build/libcef_dll_wrapper/libcef_dll_wrapper.a"],

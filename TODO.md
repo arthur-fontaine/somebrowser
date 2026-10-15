@@ -117,6 +117,11 @@ to check that the feature still works (`forkctl test <feature>`).
       - **On the iPhone:** the KRAAFT-ARTHUR-F group shows the browser's tabs. Closed tabs and deleted groups leave and
         stay gone (confirmed by the user; deletions go through WebBookmarks).
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
+- [x] Netflix and other DRM services (U): pages asking for protected media move to a WebKit tab with FairPlay (ADR-0004;
+      E2E `protectedMediaPlaysInWebKit`; EZDRM's FairPlay demo licensed and decoding at 720p in the app). Netflix itself to
+      be confirmed by the user
+- [ ] Only the protected video in WebKit, the page staying in Chromium (U's preference; ADR-0004: a MediaSource/EME bridge,
+      after the whole-tab path is proven on the services)
 
 ## 7. Privacy & ads (B, U)
 - [x] adblock-rust (Brave engine) via Rust staticlib + C API crate (`forkctl` builds `"cargo"` crates); real lists verified in the app

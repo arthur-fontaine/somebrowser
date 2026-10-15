@@ -8,7 +8,14 @@ final class CEFViewport: EngineViewport {
     private(set) var presentedTab: EngineTab?
     static let cornerRadius: CGFloat = 10
 
-    init(container: NSView) { self.container = container }
+    /// Pages from the protected-media engine (WebKit) show through its own viewport in the same container.
+    private let makeAlternate: (NSView) -> EngineViewport?
+    private var alternate: EngineViewport?
+
+    init(container: NSView, alternate: @escaping (NSView) -> EngineViewport? = { _ in nil }) {
+        self.container = container
+        self.makeAlternate = alternate
+    }
 
     private var page: CEFPage? { presentedTab as? CEFPage }
 
@@ -25,6 +32,12 @@ final class CEFViewport: EngineViewport {
         presentedTab = tab
         next?.presenter = self
         attach()
+        if let tab, next == nil {
+            if alternate == nil, let container { alternate = makeAlternate(container) }
+            alternate?.present(tab)
+        } else {
+            alternate?.present(nil)
+        }
     }
 
     private func forget(_ page: CEFPage) {
@@ -69,6 +82,7 @@ final class CEFViewport: EngineViewport {
     }
 
     func layoutDidChange() {
+        alternate?.layoutDidChange()
         guard let page, let w = page.window, let container else { return }
         if container.window == nil || container.isHiddenOrHasHiddenAncestor {
             w.orderOut(nil)
@@ -80,10 +94,14 @@ final class CEFViewport: EngineViewport {
     }
 
     func focusContent() {
+        if page == nil { alternate?.focusContent() }
         guard let page, let w = page.window else { return }
         w.makeKey()
         page.tab?.setFocus(true)
     }
 
-    func tearDown() { present(nil) }
+    func tearDown() {
+        present(nil)
+        alternate?.tearDown()
+    }
 }

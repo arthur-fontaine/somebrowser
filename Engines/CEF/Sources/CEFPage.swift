@@ -234,7 +234,13 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         if flags.contains(.shift) { mods.insert(.shift) }
         if flags.contains(.option) { mods.insert(.option) }
         switch engine.hooks.decide(NavigationAction(url: u, sourceTab: self, isMainFrame: true, userGesture: gesture, modifiers: mods)) {
-        case .allow: return true
+        case .allow:
+            // A site known to need protected media plays in WebKit: this tab becomes a WebKit page there.
+            if engine.protectedMedia.needsWebKit(u) {
+                engine.hooks.onRecreateTab?(self, u)
+                return false
+            }
+            return true
         case .cancel, .handled: return false
         case .openInNewTab(let target):
             let page = CEFPage(engine: engine)
@@ -264,6 +270,8 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
             guard let d = body as? [String: Any], let id = d["id"] as? Int, let cb = evalCallbacks.removeValue(forKey: id)?.callback else { return }
             if d["ok"] as? Bool == true { cb(.success(d["value"] is NSNull ? nil : d["value"])) }
             else { cb(.failure(NSError(domain: "JavaScript", code: 1, userInfo: [NSLocalizedDescriptionKey: d["error"] as? String ?? "error"]))) }
+        case "__protectedMedia":
+            engine?.protectedMediaRequested(by: self)
         case "__media":
             let d = body as? [String: Any]
             state.isPlayingAudio = d?["audio"] as? Bool ?? false

@@ -1,6 +1,7 @@
 import AppKit
 import BrowserCore
 import CEFBridge
+import EngineWebKit
 import Foundation
 
 /// Chromium through CEF in Chrome style: full Chrome extensions and `chrome://` pages, each tab hosted
@@ -19,12 +20,39 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     private var preferenceStamps: [Date?] = []
     public private(set) var installedExtensions: [BrowserExtension] = []
     public var onExtensionsChanged: (() -> Void)?
+    private(set) var protectedMedia: ProtectedMedia
+    private var webKit: WebKitEngine?
+    private var webKitProfile: URL?
 
     public init(options: [String: SettingValue]) {
         self.options = options
+        protectedMedia = ProtectedMedia(mode: ProtectedMedia.Mode(rawValue: options["protectedMedia"]?.stringValue ?? "") ?? .webkit, file: nil)
         super.init()
         hooks.observeUserScripts { [weak self] in self?.syncScripts() }
         hooks.onDefaultSearchChanged = { [weak self] in self?.syncDefaultSearch() }
+        // A link the user follows from a protected-media page (in WebKit) to another site goes back to Chromium.
+        hooks.addNavigationPolicy { [weak self] action in
+            guard let self, action.isMainFrame, action.userGesture, let tab = action.sourceTab, !(tab is CEFPage),
+                  self.protectedMedia.mode == .webkit, !self.protectedMedia.needsWebKit(action.url) else { return .allow }
+            self.hooks.onRecreateTab?(tab, action.url)
+            return .cancel
+        }
+    }
+
+    /// WebKit for pages needing protected media, sharing these hooks (features apply there too); made on first use.
+    func protectedMediaEngine() -> WebKitEngine {
+        if let webKit { return webKit }
+        let engine = WebKitEngine(options: options, hooks: hooks)
+        try? engine.bootstrap(profileDirectory: webKitProfile ?? FileManager.default.temporaryDirectory)
+        webKit = engine
+        return engine
+    }
+
+    /// A Chromium page asked for a DRM key system: it plays in WebKit from now on, and so does its site.
+    func protectedMediaRequested(by page: CEFPage) {
+        guard protectedMedia.mode == .webkit, let url = page.state.url else { return }
+        protectedMedia.remember(url)
+        hooks.onRecreateTab?(page, url)
     }
 
     static let deadEndpoint = "http://127.0.0.1:9"
@@ -34,6 +62,9 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     /// profile contacted is switched off by name instead (audit: `--log-net-log=<file>`, see TODO.md).
     static let privacySwitches: [String: String] = [
         "disable-component-update": "",
+        // Our Chromium build (Engines/CEF/patches): the hidden toolbar's omnibox makes no WebUI popups (a renderer
+        // each). Stock CEF ignores the switch.
+        "disable-webui-omnibox": "",
         "allow-browser-signin": "false",
         // Chromium's own Google endpoints (account checks, AI-mode eligibility, Optimization Guide's component,
         // which ignores disable-component-update) point at a closed local port. Pages on Google sites and
@@ -83,8 +114,16 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         // Chrome's own session files would reopen stock windows; tabs are restored by the browser runtime.
         try? FileManager.default.removeItem(at: profileDirectory.appendingPathComponent("Default/Sessions"))
         runtime.delegate = self
+        protectedMedia = ProtectedMedia(mode: protectedMedia.mode, file: profileDirectory.appendingPathComponent("protected-media-sites.json"))
+        webKitProfile = profileDirectory.deletingLastPathComponent().appendingPathComponent("webkit", isDirectory: true)
         syncScripts()
         var switches = Self.privacySwitches
+        if protectedMedia.mode == .chromium {
+            // A Widevine build (VMP-signed for Netflix): Chrome's updater fetches the Widevine CDM, and nothing else.
+            switches["disable-component-update"] = nil
+            switches["component-updater"] = nil
+            switches["widevine-only-components"] = ""
+        }
         // Development builds are ad-hoc signed: avoid Keychain prompts for Chromium's cookie key.
         if ProcessInfo.processInfo.environment["BROWSER_REAL_KEYCHAIN"] == nil { switches["use-mock-keychain"] = "" }
         // Printing shows the macOS print panel (with its PDF menu) instead of Chrome's web print preview.
@@ -114,7 +153,9 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         exit(0)
     }
 
-    public func makeViewport(in container: NSView) -> EngineViewport { CEFViewport(container: container) }
+    public func makeViewport(in container: NSView) -> EngineViewport {
+        CEFViewport(container: container) { [weak self] container in self?.protectedMediaEngine().makeViewport(in: container) }
+    }
 
     /// Chrome rewrites its preference files (atomically, by rename) when extensions change.
     private func watchProfile(_ profile: URL) {
@@ -153,9 +194,15 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     static func toolbarWidth(pinned: Int) -> Int { 560 + 40 * pinned }
 
     public func makeTab(_ request: EngineTabRequest) -> EngineTab {
-        let page = CEFPage(engine: self)
         let restored = request.restorationData.flatMap(RestoredHistory.decode)
         let url = restored?.current.url ?? request.url
+        // A WebKit page's history (it isn't ours) or a page of a protected-media site: WebKit.
+        if protectedMedia.mode == .webkit, (request.restorationData != nil && restored == nil) || protectedMedia.needsWebKit(url) {
+            return protectedMediaEngine().makeTab(EngineTabRequest(url: restored == nil ? request.url : url, opener: request.opener,
+                                                                   restorationData: restored == nil ? request.restorationData : nil,
+                                                                   isPrivate: request.isPrivate))
+        }
+        let page = CEFPage(engine: self)
         if let restored {
             page.restored = restored.history
             page.restoring = restored.current
@@ -208,7 +255,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     }
 
     func syncScripts() {
-        let scripts = [Self.pageObserverScript].map { (source: $0, start: true, mainOnly: true) }
+        let ownScripts = [Self.pageObserverScript] + (protectedMedia.mode == .webkit ? [ProtectedMedia.detectorScript] : [])
+        let scripts = ownScripts.map { (source: $0, start: true, mainOnly: true) }
             + hooks.userScripts.map { (source: $0.source, start: $0.injectionTime == .documentStart, mainOnly: $0.mainFrameOnly) }
         runtime.userScripts = scripts.map { ["source": $0.source, "documentStart": $0.start, "mainFrameOnly": $0.mainOnly] as [String: Any] }
     }
@@ -299,13 +347,15 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
 extension CEFEngine: EngineFloating {
     /// The page keeps its own window; it leaves the browser window and the caller restyles it.
     public func detachForFloating(_ tab: EngineTab) -> FloatingContent? {
-        guard let page = tab as? CEFPage, let w = page.window else { return nil }
+        guard let page = tab as? CEFPage else { return webKit?.detachForFloating(tab) }
+        guard let w = page.window else { return nil }
         w.parent?.removeChildWindow(w)
         return .window(w)
     }
 
     public func reattachAfterFloating(_ tab: EngineTab) {
-        guard let page = tab as? CEFPage, let w = page.window else { return }
+        guard let page = tab as? CEFPage else { webKit?.reattachAfterFloating(tab); return }
+        guard let w = page.window else { return }
         w.parent?.removeChildWindow(w)
         w.level = .normal
         w.collectionBehavior = [.fullScreenAuxiliary]

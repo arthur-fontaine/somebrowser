@@ -7,7 +7,7 @@ import WebKit
 public final class WebKitEngine: BrowserEngine {
     public let id = "webkit"
     public let capabilities: EngineCapabilities = [.contentRuleLists, .reparentableViews, .devTools, .multipleViewportsPerWindow]
-    public let hooks = EngineHooks()
+    public let hooks: EngineHooks
 
     let options: [String: SettingValue]
     private(set) var dataStore: WKWebsiteDataStore = .default()
@@ -15,8 +15,14 @@ public final class WebKitEngine: BrowserEngine {
     private var compiledRuleLists: [String: WKContentRuleList] = [:]
     private var liveTabs = NSHashTable<WebKitTab>.weakObjects()
 
-    public init(options: [String: SettingValue]) {
+    public convenience init(options: [String: SettingValue]) {
+        self.init(options: options, hooks: EngineHooks())
+    }
+
+    /// With another engine's hooks: CEF hosts pages needing protected media in WebKit, under the same features.
+    public init(options: [String: SettingValue], hooks: EngineHooks) {
         self.options = options
+        self.hooks = hooks
         hooks.observeUserScripts { [weak self] in self?.refreshScripts() }
         hooks.observeContentRuleLists { [weak self] in self?.compileRuleLists() }
     }
@@ -64,6 +70,15 @@ public final class WebKitEngine: BrowserEngine {
 
     // MARK: Configuration
 
+    /// This Mac's Safari version: sites (streaming services above all) treat these pages as that Safari.
+    static let safariVersion: String = {
+        let paths = ["/Applications/Safari.app", "/System/Volumes/Preboot/Cryptexes/App/System/Applications/Safari.app"]
+        for path in paths {
+            if let v = Bundle(path: path)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String { return v }
+        }
+        return "26.0"
+    }()
+
     func makeConfiguration(isPrivate: Bool) -> WKWebViewConfiguration {
         let c = WKWebViewConfiguration()
         if isPrivate {
@@ -76,7 +91,7 @@ public final class WebKitEngine: BrowserEngine {
         c.preferences.isTextInteractionEnabled = true
         c.allowsAirPlayForMediaPlayback = true
         c.mediaTypesRequiringUserActionForPlayback = []
-        c.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
+        c.applicationNameForUserAgent = "Version/\(Self.safariVersion) Safari/605.1.15"
         c.preferences.setValue(true, forKey: "developerExtrasEnabled")
         install(scriptsInto: c.userContentController)
         for list in compiledRuleLists.values { c.userContentController.add(list) }
