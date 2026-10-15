@@ -69,7 +69,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Find in page, zoom, devtools, view source · print (native panel) · reader mode (Readability, ⌥⌘R) (A, H)
 - [x] History panel ⌘Y (A, H) · Copy URL / as Markdown (A)
 - [~] Import from Arc, Atlas, Chrome, Dia, Helium (+ Brave, Edge, Vivaldi): bookmarks → pinned folder, history,
-      Web Store extensions with one-click Add — verified with this Mac's Chrome profiles. Safari importer and Arc's
+      Web Store extensions with one-click Add — verified with this Mac's Chrome profiles. Safari (via the Safari feature's grants) done; Arc's
       own sidebar (`StorableSidebar.json`, no data here) todo; Atlas path is community-reported (R)
 - [ ] Split view (A) — gated on engine capability, later
 - [ ] Air Traffic Control link routing rules (A) — later
