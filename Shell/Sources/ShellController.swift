@@ -83,6 +83,9 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         for c in controllers.values { c.persistFrame() }
         runtime.deactivateFeatures()
+        // Gone at once: the engine's shutdown blocks the main thread (Chromium's took 0.4–6.5 s, measured
+        // 2026-10-15), and windows left on screen would sit there frozen until the process exits.
+        NSApp.windows.forEach { $0.orderOut(nil) }
         runtime.engine.shutdown { NSApp.reply(toApplicationShouldTerminate: true) }
         return .terminateLater
     }
