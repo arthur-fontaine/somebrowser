@@ -107,7 +107,8 @@ to check that the feature still works (`forkctl test <feature>`).
       - **History, both ways.** Safari's appears in the command bar. Visits from here go into History.db, and one
         uploaded at Safari's launch.
       - **Upload timing.** Uploads need Safari to sync. When Safari isn't running, it's launched hidden and quit after.
-      - **Still open:** the full loop inside the app, and the user's first look at the KRAAFT-ARTHUR-F group.
+      - **Full loop, run in the app:** two pages opened, the KRAAFT-ARTHUR-F group written, Safari launched hidden 30 s
+        later, the group and the visits uploaded, then Safari quit.
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
 
 ## 7. Privacy & ads (B, U)

@@ -88,7 +88,11 @@ sync, so when something written here hasn't reached iCloud and Safari isn't runn
 visits newer than `last_synced_generation`. Safari's launch syncs Tab Groups, history and bookmarks. The browser quits
 it once nothing waits, or after two minutes, unless the user brought it forward. It launches at most once every
 15 minutes. If Safari is already running, it syncs with its own activity, and favorites still get the notification.
-Verified 2026-10-15: Safari launched hidden (`open -g -j`) uploaded a Tab Group change within seconds.
+Verified 2026-10-15 in the app, with Safari quit:
+- two pages opened here at 15:27:16;
+- at 15:28:05 Safari was launched hidden, uploaded the KRAAFT-ARTHUR-F group with both tabs, and history reached the
+  visits' generation;
+- Safari was quit again by 15:28:15.
 Verified 2026-10-15: a visit written here went up at Safari's next launch (`last_synced_generation` passed it).
 Tab Groups verified the same day: a group, its tabs and their removal written here appeared on, then left, the iPhone.
 
