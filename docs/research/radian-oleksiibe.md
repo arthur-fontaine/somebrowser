@@ -1,7 +1,8 @@
 # Radian (@oleksiibe) — feature inventory, 17 Jul 2026 → now
 
 Source: every original post from https://x.com/oleksiibe since 2026-07-17, plus his
-replies that carry product information (last checked 2026-10-15: nothing new after the 10-01 PiP post; 08-07's
+replies that carry product information (last checked 2026-10-15 with X search over 07-16→08-14 and 08-13→now: the
+original posts are exactly the rows below, nothing new after the 10-01 PiP post; 08-07's
 first reply on Safari sync — "no Full Disk Access, uses iCloud for sync, setup takes 2 clicks" — is covered in
 `apple-integrations.md`). Videos were inspected frame by frame.
 Radian is a native macOS (Swift/AppKit/SwiftUI) Chromium browser by Oleksii.
