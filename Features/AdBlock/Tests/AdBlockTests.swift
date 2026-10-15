@@ -205,4 +205,21 @@ struct FeatureTests {
         let tab = h.fakeTab(h.openTab("https://news.example/story"))
         #expect(tab.evaluatedScripts.contains { $0.contains(".sponsored") })
     }
+
+    /// Scriptlets go to the engine's document-start hook, not after the page started.
+    @Test func scriptletsRunAtDocumentStart() throws {
+        let h = try TestHarness(features: [AdBlockFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(AdBlockFeature.self))
+        let ads = AdBlockEngine(lists: adsList + "\n" + resourceList)
+        ads.useResources(json: resourcesJSON)
+        feature.install(.init(ads: ads, privacy: AdBlockEngine(lists: privacyList), contentRules: nil))
+        let page = URL(string: "https://news.example/story")!
+        #expect(h.engine.hooks.documentStartScript(for: page)?.contains("window.flag = 'on'") == true)
+        #expect(h.engine.hooks.documentStartScript(for: URL(string: "https://other.example/")!) == nil)
+        let tab = h.fakeTab(h.openTab(page.absoluteString))
+        #expect(!tab.evaluatedScripts.contains { $0.contains("window.flag") })
+        h.runtime.siteSettings.set("adblock.enabled", .bool(false), for: "news.example")
+        feature.syncSettings()
+        #expect(h.engine.hooks.documentStartScript(for: page) == nil)
+    }
 }

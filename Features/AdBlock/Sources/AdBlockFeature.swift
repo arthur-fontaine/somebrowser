@@ -40,6 +40,8 @@ public final class AdBlockFeature: BrowserFeature {
             if m.isMainFrame, let url = tab.state.url { self?.creatorDeclared(on: url) }
         }
         context.events.subscribe(TabNavigated.self) { [weak self] event in self?.navigated(event) }
+        // Scriptlets (`##+js(…)`) must run before the page's scripts to defuse them.
+        context.hooks.addDocumentStartScript { [weak self] url in self?.scriptlets(for: url) }
 
         context.commands.handle("adblock.toggle-site") { [weak self] inv in self?.toggleSite(in: inv.window) }
         context.commands.handle("adblock.update-lists") { [weak self] _ in self?.updateLists(force: true) }
@@ -104,7 +106,13 @@ public final class AdBlockFeature: BrowserFeature {
         guard context.settings.bool("adblock.cosmetic"), shield.shouldFilter(page: event.url),
               let resources = shield.cosmetic(for: event.url, ads: shield.blocksAds(on: event.url)) else { return }
         exceptions[ObjectIdentifier(tab)] = resources.exceptions
-        tab.evaluateJavaScript(AdBlockScripts.inject(selectors: resources.hide_selectors, script: resources.injected_script))
+        tab.evaluateJavaScript(AdBlockScripts.inject(selectors: resources.hide_selectors, script: ""))
+    }
+
+    func scriptlets(for url: URL) -> String? {
+        guard ["http", "https"].contains(url.scheme), context.settings.bool("adblock.cosmetic"), shield.shouldFilter(page: url),
+              let script = shield.cosmetic(for: url, ads: shield.blocksAds(on: url))?.injected_script, !script.isEmpty else { return nil }
+        return script
     }
 
     static func isLocal(_ url: URL) -> Bool {

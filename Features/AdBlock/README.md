@@ -13,6 +13,12 @@ Lists are split like Brave's: privacy lists (trackers) always apply; ad lists ar
 an Apple content-blocker rule list. Compiled engines are cached; lists refresh weekly and are first fetched when you
 start browsing (an idle browser contacts nobody).
 
+**Resources** — `redirect=` filters answer with a harmless stand-in instead of failing the request
+(`RequestVerdict.respond`), and `##+js(…)` scriptlets run at document start, before the page's own scripts
+(`EngineHooks.addDocumentStartScript`). Both come from a resources file in adblock-rust's format, downloaded with the
+lists and loaded into the engines: today Brave's own (`brave/adblock-resources`); uBlock Origin's stand-ins and
+scriptlets, which Brave bundles through its component updater, are still to add.
+
 **Commands** — `adblock.toggle-site`, `adblock.update-lists`. **Settings** — `adblock.enabled`,
 `adblock.supportCreators`, `adblock.cosmetic`.
 

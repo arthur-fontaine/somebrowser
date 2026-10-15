@@ -27,7 +27,7 @@ enum AdBlockScripts {
     })();
     """
 
-    /// Hides `selectors` (one stylesheet per call) and runs the lists' scriptlets.
+    /// Hides `selectors` (one stylesheet per call) and runs `script`.
     static func inject(selectors: [String], script: String) -> String {
         let css = selectors.isEmpty ? "" : selectors.joined(separator: ",\n") + " { display: none !important; }"
         let cssLiteral = String(decoding: (try? JSONSerialization.data(withJSONObject: [css])) ?? Data("[\"\"]".utf8), as: UTF8.self)
