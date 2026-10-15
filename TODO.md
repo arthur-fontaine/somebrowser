@@ -109,6 +109,8 @@ to check that the feature still works (`forkctl test <feature>`).
       - **Upload timing.** Uploads need Safari to sync. When Safari isn't running, it's launched hidden and quit after.
       - **Full loop, run in the app:** two pages opened, the KRAAFT-ARTHUR-F group written, Safari launched hidden 30 s
         later, the group and the visits uploaded, then Safari quit.
+      - **On the iPhone:** the KRAAFT-ARTHUR-F group shows the browser's tabs. Closed tabs and deleted groups leave and
+        stay gone (confirmed by the user; deletions go through WebBookmarks).
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
 
 ## 7. Privacy & ads (B, U)
