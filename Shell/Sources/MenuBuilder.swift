@@ -105,6 +105,31 @@ final class MenuBuilder: NSObject, NSMenuItemValidation {
         return runtime.commands.canRun(id)
     }
 
+    // MARK: Undo: typing first, then the sidebar (Arc)
+
+    @objc func undo(_ sender: Any?) { route(undo: true, sender) }
+    @objc func redo(_ sender: Any?) { route(undo: false, sender) }
+
+    /// A text field with the keyboard (ours, or a page's) undoes its typing; otherwise ⌘Z undoes the last sidebar change.
+    private func route(undo: Bool, _ sender: Any?) {
+        let action = Selector(undo ? "undo:" : "redo:")
+        let state = shell?.keyWindowState
+        let sidebar = { [runtime] in if undo { runtime.sidebarHistory.undo(in: state) } else { runtime.sidebarHistory.redo(in: state) } }
+        guard let key = NSApp.keyWindow else { return sidebar() }
+        if key.firstResponder is NSText { NSApp.sendAction(action, to: nil, from: sender); return }
+        let pageHasKeyboard = key.parent != nil && key.identifier != ShellOverlay.windowIdentifier
+        guard pageHasKeyboard, let state, let page = runtime.selectedTab(in: state)?.engineTab else { return sidebar() }
+        page.evaluateJavaScript(Self.pageIsEditing) { result in
+            if case .success(let value) = result, value.map({ "\($0)" }) == "false" { sidebar() }
+            else { NSApp.sendAction(action, to: nil, from: sender) }  // editing (or unsure): the page's own undo
+        }
+    }
+
+    /// Whether the page's focus is somewhere it types (frames count: they may be editors).
+    static let pageIsEditing = """
+    String((() => { const e = document.activeElement; return !!e && (e.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'IFRAME'].includes(e.tagName)); })())
+    """
+
     // MARK: Standard menus
 
     private func appMenu() -> NSMenu {
@@ -128,8 +153,9 @@ final class MenuBuilder: NSObject, NSMenuItemValidation {
     }
 
     private func addStandardEdit(to m: NSMenu) {
-        m.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        m.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z").keyEquivalentModifierMask = [.command, .shift]
+        m.addItem(withTitle: "Undo", action: #selector(undo(_:)), keyEquivalent: "z").target = self
+        // "Z": AppKit's ⇧⌘Z (the shift is in the capital); "z" with a shift mask can lose ⇧⌘Z to Undo's ⌘Z.
+        m.addItem(withTitle: "Redo", action: #selector(redo(_:)), keyEquivalent: "Z").target = self
         m.addItem(.separator())
         m.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         m.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")

@@ -39,11 +39,11 @@ public final class TabsFeature: BrowserFeature {
 
         c.handle("tabs.close", isEnabled: hasTab) { [weak self] inv in
             guard let self, let w = inv.window, let id = w.selectedTabID else { return }
-            self.runtime.close(id, includingDescendants: !self.context.settings.bool("tabs.closeKeepsChildren"))
+            self.runtime.sidebarHistory.close([id], includingDescendants: !self.context.settings.bool("tabs.closeKeepsChildren"))
         }
         c.handle("tabs.close-subtree", isEnabled: hasTab) { [weak self] inv in
             guard let self, let w = inv.window, let id = w.selectedTabID else { return }
-            self.runtime.close(id, includingDescendants: true)
+            self.runtime.sidebarHistory.close([id], includingDescendants: true)
         }
         c.handle("tabs.reopen", isEnabled: { [weak self] _ in !(self?.store.recentlyClosed.isEmpty ?? true) }) { [weak self] inv in
             guard let self, let w = inv.window else { return }
@@ -62,10 +62,10 @@ public final class TabsFeature: BrowserFeature {
         c.handle("tabs.select-above") { [weak self] inv in self?.selectRow(offset: -1, inv.window) }
         c.handle("tabs.select-below") { [weak self] inv in self?.selectRow(offset: 1, inv.window) }
 
-        c.handle("tabs.move-up", isEnabled: hasTab) { [weak self] inv in self?.withSelected(inv) { self?.store.shift($0.id, by: -1) } }
-        c.handle("tabs.move-down", isEnabled: hasTab) { [weak self] inv in self?.withSelected(inv) { self?.store.shift($0.id, by: 1) } }
-        c.handle("tabs.indent", isEnabled: hasTab) { [weak self] inv in self?.withSelected(inv) { self?.store.indent($0.id) } }
-        c.handle("tabs.outdent", isEnabled: hasTab) { [weak self] inv in self?.withSelected(inv) { self?.store.outdent($0.id) } }
+        c.handle("tabs.move-up", isEnabled: hasTab) { [weak self] inv in self?.recordingMove(inv) { self?.store.shift($0, by: -1) } }
+        c.handle("tabs.move-down", isEnabled: hasTab) { [weak self] inv in self?.recordingMove(inv) { self?.store.shift($0, by: 1) } }
+        c.handle("tabs.indent", isEnabled: hasTab) { [weak self] inv in self?.recordingMove(inv) { self?.store.indent($0) } }
+        c.handle("tabs.outdent", isEnabled: hasTab) { [weak self] inv in self?.recordingMove(inv) { self?.store.outdent($0) } }
         c.handle("tabs.collapse-others") { [weak self] inv in self?.store.collapseAll(except: inv.window?.selectedTabID) }
         c.handle("tabs.toggle-open-in-place", isEnabled: hasTab) { [weak self] inv in
             self?.withSelected(inv) { tab in
@@ -77,10 +77,12 @@ public final class TabsFeature: BrowserFeature {
 
         c.handle("tabs.pin", isEnabled: hasTab) { [weak self] inv in
             guard let self, let w = inv.window, let tab = self.runtime.selectedTab(in: w) else { return }
-            if self.store.isPinned(tab.id) || self.store.isFavorite(tab.id) { self.store.unpin(tab.id, in: w.spaceID) }
-            else { self.store.pin(tab.id, in: w.spaceID) }
+            self.runtime.sidebarHistory.move(tab.id) {
+                if self.store.isPinned(tab.id) || self.store.isFavorite(tab.id) { self.store.unpin(tab.id, in: w.spaceID) }
+                else { self.store.pin(tab.id, in: w.spaceID) }
+            }
         }
-        c.handle("tabs.favorite", isEnabled: hasTab) { [weak self] inv in self?.withSelected(inv) { self?.store.favorite($0.id) } }
+        c.handle("tabs.favorite", isEnabled: hasTab) { [weak self] inv in self?.recordingMove(inv) { self?.store.favorite($0) } }
         c.handle("tabs.duplicate", isEnabled: hasTab) { [weak self] inv in
             guard let self, let w = inv.window, let tab = self.runtime.selectedTab(in: w), let url = tab.live?.url ?? tab.url else { return }
             self.runtime.openTab(url, in: w, placement: .after(tab.id))
@@ -101,11 +103,9 @@ public final class TabsFeature: BrowserFeature {
             guard let self, let w = inv.window, let space = self.store.space(w.spaceID) else { return }
             let roots = space.today
             guard !roots.isEmpty else { return }
-            for id in roots { self.runtime.close(id, includingDescendants: true) }
+            self.runtime.sidebarHistory.close(roots, includingDescendants: true)
             self.context.notify("Cleared \(roots.count) tab\(roots.count == 1 ? "" : "s")", systemImage: "wind", window: w,
-                                actionTitle: "Undo") { [weak self] in
-                for _ in roots { self?.runtime.reopenLastClosed(in: w) }
-            }
+                                actionTitle: "Undo") { [weak self] in self?.runtime.sidebarHistory.undo(in: w) }
         }
         c.handle("tabs.new-folder") { [weak self] inv in
             guard let self, let w = inv.window else { return }
@@ -115,6 +115,12 @@ public final class TabsFeature: BrowserFeature {
     }
 
     // MARK: Helpers
+
+    /// A sidebar change to the selected tab, undoable with ⌘Z.
+    private func recordingMove(_ inv: CommandInvocation, _ body: (NodeID) -> Void) {
+        guard let w = inv.window, let tab = runtime.selectedTab(in: w) else { return }
+        runtime.sidebarHistory.move(tab.id) { body(tab.id) }
+    }
 
     private func withSelected(_ inv: CommandInvocation, _ body: (BrowserTab) -> Void) {
         guard let w = inv.window, let tab = runtime.selectedTab(in: w) else { return }

@@ -102,7 +102,7 @@ struct SpaceTabs: View {
                     .onTapGesture(count: 2) { env.runtime.openTab(nil, in: window) }  // Arc: double-click empty space
                     .dropDestination(for: String.self) { items, _ in
                         guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return false }
-                        return SidebarLogic.drop(id, into: .section(space.id, .today), store: store)
+                        return env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: .section(space.id, .today), store: store) }
                     }
             }
             .padding(.horizontal, 8)

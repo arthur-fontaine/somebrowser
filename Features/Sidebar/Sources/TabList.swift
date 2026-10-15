@@ -57,7 +57,7 @@ struct EmptyPinnedDropZone: View {
                 .foregroundStyle(targeted ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary)))
             .dropDestination(for: String.self) { items, _ in
                 guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return false }
-                return SidebarLogic.drop(id, into: container, store: env.runtime.tabs)
+                return env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: container, store: env.runtime.tabs) }
             } isTargeted: { targeted = $0 }
     }
 }
@@ -104,7 +104,7 @@ struct TabRow: View {
             model.dragging = row.id
             return NSItemProvider(object: row.id.uuidString as NSString)
         }
-        .onDrop(of: [UTType.text], delegate: RowDropDelegate(target: row, model: model, store: store, rowHeight: rowHeight))
+        .onDrop(of: [UTType.text], delegate: RowDropDelegate(target: row, model: model, store: store, history: env.runtime.sidebarHistory, rowHeight: rowHeight))
     }
 
     private var isRenaming: Bool { window.flags.contains("rename:\(row.id.uuidString)") }
@@ -205,7 +205,7 @@ struct TabRowContent: View {
             }
             if hovered || selected {
                 Button {
-                    withAnimation(.spring(duration: 0.32, bounce: 0.12)) { env.runtime.close(tab.id) }
+                    withAnimation(.spring(duration: 0.32, bounce: 0.12)) { env.runtime.sidebarHistory.close([tab.id], includingDescendants: false) }
                 } label: {
                     Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 18, height: 18)
                         .background(Circle().fill(Color.primary.opacity(hovered ? 0.06 : 0)))
@@ -310,11 +310,11 @@ struct RowMenu: View {
             Button("Rename…") { window.flags.insert("rename:\(id.uuidString)") }
             Divider()
             if store.isPinned(id) {
-                Button("Unpin") { store.unpin(id, in: window.spaceID) }
+                Button("Unpin") { runtime.sidebarHistory.move(id) { store.unpin(id, in: window.spaceID) } }
             } else {
-                Button("Pin") { store.pin(id, in: window.spaceID) }
+                Button("Pin") { runtime.sidebarHistory.move(id) { store.pin(id, in: window.spaceID) } }
             }
-            Button("Add to Favorites") { store.favorite(id) }
+            Button("Add to Favorites") { runtime.sidebarHistory.move(id) { store.favorite(id) } }
             Toggle("Open Links in This Tab", isOn: Binding(get: { tab.opensLinksInPlace }, set: { tab.opensLinksInPlace = $0 }))
             Divider()
             Button("Copy Link") {
@@ -328,20 +328,20 @@ struct RowMenu: View {
             if store.spaces.count > 1 {
                 Menu("Move to Space") {
                     ForEach(store.spaces.filter { $0.id != window.spaceID }) { s in
-                        Button(s.name) { try? store.move(id, to: .section(s.id, .today), at: 0) }
+                        Button(s.name) { runtime.sidebarHistory.move(id) { try? store.move(id, to: .section(s.id, .today), at: 0) } }
                     }
                 }
             }
             Divider()
-            Button("Close") { runtime.close(id) }
+            Button("Close") { runtime.sidebarHistory.close([id], includingDescendants: false) }
             if !store.children(of: id).isEmpty {
-                Button("Close with Children") { runtime.close(id, includingDescendants: true) }
+                Button("Close with Children") { runtime.sidebarHistory.close([id], includingDescendants: true) }
             }
         } else if store.folder(id) != nil {
             Button("Rename…") { window.flags.insert("rename:\(id.uuidString)") }
             Button("New Tab in Folder") { runtime.openTab(nil, in: window, placement: .container(.node(id), index: nil)) }
             Divider()
-            Button("Delete Folder and Tabs") { runtime.close(id, includingDescendants: true) }
+            Button("Delete Folder and Tabs") { runtime.sidebarHistory.close([id], includingDescendants: true) }
         }
     }
 }
@@ -350,6 +350,7 @@ struct RowDropDelegate: DropDelegate {
     let target: SidebarRow
     let model: SidebarModel
     let store: TabStore
+    let history: SidebarHistory
     let rowHeight: CGFloat
 
     func validateDrop(info: DropInfo) -> Bool { model.dragging != nil && model.dragging != target.id }
@@ -370,7 +371,7 @@ struct RowDropDelegate: DropDelegate {
         let zone = SidebarLogic.zone(atY: info.location.y, rowHeight: rowHeight, canNest: true)
         var ok = false
         withAnimation(.spring(duration: 0.35, bounce: 0.15)) {
-            ok = SidebarLogic.drop(dragged, on: target.id, zone: zone, store: store)
+            ok = history.move(dragged) { SidebarLogic.drop(dragged, on: target.id, zone: zone, store: store) }
         }
         if ok { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
         return ok

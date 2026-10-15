@@ -2,7 +2,8 @@
 
 **Purpose** — every tab command: new/close/reopen, switching (⌘1…9, ⌘⌥↑/↓), Horse-style tree
 navigation (⌘⇧←/→/↑/↓), moving and nesting (⌘⌥⇧ arrows), pin (⌘D), favorite, duplicate, rename,
-mute, clear Today (⌘⇧K, undoable) and the per-tab "open links in this tab" toggle (⌘Y).
+mute, clear Today (⌘⇧K, undoable) and the per-tab "open links in this tab" toggle (⌘Y). Moves, pins and closes are
+recorded in Core's `SidebarHistory`, so ⌘Z / ⇧⌘Z undo and redo them (Arc) when no text field has the keyboard.
 
 **How it works** — `TabsFeature` binds the commands declared in `feature.json` to `BrowserRuntime`
 (selection, closing, live pages) and `TabStore` (tree). It has no UI of its own.

@@ -30,7 +30,7 @@ struct FavoritesGrid: View {
             }
             .dropDestination(for: String.self) { items, _ in
                 guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return false }
-                withAnimation(.spring(duration: 0.35, bounce: 0.2)) { _ = SidebarLogic.drop(id, into: .favorites, store: store) }
+                withAnimation(.spring(duration: 0.35, bounce: 0.2)) { _ = env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: .favorites, store: store) } }
                 return true
             } isTargeted: { targeted = $0 }
             .animation(.spring(duration: 0.35, bounce: 0.2), value: ids)
@@ -70,12 +70,12 @@ struct FavoriteTile: View {
             }
             .onDrag { NSItemProvider(object: tab.id.uuidString as NSString) }
             .contextMenu {
-                Button("Remove from Favorites") { env.runtime.tabs.unpin(tab.id, in: window.spaceID) }
+                Button("Remove from Favorites") { env.runtime.sidebarHistory.move(tab.id) { env.runtime.tabs.unpin(tab.id, in: window.spaceID) } }
                 Button("Copy Link") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString((tab.live?.url ?? tab.url)?.absoluteString ?? "", forType: .string)
                 }
-                Button("Close") { env.runtime.close(tab.id) }
+                Button("Close") { env.runtime.sidebarHistory.close([tab.id], includingDescendants: false) }
             }
     }
 }

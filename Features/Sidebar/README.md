@@ -16,7 +16,8 @@ Hiding it (⌘S) gives an almost full-screen page; the left window edge reveals 
 **Slots it hosts** — `sidebar.header`, `sidebar.address`, `sidebar.top`, `sidebar.footer`: other
 features put controls there without importing this module.
 
-**Commands & settings** — `feature.json` (⌘S toggle, ⌘⇧B focus mode, copy branch as Markdown).
+**Commands & settings** — `feature.json` (⌘S toggle, ⌘⇧B focus mode, copy branch as Markdown). Drags and the row menus'
+moves and closes go through Core's `SidebarHistory` (⌘Z undoes them).
 
 **Tests** — `./forkctl test sidebar`.
 

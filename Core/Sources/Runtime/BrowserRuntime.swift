@@ -29,6 +29,8 @@ public final class BrowserRuntime {
     @ObservationIgnored public let dataDirectory: URL
     /// Security Core: the connections the browser makes by itself, logged.
     @ObservationIgnored public let outbound: OutboundConnections
+    /// Undo for sidebar changes (⌘Z when no text field has the keyboard).
+    @ObservationIgnored public let sidebarHistory = SidebarHistory()
     @ObservationIgnored public let manifests: [FeatureManifest]
     public private(set) var windows: [BrowserWindowState] = []
     @ObservationIgnored public weak var shell: ShellServices?
@@ -59,6 +61,7 @@ public final class BrowserRuntime {
         engine.hooks.fetch = { request, purpose, isPrivate in
             try await outbound.data(for: request, purpose: purpose, source: "engine", isPrivate: isPrivate, transient: true)
         }
+        sidebarHistory.runtime = self
         if persistSession { persistence = SessionPersistence(url: dataDirectory.appendingPathComponent("session.json")) }
         tabs.onTabsRemoved = { [weak self] removed in self?.tabsRemoved(removed) }
         tabs.onChange = { [weak self] in self?.persistence?.scheduleSave { self?.sessionSnapshot() } }
