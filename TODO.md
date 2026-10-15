@@ -121,6 +121,21 @@ to check that the feature still works (`forkctl test <feature>`).
       ShowAiModeAction*, WebUIOmniboxDynamicAiModeButton, OmniboxPopupButton nor the prefs omnibox.ai_mode_settings=1 /
       omnibox.show_ai_mode_omnibox_button=false (checked 2026-10-15); patch it in a source build
 - [x] `chrome://extensions` management reachable (Tools menu, command bar: `extensions.manage`)
+- [x] API compatibility probe (E2E `ExtensionAPITests`, matrix in the Extensions README): scripting, offscreen, web auth
+      flow, tabs, commands, DevTools panels pass; notifications show (Chromium popups)
+- [x] Side panels: hosted in a pane beside the content (Chrome draws them in window chrome pages here don't have)
+- [x] New tab page overrides get ⌘T / New Tab (setting `extensions.newTabPage` keeps the command bar)
+- [x] DevTools keep their own window (they were adopted as a disconnected tab) with extension panels
+- [x] `chrome.tabs.remove` closes the tab (the page closed, the tab stayed in the sidebar)
+- [x] Real extensions: 16 checked (README), the last 10 together with no errors in chrome://extensions; Vimium's
+      in-page keys work, its tab keys don't (window model)
+- [ ] `tabs.create` with no live page fails ("No current window"): install welcome pages are lost in an empty window
+- [ ] `tabs.create`/`windows.create` ids that last, one Chrome window per browser window, `downloads.download` from
+      service workers — CEF hosts each page as its own popup-type Chrome window and cancels page-less downloads: patch
+      CEF in the source build
+- [-] `omnibox` keywords: the command bar replaces Chrome's omnibox; CEF can't hand it input
+- [ ] Check: Chrome activating a page that isn't the presented one (DevTools closing, `window.focus()` in a background
+      tab) may order its window in detached from the browser window (seen once while DevTools were adopted as a tab)
 
 ## 9. Performance (U)
 - [x] Lazy feature activation (heavy work deferred) · [-] paint shell before CEF init: measured 2026-10-15, warm launch
