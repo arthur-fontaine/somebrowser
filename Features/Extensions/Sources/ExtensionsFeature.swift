@@ -7,11 +7,13 @@ import SwiftUI
 public final class ExtensionsFeature: BrowserFeature {
     let context: FeatureContext
     let model = ExtensionsModel()
+    let sidePanels: SidePanels
     static let manageURL = URL(string: "chrome://extensions/")!
     static let storeURL = URL(string: "https://chromewebstore.google.com/")!
 
     public init(context: FeatureContext) {
         self.context = context
+        sidePanels = SidePanels(context: context)
     }
 
     var engine: EngineExtensions? { context.engine as? EngineExtensions }
@@ -27,6 +29,10 @@ public final class ExtensionsFeature: BrowserFeature {
         }
         context.commands.handle("extensions.manage") { [weak self] inv in self?.open(Self.manageURL, in: inv.window) }
         context.commands.handle("extensions.store") { [weak self] inv in self?.open(Self.storeURL, in: inv.window) }
+        context.commands.handle("extensions.side-panel", isEnabled: { [weak self] _ in self?.model.extensions.contains { $0.sidePanelPath != nil } == true }) {
+            [weak self] inv in self?.toggleSidePanel(inv.arguments["id"], in: inv.window)
+        }
+        sidePanels.activate { [weak model] id in model?.icons[id] }
 
         let model = self.model, settings = context.settings
         context.ui.contribute("sidebar.header", id: "extensions.buttons", order: 200) { [weak self] window in
@@ -42,8 +48,21 @@ public final class ExtensionsFeature: BrowserFeature {
     }
 
     func run(_ id: String, in window: BrowserWindowState?) {
+        // Chrome would open its own side panel, which pages here can't show.
+        if let window, let ext = model.extensions.first(where: { $0.id == id }), ext.opensSidePanelOnClick, ext.sidePanelPath != nil {
+            return sidePanels.toggle(ext, in: window)
+        }
         guard let engine, let tab = liveTab(in: window) else { return }
         engine.runAction(of: id, in: tab)
+    }
+
+    /// The given extension's panel, else the open one (closing it), else the last one used, else the first there is.
+    func toggleSidePanel(_ id: String?, in window: BrowserWindowState?) {
+        guard let window else { return }
+        let withPanels = model.extensions.filter { $0.sidePanelPath != nil }
+        let wanted = id ?? sidePanels.model.panels[window.id]?.extensionID ?? sidePanels.model.lastUsed
+        guard let ext = withPanels.first(where: { $0.id == wanted }) ?? withPanels.first else { return }
+        sidePanels.toggle(ext, in: window)
     }
 
     func showMenu(in window: BrowserWindowState?) {

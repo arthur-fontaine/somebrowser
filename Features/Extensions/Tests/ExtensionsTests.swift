@@ -60,6 +60,60 @@ struct ExtensionsTests {
         #expect(h.selectedTab?.url?.absoluteString == "chrome://extensions/")
     }
 
+    var panel: BrowserExtension {
+        var ext = BrowserExtension(id: "panel", name: "Panel")
+        ext.sidePanelPath = "/side.html"
+        ext.opensSidePanelOnClick = true
+        return ext
+    }
+
+    /// Chrome would draw the panel in its own window chrome: the extension's button opens it beside the content instead.
+    @Test func sidePanelsOpenFromTheButtonBesideTheContent() throws {
+        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
+        let panels = try #require(h.runtime.feature(ExtensionsFeature.self)?.sidePanels.model)
+        h.engine.simulateExtensions([panel, ublock])
+        _ = h.openTab("https://a.example")
+        try h.run("extensions.run", arguments: ["id": "panel"])
+        let page = try #require(panels.panels[h.window.id]?.page as? FakeEngineTab)
+        #expect(page.state.url?.absoluteString == "chrome-extension://panel/side.html")
+        #expect(h.engine.ranActions.isEmpty)
+        #expect(h.runtime.tabs.allTabs.count == 1)
+        try h.run("extensions.run", arguments: ["id": "panel"])
+        #expect(panels.panels[h.window.id] == nil)
+        #expect(page.isClosed)
+        try h.run("extensions.run", arguments: ["id": "ublock"])
+        #expect(h.engine.ranActions.map(\.id) == ["ublock"])
+    }
+
+    @Test func sidePanelCommandOpensPanelsWhoseButtonDoesSomethingElse() throws {
+        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
+        let panels = try #require(h.runtime.feature(ExtensionsFeature.self)?.sidePanels.model)
+        var other = panel
+        other.opensSidePanelOnClick = false
+        h.engine.simulateExtensions([other])
+        _ = h.openTab("https://a.example")
+        try h.run("extensions.run", arguments: ["id": "panel"])
+        #expect(h.engine.ranActions.map(\.id) == ["panel"])
+        #expect(panels.panels[h.window.id] == nil)
+        try h.run("extensions.side-panel")
+        #expect(panels.panels[h.window.id]?.extensionID == "panel")
+    }
+
+    /// Links the panel opens become tabs of its window; `window.close()` closes the panel.
+    @Test func panelLinksBecomeTabs() throws {
+        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
+        let panels = try #require(h.runtime.feature(ExtensionsFeature.self)?.sidePanels.model)
+        h.engine.simulateExtensions([panel])
+        _ = h.openTab("https://a.example")
+        try h.run("extensions.side-panel", arguments: ["id": "panel"])
+        let page = try #require(panels.panels[h.window.id]?.page as? FakeEngineTab)
+        page.simulateOpen(URL(string: "https://docs.example")!)
+        #expect(h.selectedTab?.url?.absoluteString == "https://docs.example")
+        #expect(h.runtime.tabs.allTabs.count == 2)
+        page.delegate?.engineTabDidRequestClose(page)
+        #expect(panels.panels[h.window.id] == nil)
+    }
+
     @Test func managementAndStoreOpenTabs() throws {
         let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
         try h.run("extensions.store")
