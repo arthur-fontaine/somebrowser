@@ -8,6 +8,8 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
     let state = EngineTabState()
     weak var delegate: EngineTabDelegate?
     private(set) var tab: CEFTab?
+    /// The viewport showing this page (one at a time).
+    weak var presenter: CEFViewport?
     private weak var engine: CEFEngine?
     private var evalCallbacks: [Int: (generation: Int, callback: (Result<Any?, Error>) -> Void)] = [:]
     private var nextEvalID = 1

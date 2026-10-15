@@ -6,6 +6,8 @@ final class WebKitTab: NSObject, EngineTab {
     let state = EngineTabState()
     weak var delegate: EngineTabDelegate?
     let webView: WKWebView
+    /// The viewport showing this page (one at a time).
+    weak var presenter: WebKitViewport?
     private weak var engine: WebKitEngine?
     /// The current navigation's document-start script and the host it belongs to.
     var documentStartScript: (script: String, host: String)?
@@ -370,11 +372,18 @@ final class WebKitViewport: EngineViewport {
 
     init(container: NSView) { self.container = container }
 
+    /// A page is shown by one viewport at a time (see `CEFViewport.present`).
     func present(_ tab: EngineTab?) {
-        if presentedTab === tab, let web = (tab as? WebKitTab)?.webView, web.superview === container { return }
-        (presentedTab as? WebKitTab)?.webView.removeFromSuperview()
+        let next = tab as? WebKitTab
+        if presentedTab === tab, let web = next?.webView, web.superview === container { return }
+        if let current = presentedTab as? WebKitTab, current !== next, current.presenter === self {
+            current.webView.removeFromSuperview()
+            current.presenter = nil
+        }
+        if let next, let other = next.presenter, other !== self { other.forget(next) }
         presentedTab = tab
-        guard let container, let web = (tab as? WebKitTab)?.webView else { return }
+        next?.presenter = self
+        guard let container, let web = next?.webView else { return }
         web.frame = container.bounds
         web.autoresizingMask = [.width, .height]
         container.addSubview(web, positioned: .below, relativeTo: nil)
@@ -389,4 +398,8 @@ final class WebKitViewport: EngineViewport {
     }
 
     func tearDown() { present(nil) }
+
+    fileprivate func forget(_ tab: WebKitTab) {
+        if presentedTab === tab { presentedTab = nil }
+    }
 }

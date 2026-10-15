@@ -12,14 +12,23 @@ final class CEFViewport: EngineViewport {
 
     private var page: CEFPage? { presentedTab as? CEFPage }
 
+    /// A page is shown by one viewport at a time (a window's content and a split-view pane can trade pages): taking a
+    /// page from another viewport makes it forget the page, and a viewport only detaches pages it still shows.
     func present(_ tab: EngineTab?) {
         let next = tab as? CEFPage
-        if let current = page, current !== next, let w = current.window {
+        if let current = page, current !== next, current.presenter === self, let w = current.window {
             w.parent?.removeChildWindow(w)
             w.orderOut(nil)
+            current.presenter = nil
         }
+        if let next, let other = next.presenter, other !== self { other.forget(next) }
         presentedTab = tab
+        next?.presenter = self
         attach()
+    }
+
+    private func forget(_ page: CEFPage) {
+        if presentedTab === page { presentedTab = nil }
     }
 
     private func attach() {
