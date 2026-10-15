@@ -105,7 +105,10 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Brave default lists, cosmetic filtering (page-specific + generic), URL cleaning — scriptlets at document start and redirect stand-ins (uBO + Brave resources; YouTube rules verified live)
 - [x] Per-site allow toggle in site controls (with blocked counter)
 - [x] Creator-friendly mode: sites declaring Web Monetization keep their ads ("support creators", on by default); trackers stay blocked
-- [ ] Security Core: log/inspect every outbound connection made by the browser itself; permission broker (R)
+- [x] Security Core: every connection the browser makes by itself goes through Core's `OutboundConnections` (validator:
+      no URLSession in features/engines), cookieless, logged (no query strings; private windows not logged), shown with
+      the permission broker's log in Tools ▸ Security Core (R). Chromium's own requests aren't observable through CEF:
+      the panel says so
 
 ## 8. Extensions (U)
 - [x] MV3 content scripts / background workers (E2E: content script ↔ service worker messaging and storage)

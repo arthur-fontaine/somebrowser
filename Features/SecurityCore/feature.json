@@ -1,0 +1,12 @@
+{
+  "id": "security-core",
+  "name": "Security Core",
+  "summary": "Security Core (Radian): what the browser itself contacts, and every permission sites were given, in one auditable place.",
+  "entry": "SecurityCoreFeature",
+  "provides": [],
+  "optional": ["permissions"],
+  "commands": [
+    { "id": "security-core.show", "title": "Security Core…", "menu": "Tools", "group": "security", "order": 1, "keywords": ["connections", "network", "privacy", "audit", "permissions", "where my data goes"] }
+  ],
+  "settings": []
+}
