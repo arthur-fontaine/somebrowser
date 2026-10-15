@@ -100,7 +100,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [ ] Security Core: log/inspect every outbound connection made by the browser itself; permission broker (R)
 
 ## 8. Extensions (U)
-- [~] MV3 content scripts / background workers (spike ✅)
+- [x] MV3 content scripts / background workers (E2E: content script ↔ service worker messaging and storage)
 - [x] Chrome Web Store install (uBlock Origin Lite: install dialog, blocking, auto-update verified)
 - [~] Load unpacked: `--load-extension` works (E2E fixture); developer-mode "Load unpacked" picker on `chrome://extensions` to verify
 - [x] Extension actions + popups via an invisible Chrome toolbar (ADR-0003): pinned buttons + menu in the sidebar,
