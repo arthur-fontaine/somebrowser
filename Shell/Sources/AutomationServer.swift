@@ -12,6 +12,8 @@ import Foundation
 ///     {"op":"eval","js":"document.title"}
 ///     {"op":"simulate","url":"https://a.example/","html":"<title>A</title>"}
 ///     {"op":"setting","key":"adblock.enabled","value":false}
+///
+/// Any request may add `"private": true` (or `false`) to act on the first private (or normal) window.
 final class AutomationServer {
     let path: String
     private unowned let runtime: BrowserRuntime
@@ -84,7 +86,8 @@ final class AutomationServer {
     }
 
     private func handle(_ req: [String: Any], reply: @escaping ([String: Any]) -> Void) {
-        let window = runtime.keyWindow
+        // `"private": true/false` targets the first private/normal window, else the key window.
+        let window = (req["private"] as? Bool).map { wanted in runtime.windows.first { $0.isPrivate == wanted } } ?? runtime.keyWindow
         switch req["op"] as? String {
         case "run":
             guard let id = req["command"] as? String else { return reply(["ok": false, "error": "missing command"]) }
@@ -240,6 +243,7 @@ final class AutomationServer {
                     "space": w.spaceID.uuidString,
                     "selected": w.selectedTabID?.uuidString ?? NSNull(),
                     "sidebarVisible": w.isSidebarVisible,
+                    "private": w.isPrivate,
                     "flags": Array(w.flags).sorted(),
                 ] as [String: Any]
             },

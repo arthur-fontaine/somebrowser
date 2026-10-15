@@ -147,6 +147,7 @@ final class WebKitTab: NSObject, EngineTab {
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         webView.removeFromSuperview()
+        engine?.tabClosed(self)
     }
 
     func handleInternalMessage(_ name: String, body: Any?) {

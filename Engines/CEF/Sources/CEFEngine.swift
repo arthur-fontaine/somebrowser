@@ -155,7 +155,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
             page.restored = restored.history
             page.restoring = restored.current
         }
-        page.attach(CEFTab(url: url?.absoluteString, delegate: page))
+        page.attach(CEFTab(url: url?.absoluteString, delegate: page, private: request.isPrivate))
         if url == nil { page.attachBlank() }
         return page
     }

@@ -71,9 +71,11 @@ static CefString CS(NSString *s) { return CefString(s ? s.UTF8String : ""); }
 @property (nonatomic) BOOL pendingGesture;
 @property (nonatomic, copy, nullable) NSString *pendingURL;
 @property (nonatomic) BOOL isClosing;
+@property (nonatomic, readwrite) BOOL isPrivate;
 @end
 
 @interface CEFRuntime ()
+- (CefRefPtr<CefRequestContext>)privateContext;
 - (void)registerTab:(CEFTab *)tab;
 - (void)unregisterTab:(CEFTab *)tab;
 - (CefRefPtr<CefDictionaryValue>)extraInfo;
@@ -193,6 +195,7 @@ public:
         if (!opener) return true;
         if (disposition == CEF_WOD_NEW_PICTURE_IN_PICTURE) return false;  // Chrome hosts document PiP itself
         CEFTab *popup = [[CEFTab alloc] initDetachedPopup];
+        popup.isPrivate = opener.isPrivate;  // CEF gives popups their opener's request context
         popup.pendingURL = NS(target_url);
         popup.pendingGesture = user_gesture;
         switch (disposition) {
@@ -334,7 +337,7 @@ public:
         // "Open Link in New Tab" and friends: becomes our own child tab.
         if (disposition == CEF_WOD_CURRENT_TAB) return false;
         CEFTab *tab = tab_;
-        CEFTab *opened = [[CEFTab alloc] initWithURL:NS(target_url) delegate:nil];
+        CEFTab *opened = [[CEFTab alloc] initWithURL:NS(target_url) delegate:nil private:tab.isPrivate];
         CEFDisposition d = disposition == CEF_WOD_NEW_BACKGROUND_TAB ? CEFDispositionBackgroundTab
                          : disposition == CEF_WOD_NEW_WINDOW ? CEFDispositionNewWindow : CEFDispositionForegroundTab;
         [tab.delegate cefTab:tab didOpen:opened url:NS(target_url) disposition:d userGesture:user_gesture];
@@ -603,13 +606,15 @@ public:
     return self;
 }
 
-- (instancetype)initWithURL:(NSString *)url delegate:(id<CEFTabDelegate>)delegate {
+- (instancetype)initWithURL:(NSString *)url delegate:(id<CEFTabDelegate>)delegate private:(BOOL)isPrivate {
     if ((self = [self initDetachedPopup])) {
         _delegate = delegate;
+        _isPrivate = isPrivate;
         CefBrowserSettings settings;
         settings.background_color = CefColorSetARGB(255, 255, 255, 255);
+        CefRefPtr<CefRequestContext> context = isPrivate ? [[CEFRuntime shared] privateContext] : nullptr;
         CefRefPtr<CefBrowserView> view = CefBrowserView::CreateBrowserView(_client, CS(url ?: @""), settings,
-                                                                           [[CEFRuntime shared] extraInfo], nullptr, _viewDelegate);
+                                                                           [[CEFRuntime shared] extraInfo], context, _viewDelegate);
         [self attachBrowserView:view];
     }
     return self;
@@ -971,6 +976,7 @@ private:
     CefRefPtr<BrowserApp> _app;
     NSHashTable<CEFTab *> *_tabs;
     NSMutableSet<CEFTab *> *_retained;
+    CefRefPtr<CefRequestContext> _privateContext;
     std::map<uint32_t, CefRefPtr<CefDownloadItemCallback>> _downloadCallbacks;
     void (^_allClosed)(void);
 }
@@ -1038,6 +1044,16 @@ private:
 - (void)quitMessageLoop { CefQuitMessageLoop(); }
 - (void)shutdown { CefShutdown(); }
 
+/// Private windows: an off-the-record profile (memory only; Chrome style makes one for a context without a cache path),
+/// shared by private tabs until the last one closes.
+- (CefRefPtr<CefRequestContext>)privateContext {
+    if (!_privateContext) {
+        CefRequestContextSettings settings;
+        _privateContext = CefRequestContext::CreateContext(settings, nullptr);
+    }
+    return _privateContext;
+}
+
 - (void)registerTab:(CEFTab *)tab {
     [_tabs addObject:tab];
     [_retained addObject:tab];
@@ -1045,6 +1061,11 @@ private:
 
 - (void)unregisterTab:(CEFTab *)tab {
     [_retained removeObject:tab];
+    if (tab.isPrivate && _privateContext) {
+        BOOL privateLeft = NO;
+        for (CEFTab *t in _retained) if (t.isPrivate) { privateLeft = YES; break; }
+        if (!privateLeft) _privateContext = nullptr;  // the session ends: the next private window starts empty
+    }
     if (_allClosed && _retained.count == 0) {
         void (^done)(void) = _allClosed;
         _allClosed = nil;

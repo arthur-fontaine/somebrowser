@@ -89,7 +89,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @end
 
 @interface CEFTab : NSObject
-- (instancetype)initWithURL:(nullable NSString *)url delegate:(nullable id<CEFTabDelegate>)delegate;
+/// `isPrivate`: an off-the-record profile shared by private tabs (nothing written to disk).
+- (instancetype)initWithURL:(nullable NSString *)url delegate:(nullable id<CEFTabDelegate>)delegate private:(BOOL)isPrivate;
+@property (readonly) BOOL isPrivate;
 @property (weak, nullable) id<CEFTabDelegate> delegate;
 /// The page's own frameless window (exists right after init; the browser itself is created asynchronously).
 @property (readonly, nullable) NSWindow *window;

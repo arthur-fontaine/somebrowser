@@ -54,6 +54,14 @@ public final class WebKitEngine: BrowserEngine {
 
     public func shutdown(completion: @escaping () -> Void) { completion() }
 
+    /// A private session ends with its last tab: the next private window gets an empty store.
+    func tabClosed(_ tab: WebKitTab) {
+        liveTabs.remove(tab)
+        guard let store = privateStore,
+              !liveTabs.allObjects.contains(where: { $0.webView.configuration.websiteDataStore === store }) else { return }
+        privateStore = nil
+    }
+
     // MARK: Configuration
 
     func makeConfiguration(isPrivate: Bool) -> WKWebViewConfiguration {

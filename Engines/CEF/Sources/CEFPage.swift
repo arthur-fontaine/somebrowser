@@ -229,7 +229,7 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         case .cancel, .handled: return false
         case .openInNewTab(let target):
             let page = CEFPage(engine: engine)
-            page.attach(CEFTab(url: target.absoluteString, delegate: page))
+            page.attach(CEFTab(url: target.absoluteString, delegate: page, private: tab.isPrivate))
             delegate?.engineTab(self, didOpen: page, url: target, disposition: .foregroundTab, userGesture: true)
             return false
         }
