@@ -12,6 +12,7 @@
   "settings": [
     { "key": "safari.enabled", "title": "Sync with Safari on your iPhone", "type": "bool", "default": true },
     { "key": "safari.share-tabs", "title": "Show this browser's tabs on your iPhone (a Tab Group named after this Mac)", "type": "bool", "default": true },
-    { "key": "safari.share-history", "title": "Add this browser's history to Safari's, on your iPhone too", "type": "bool", "default": true }
+    { "key": "safari.share-history", "title": "Add this browser's history to Safari's, on your iPhone too", "type": "bool", "default": true },
+    { "key": "safari.background-sync", "title": "When Safari isn't running, open it hidden to sync, then quit it", "type": "bool", "default": true }
   ]
 }

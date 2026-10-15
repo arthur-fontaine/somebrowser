@@ -27,16 +27,18 @@ final class SafariTabGroupWriter {
         self.database = database
     }
 
-    /// Makes the Tab Group `title` hold exactly `tabs` (their ids become the tabs' UUIDs), creating it if needed.
-    func mirror(title: String, tabs: [SafariBookmark]) async throws {
+    /// Makes the Tab Group `title` hold exactly `tabs` (their ids become the tabs' UUIDs), creating it if needed; true
+    /// if anything was written.
+    @discardableResult
+    func mirror(title: String, tabs: [SafariBookmark]) async throws -> Bool {
         guard let group = try await group(title: title, create: true), let editable = group.mutableCopy() as? NSObject,
-              let groupID = group.value(forKey: "uuid") as? String else { return }
+              let groupID = group.value(forKey: "uuid") as? String else { return false }
         // From the database: the manager loads a group's tabs lazily.
         let currentIDs = try SafariStore.tabIDs(in: database, groupID: groupID)
         let wanted = Set(tabs.map(\.id))
         let removed = currentIDs.subtracting(wanted)
         let added = tabs.filter { !currentIDs.contains($0.id) }
-        guard !removed.isEmpty || !added.isEmpty else { return }
+        guard !removed.isEmpty || !added.isEmpty else { return false }
         if !added.isEmpty {
             let newTabs = added.compactMap { tab in
                 Self.make("WBMutableTab", "initWithUUID:title:url:") { object, sel in
@@ -53,6 +55,7 @@ final class SafariTabGroupWriter {
         }
         // Last: nothing saves this group's tabs after it.
         try SafariStore.removeTabGroupRows(in: database, externalIDs: Array(removed))
+        return true
     }
 
     /// Removes the Tab Group `title` and its tabs.

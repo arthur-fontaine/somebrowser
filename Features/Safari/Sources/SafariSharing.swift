@@ -57,7 +57,23 @@ extension SafariFeature {
     func mirrorTabs() async {
         guard let file = store?.tabGroupsFile, context.settings.bool("safari.share-tabs"),
               let writer = SafariTabGroupWriter(database: file) else { return }
-        try? await writer.mirror(title: sharedGroupTitle, tabs: sharedTabs())
+        if (try? await writer.mirror(title: sharedGroupTitle, tabs: sharedTabs())) == true { requestBackgroundSync() }
+    }
+
+    // MARK: Safari in the background
+
+    /// Gets Safari to sync what was written here (`SafariBackgroundSync`), unless turned off.
+    func requestBackgroundSync() {
+        guard store != nil, context.settings.bool("safari.background-sync") else { return }
+        backgroundSync.request()
+    }
+
+    /// Favorites' change records, the shared Tab Group's rows or visits written here, not in iCloud yet.
+    func somethingWaits() -> Bool {
+        guard let store else { return false }
+        if ((try? store.pendingChanges()) ?? 0) > 0 { return true }
+        if (try? store.tabGroupPending(title: sharedGroupTitle)) == true { return true }
+        return historyGeneration > ((try? store.historySyncedGeneration()) ?? .max)
     }
 
     // MARK: History
@@ -103,7 +119,12 @@ extension SafariFeature {
         if everything {
             try? store.addVisits(visits)
         } else {
-            Task.detached(priority: .utility) { try? store.addVisits(visits) }
+            Task { [weak self] in
+                let generation = await Task.detached(priority: .utility) { (try? store.addVisits(visits)) ?? 0 }.value
+                guard let self, generation > 0 else { return }
+                self.historyGeneration = max(self.historyGeneration, generation)
+                self.requestBackgroundSync()
+            }
         }
         if !pendingVisits.isEmpty { scheduleVisitFlush() }
     }

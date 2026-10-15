@@ -71,10 +71,14 @@ nonisolated extension SafariStore {
     /// Adds visits as Safari records its own (origin 0, this generation), which its history sync uploads. Counts and scores
     /// are left for Safari to recompute (`should_recompute_derived_visit_counts`); `domain_expansion` needs Safari's own
     /// SQL function, so new items have none.
-    func addVisits(_ visits: [SafariVisit]) throws {
-        guard !visits.isEmpty else { return }
+    /// Returns the generation the visits got: they're uploaded once `historySyncedGeneration()` reaches it.
+    @discardableResult
+    func addVisits(_ visits: [SafariVisit]) throws -> Int {
+        guard !visits.isEmpty else { return 0 }
+        var written = 0
         try Self.transaction(historyFile) { db in
             let generation = try Self.int(db, "SELECT value FROM metadata WHERE key = 'current_generation'")
+            written = generation
             for visit in visits {
                 let url = visit.url.absoluteString
                 let item: Int
@@ -95,6 +99,35 @@ nonisolated extension SafariStore {
                 """, item, visit.date.timeIntervalSinceReferenceDate, visit.title, generation)
             }
         }
+        return written
+    }
+
+    // MARK: Waiting for iCloud
+
+    /// The last history generation Safari uploaded.
+    func historySyncedGeneration() throws -> Int {
+        try Self.read(historyFile) { db in try Self.int(db, "SELECT value FROM metadata WHERE key = 'last_synced_generation'") }
+    }
+
+    /// Rows of the Tab Group `title` the agent hasn't uploaded yet (new, changed or tombstoned).
+    func tabGroupPending(title: String) throws -> Bool {
+        guard let file = tabGroupsFile, FileManager.default.fileExists(atPath: file.path) else { return false }
+        let name = title.replacingOccurrences(of: "'", with: "''")
+        return try Self.read(file) { db in
+            try Self.int(db, """
+            SELECT count(*) FROM bookmarks WHERE syncable = 1 AND (added = 1 OR deleted = 1 OR modified_attributes != 0) AND (id IN (SELECT id FROM bookmarks WHERE title = '\(name)' AND type = 1 AND subtype = 0)
+                OR parent IN (SELECT id FROM bookmarks WHERE title = '\(name)' AND type = 1 AND subtype = 0))
+            """) > 0
+        }
+    }
+
+    /// A read on Safari's live database (WAL: readers don't block it).
+    static func read<T>(_ file: URL, _ body: (OpaquePointer?) throws -> T) throws -> T {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(file.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { sqlite3_close(db); throw StoreError.noAccess }
+        defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 5000)
+        return try body(db)
     }
 
     // MARK: SQLite, writing

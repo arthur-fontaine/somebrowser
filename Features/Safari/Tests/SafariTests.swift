@@ -366,6 +366,99 @@ struct AccessTests {
     }
 }
 
+/// Safari as an app, for the background sync: records launches and quits.
+@MainActor
+final class FakeSafari: SafariApp {
+    var isRunning = false
+    var touched = false
+    var launches = 0
+    var quits = 0
+    func launchHidden() async -> AnyObject? {
+        launches += 1
+        isRunning = true
+        return self
+    }
+    func isUntouched(_ app: AnyObject) -> Bool { !touched }
+    func quit(_ app: AnyObject) {
+        quits += 1
+        isRunning = false
+    }
+}
+
+@MainActor
+struct BackgroundSyncTests {
+    func sync(_ app: FakeSafari, pending: @escaping () -> Bool) -> SafariBackgroundSync {
+        let sync = SafariBackgroundSync()
+        sync.app = app
+        sync.isPending = pending
+        sync.settleDelay = .milliseconds(1)
+        sync.pollInterval = .milliseconds(5)
+        sync.timeout = .seconds(2)
+        sync.minimumInterval = .milliseconds(300)
+        return sync
+    }
+
+    func settle(_ condition: () -> Bool) async throws {
+        for _ in 0..<200 where !condition() { try await Task.sleep(for: .milliseconds(5)) }
+    }
+
+    /// Safari not running and something waits: launched hidden, asked, quit once nothing waits.
+    @Test func launchesSafariHiddenUntilEverythingWentUp() async throws {
+        let app = FakeSafari()
+        var waiting = true
+        var asked = 0
+        let s = sync(app) { waiting }
+        s.whenLaunched = { asked += 1 }
+        s.request()
+        try await settle { app.launches == 1 }
+        #expect(asked == 1)
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(app.quits == 0)  // still waiting
+        waiting = false
+        try await settle { app.quits == 1 }
+        #expect(app.quits == 1)
+    }
+
+    @Test func leavesSafariAloneWhenRunningNothingWaitsOrUserTookIt() async throws {
+        let running = FakeSafari()
+        running.isRunning = true
+        sync(running) { true }.request()
+        let idle = FakeSafari()
+        sync(idle) { false }.request()
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(running.launches == 0)
+        #expect(idle.launches == 0)
+
+        // Brought forward by the user meanwhile: not quit.
+        let taken = FakeSafari()
+        var waiting = true
+        let s = sync(taken) { waiting }
+        s.request()
+        try await settle { taken.launches == 1 }
+        taken.touched = true
+        waiting = false
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(taken.quits == 0)
+    }
+
+    /// At most one launch per interval, however many changes ask.
+    @Test func launchesAtMostOncePerInterval() async throws {
+        let app = FakeSafari()
+        var waiting = true
+        let s = sync(app) { waiting }
+        s.request()
+        try await settle { app.launches == 1 }
+        waiting = false
+        try await settle { app.quits == 1 }
+        waiting = true
+        s.request()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(app.launches == 1)
+        try await settle { app.launches == 2 }
+        #expect(app.launches == 2)
+    }
+}
+
 nonisolated final class Counter: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
@@ -381,6 +474,7 @@ struct FeatureTests {
         let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
         let asked = Counter()
         feature.askSafariToSync = { asked.increment() }
+        feature.backgroundSync.app = FakeSafari()
         feature.uploadAttempts = Array(repeating: .milliseconds(20), count: 50)
         feature.reloadGrace = .milliseconds(1)
         feature.activate()
@@ -436,6 +530,7 @@ struct FeatureTests {
         let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
         feature.mirrorDelay = .milliseconds(10)
         feature.visitFlushDelay = .milliseconds(10)
+        feature.backgroundSync.app = FakeSafari()
         feature.activate()
         try h.run("safari.connect")
         let store = try #require(feature.store)

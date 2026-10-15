@@ -21,6 +21,9 @@ public final class SafariFeature: BrowserFeature {
     /// Tabs change in bursts: mirror once they settle. Visits are written in batches.
     var mirrorDelay: Duration = .seconds(10)
     var visitFlushDelay: Duration = .seconds(20)
+    let backgroundSync = SafariBackgroundSync()
+    /// The last history generation written here: waiting until Safari uploads it.
+    var historyGeneration = 0
     /// Swapped in tests, which mustn't reach the real Safari.
     var askSafariToSync: @Sendable () -> Void = SafariStore.askSafariToSync
     /// If Safari wasn't listening, ask again until the agent has taken the records.
@@ -63,6 +66,8 @@ public final class SafariFeature: BrowserFeature {
             CloudTabsPanel(model: model, window: window, open: { self?.open($0, in: window, newTab: true) })
         }
         startSharing()
+        backgroundSync.isPending = { [weak self] in self?.somethingWaits() ?? false }
+        backgroundSync.whenLaunched = { [weak self] in self?.uploadEdits() }
         if let folders = access.restore() { use(folders) } else { model.hasAccess = false }
     }
 
@@ -172,6 +177,7 @@ public final class SafariFeature: BrowserFeature {
         upload?.cancel()
         let (ask, attempts, grace) = (askSafariToSync, uploadAttempts, reloadGrace)
         upload = Task.detached(priority: .utility) { await store.upload(attempts: attempts, reloadGrace: grace, ask: ask) }
+        requestBackgroundSync()
     }
 }
 

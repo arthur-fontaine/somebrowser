@@ -81,8 +81,16 @@ Safari's next sync of each:
 - History: Safari launching, browsing in Safari, or the display sleeping or waking.
 
 Each write is one `BEGIN IMMEDIATE` transaction with a 5 s busy timeout. Private windows are never shared.
+
+**Safari in the background** (`safari.background-sync`, `SafariBackgroundSync`). Only Safari can ask its agents to
+sync, so when something written here hasn't reached iCloud and Safari isn't running, the browser launches it hidden
+(not activated, no window shown). Things still waiting can be favorites' change records, the shared group's rows, or
+visits newer than `last_synced_generation`. Safari's launch syncs Tab Groups, history and bookmarks. The browser quits
+it once nothing waits, or after two minutes, unless the user brought it forward. It launches at most once every
+15 minutes. If Safari is already running, it syncs with its own activity, and favorites still get the notification.
+Verified 2026-10-15: Safari launched hidden (`open -g -j`) uploaded a Tab Group change within seconds.
 Verified 2026-10-15: a visit written here went up at Safari's next launch (`last_synced_generation` passed it).
-The Tab Group writer is tested on databases WebBookmarks creates; its live upload is being verified.
+Tab Groups verified the same day: a group, its tabs and their removal written here appeared on, then left, the iPhone.
 
 **Live lab** — `Tests/LiveSafariLab.swift`, off by default, edits Safari's real files through the store. It only
 touches items named "<Brand.name> lab…". The verbs are `SAFARI_LAB="add:<name>"`, `"remove:<name>"`, `"group:<name>"`,
@@ -93,7 +101,7 @@ touches items named "<Brand.name> lab…". The verbs are `SAFARI_LAB="add:<name>
 (Favorites as a folder) and the history, through the same folder grants (asked for if needed).
 
 **Commands** — `safari.add-favorite`, `safari.cloud-tabs`, `safari.connect`, `safari.disconnect`.
-**Settings** — `safari.enabled`, `safari.share-tabs`, `safari.share-history`.
+**Settings** — `safari.enabled`, `safari.share-tabs`, `safari.share-history`, `safari.background-sync`.
 
 **Tests** — `./forkctl test safari` (fixtures in Safari's formats, including real-schema CloudTabs.db and Safari's
 position blobs; grants through a fake panel).
