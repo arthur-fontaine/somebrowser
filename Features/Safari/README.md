@@ -23,7 +23,9 @@ grants as security-scoped bookmarks (`Grants/` in the feature's data folder), so
 second panel keeps Favorites and history. "Disconnect from Safari" stops using Safari's folders and deletes the
 stored grants.
 
-**Status (macOS 27, real data, 2026-10-15)** — Reading: verified. Adding a favorite: verified on the iPhone within
+**Status (macOS 27, real data, 2026-10-15)** — Reading: verified, including a favorite added on the iPhone (it
+reached this Mac's Bookmarks.plist and `SafariStore.favorites()`, which the start page lists) and the iPhone's
+iCloud Tabs. Adding a favorite: verified on the iPhone within
 two minutes, with Safari running on the Mac (Safari watches Bookmarks.plist and hands the change to its sync agent);
 with Safari not running, untested. Deleting: **not offered** — Safari absorbed a favorite removed from its file but
 never synced the deletion (the agent takes deletions from Safari's own change log, over an entitled XPC connection),

@@ -90,7 +90,8 @@ to check that the feature still works (`forkctl test <feature>`).
       once the build carries the entitlement — no code of ours; verify with a signed build
 - [x] Touch ID: the system's own prompts inside Apple Passwords (helper) and Sign in with Apple (AppSSO), as in the tweets
 - [~] Safari sync without Full Disk Access (two open-panel grants): Favorites on the start page, iCloud Tabs, history in
-      the command bar — verified with real data; adding a favorite reaches the iPhone (Safari running). Deleting
+      the command bar — verified with real data both ways: an iPhone favorite reaches the feature's store, a favorite added here
+      reaches the iPhone (Safari running). Deleting
       doesn't propagate through the file (needs Safari's change log); untested with Safari closed
 - [x] System-wide PiP: auto pop-out on tab switch, trackpad fling to corners, edge stash, custom controls, Meet call PiP
 
