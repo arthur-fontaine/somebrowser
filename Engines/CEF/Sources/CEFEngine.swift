@@ -84,6 +84,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         var switches = Self.privacySwitches
         // Development builds are ad-hoc signed: avoid Keychain prompts for Chromium's cookie key.
         if ProcessInfo.processInfo.environment["BROWSER_REAL_KEYCHAIN"] == nil { switches["use-mock-keychain"] = "" }
+        // Printing shows the macOS print panel (with its PDF menu) instead of Chrome's web print preview.
+        switches["disable-print-preview"] = ""
         for (key, value) in options where key.hasPrefix("switch.") {
             switches[String(key.dropFirst(7))] = value.stringValue ?? ""
         }

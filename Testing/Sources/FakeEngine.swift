@@ -140,6 +140,8 @@ public final class FakeEngineTab: EngineTab {
     }
     public func stopFinding() { state.findResult = nil }
     public func showDevTools() {}
+    public private(set) var printCount = 0
+    public func printPage() { printCount += 1 }
     public func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void) { completion(nil) }
 
     public func restorationData() -> Data? {

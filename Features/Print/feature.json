@@ -1,0 +1,12 @@
+{
+  "id": "print",
+  "name": "Print",
+  "summary": "Print the page (⌘P) with the macOS print panel, which also saves PDFs.",
+  "entry": "PrintFeature",
+  "provides": [],
+  "requires": [],
+  "commands": [
+    { "id": "print.page", "title": "Print…", "shortcut": "cmd+p", "menu": "File", "group": "print", "order": 1, "keywords": ["pdf", "paper"] }
+  ],
+  "settings": []
+}

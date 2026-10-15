@@ -95,6 +95,7 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
           headers:(NSDictionary<NSString *, NSString *> *)headers body:(NSData *)body;
 - (void)goBack;
 - (void)goForward;
+- (void)print;
 /// The back/forward list as `{url, title}` entries, oldest first; `currentIndex` receives the current entry's index
 /// (-1 while the browser doesn't exist yet).
 - (NSArray<NSDictionary<NSString *, NSString *> *> *)navigationEntriesWithCurrentIndex:(NSInteger *)currentIndex;

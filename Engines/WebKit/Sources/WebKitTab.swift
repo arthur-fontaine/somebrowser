@@ -124,6 +124,13 @@ final class WebKitTab: NSObject, EngineTab {
         webView.evaluateJavaScript("console.info('Right-click → Inspect Element to open Web Inspector')")
     }
 
+    func printPage() {
+        guard let window = webView.window else { return }
+        let operation = webView.printOperation(with: NSPrintInfo.shared)
+        operation.view?.frame = webView.bounds  // WebKit's print view has no size of its own
+        operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+    }
+
     func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void) {
         let config = WKSnapshotConfiguration()
         config.snapshotWidth = NSNumber(value: Double(min(maxWidth, max(webView.bounds.width, 1))))

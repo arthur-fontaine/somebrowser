@@ -794,6 +794,7 @@ static id AXButtonNamed(id e, NSString *name, int depth) {
 
 - (void)goBack { if (_browser) _browser->GoBack(); }
 - (void)goForward { if (_browser) _browser->GoForward(); }
+- (void)print { if (_browser) _browser->GetHost()->Print(); }
 
 - (NSArray<NSDictionary<NSString *, NSString *> *> *)navigationEntriesWithCurrentIndex:(NSInteger *)currentIndex {
     *currentIndex = -1;

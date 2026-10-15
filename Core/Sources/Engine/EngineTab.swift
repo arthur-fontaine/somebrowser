@@ -30,6 +30,8 @@ public protocol EngineTab: AnyObject {
     func stopFinding()
 
     func showDevTools()
+    /// The system print panel for the page.
+    func printPage()
     func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void)
     /// Navigation history blob for session restore (nil if unsupported).
     func restorationData() -> Data?

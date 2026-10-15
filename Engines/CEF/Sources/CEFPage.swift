@@ -118,6 +118,7 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
     }
 
     func showDevTools() { tab?.showDevTools() }
+    func printPage() { tab?.print() }
 
     func snapshot(maxWidth: CGFloat, completion: @escaping (NSImage?) -> Void) {
         guard let view = window?.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return completion(nil) }
