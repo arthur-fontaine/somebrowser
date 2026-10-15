@@ -18,6 +18,17 @@ bridging the page's MediaSource/EME objects to a hidden WebKit video drawn under
 making the Chromium page pass for Safari, since Netflix picks FairPlay by browser. That is not attempted until the
 whole-tab path below is proven with the services.
 
+FairPlay paths checked in the browser's WebKit tabs on 2026-10-16:
+
+| Path | Result |
+|---|---|
+| Safari's legacy key API (`WebKitMediaKeys`, `com.apple.fps.1_0`) with native HLS | Plays (EZDRM's live license) |
+| Modern EME with MediaSource (fMP4 cbcs, how Netflix-like players stream) | `encrypted` fires (`sinf`) and WebKit produces a valid FairPlay SPC (6.7 KB). Axinom's public test license server then refuses its own tokens ("an initialization vector must be provided with every key"); none of its published tokens carries one |
+| Modern EME with native HLS | "decode error": an Apple bug Axinom's own player works around by using the legacy API |
+
+WebKit's feature flags in these tabs are WKWebView's defaults (EME, legacy EME, MediaSource and Managed MediaSource on),
+and Safari sets no media preferences of its own.
+
 ## Decision
 
 - The CEF engine hosts a WebKit engine sharing its hooks (scripts, content rule lists, policies), made on first use.
