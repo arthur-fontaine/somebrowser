@@ -26,7 +26,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] `webkit`: WKWebView engine behind the same protocols (fork option, fast tests)
 - [x] Engine conformance test suite: `./forkctl test --e2e` (Chromium + WebKit, `FORKCTL_ENGINE=…`)
 - [x] De-googled runtime defaults: an idle profile contacts no third party (E2E net-log test); extension updates kept
-- [ ] Chrome's default search engine follows the `search` feature's engine (context menu "Search for…") instead of being disabled
+- [x] Chrome's default search engine follows the `search` feature's engine (context menu "Search for…"); idle net log clean
 - [ ] Silence the `ListAccounts` retries to the dead loopback endpoint (harmless, but wasted work)
 - [ ] Remote-CI recipe for a source build with ungoogled patches + H.264/AAC (U, documented)
 - [-] `cef-alloy` engine (deferred; no extensions)
