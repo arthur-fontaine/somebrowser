@@ -85,6 +85,9 @@ feature takes two other routes:
     - a record this browser didn't write was opened there. It opens here in the background.
 
     Refreshes that overlap a mirror are skipped. Without a saved map (first run), the browser's tabs set the group.
+    The agent appends these changes to `SafariTabs.db-wal`, which a folder watch doesn't see: a close on the iPhone
+    took 50 s to show here (seen live). So the WAL itself is watched, and each write rereads only the Tab Groups,
+    live rather than from a copy, since the file is tens of MB.
     Safari leaves every group's `order_index` at 0, so groups are read row by row grouped by id. Sorted by tab
     alone, the groups' tabs interleaved, the shared group came out in pieces, and its other tabs looked closed (seen
     live).

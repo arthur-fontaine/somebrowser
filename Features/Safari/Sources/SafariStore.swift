@@ -254,10 +254,11 @@ nonisolated struct SafariStore: Sendable {
     /// Safari's Tab Groups, read-only: SafariTabs.db keeps them as folders (type 1, subtype 0) under the root or a
     /// profile (subtype 2), their tabs as leaves (type 0); a group's subtype-1 folder holds its scoped favorites, and
     /// deleted rows stay as tombstones until synced. Groups share order_index 0, so rows are kept together by group id:
-    /// sorted by tab alone, groups came out in pieces and the shared one looked closed (seen live).
+    /// sorted by tab alone, groups came out in pieces and the shared one looked closed (seen live). Read live, not from
+    /// a copy: it's read on each of the agent's writes, and the file is tens of MB.
     func tabGroups() throws -> [SafariTabGroup] {
         guard let file = tabGroupsFile, FileManager.default.fileExists(atPath: file.path) else { return [] }
-        return try Self.query(file) { db in
+        return try Self.read(file) { db in
             var groups: [SafariTabGroup] = []
             let sql = """
             SELECT g.external_uuid, g.title, t.external_uuid, t.title, t.url, t.server_id FROM bookmarks g

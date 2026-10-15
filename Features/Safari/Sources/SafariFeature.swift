@@ -12,7 +12,9 @@ public final class SafariFeature: BrowserFeature {
     let access: SafariAccess
     var store: SafariStore?
     private var watchers: [DispatchSourceFileSystemObject] = []
+    private var walWatcher: DispatchSourceFileSystemObject?
     private var pendingRefresh = false
+    private var pendingGroupsRefresh = false
     private var upload: Task<Void, Never>?
     var mirrorTask: Task<Void, Never>?
     var flushTask: Task<Void, Never>?
@@ -91,6 +93,8 @@ public final class SafariFeature: BrowserFeature {
         access.forget()
         watchers.forEach { $0.cancel() }
         watchers = []
+        walWatcher?.cancel()
+        walWatcher = nil
         store = nil
         model.hasAccess = false
         model.favorites = []
@@ -106,6 +110,7 @@ public final class SafariFeature: BrowserFeature {
         watchers.forEach { $0.cancel() }
         watchers = []
         watch([folders.library, folders.container].compactMap { $0 })
+        watchTabGroups()
         refresh()  // first: applies what other devices changed in the shared group meanwhile
         scheduleTabMirror()
     }
@@ -117,19 +122,37 @@ public final class SafariFeature: BrowserFeature {
             let access = store.hasAccess
             let favorites = access ? (try? store.favorites()) ?? [] : []
             let devices = (try? store.cloudTabs()) ?? []
-            let allGroups = (try? store.tabGroups()) ?? []
-            let ours = allGroups.first { $0.title == (store.localDeviceName ?? "Mac") }  // this browser's tabs
-            let tabGroups = allGroups.filter { $0.title != (store.localDeviceName ?? "Mac") }
+            let groups = (try? store.tabGroups()) ?? []
             let history = access ? (try? store.history()) ?? [] : []
             await MainActor.run {
                 guard let self, self.store?.folders == store.folders else { return }
                 self.model.hasAccess = access
                 self.model.favorites = favorites
                 self.model.devices = devices
-                self.model.tabGroups = tabGroups
                 self.model.history = history
-                if let ours, revision == self.mirrorRevision, revision % 2 == 0 { self.applyRemoteTabChanges(ours) }
+                self.use(groups, readAt: revision)
             }
+        }
+    }
+
+    /// Only the Tab Groups: what the sync agent writes as other devices change them.
+    func refreshTabGroups() {
+        guard let store else { return }
+        let revision = mirrorRevision
+        Task.detached(priority: .utility) { [weak self] in
+            let groups = (try? store.tabGroups()) ?? []
+            await MainActor.run {
+                guard let self, self.store?.folders == store.folders else { return }
+                self.use(groups, readAt: revision)
+            }
+        }
+    }
+
+    /// Safari's groups for the panel; ours (named after this Mac) for the tabs here, unless a mirror overlapped the read.
+    private func use(_ groups: [SafariTabGroup], readAt revision: Int) {
+        model.tabGroups = groups.filter { $0.title != sharedGroupTitle }
+        if let ours = groups.first(where: { $0.title == sharedGroupTitle }), revision == mirrorRevision, revision % 2 == 0 {
+            applyRemoteTabChanges(ours)
         }
     }
 
@@ -140,7 +163,9 @@ public final class SafariFeature: BrowserFeature {
             guard fd >= 0 else { continue }
             let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
             source.setEventHandler { [weak self] in
-                guard let self, !self.pendingRefresh else { return }
+                guard let self else { return }
+                if self.walWatcher == nil { self.watchTabGroups() }  // the WAL came back
+                guard !self.pendingRefresh else { return }
                 self.pendingRefresh = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.pendingRefresh = false; self.refresh() }
             }
@@ -148,6 +173,30 @@ public final class SafariFeature: BrowserFeature {
             source.resume()
             watchers.append(source)
         }
+    }
+
+    /// The sync agent appends other devices' Tab Group changes to SafariTabs.db's WAL, which the folder watch doesn't
+    /// see (a remote close took 50 s to show, seen live). Re-armed when the WAL is removed and comes back.
+    private func watchTabGroups() {
+        walWatcher?.cancel()
+        walWatcher = nil
+        guard let file = store?.tabGroupsFile else { return }
+        let fd = Darwin.open(file.path + "-wal", O_EVTONLY)
+        guard fd >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .extend, .delete, .rename], queue: .main)
+        source.setEventHandler { [weak self, weak source] in
+            guard let self, let source else { return }
+            if !source.data.isDisjoint(with: [.delete, .rename]) {
+                source.cancel()
+                if self.walWatcher === source { self.walWatcher = nil }
+            }
+            guard !self.pendingGroupsRefresh else { return }
+            self.pendingGroupsRefresh = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.pendingGroupsRefresh = false; self.refreshTabGroups() }
+        }
+        source.setCancelHandler { close(fd) }
+        source.resume()
+        walWatcher = source
     }
 
     func open(_ url: URL, in window: BrowserWindowState, newTab: Bool) {

@@ -600,7 +600,7 @@ struct FeatureTests {
         // On the iPhone: a closed, c opened.
         let c = SafariBookmark(id: UUID().uuidString, title: "C", url: URL(string: "https://c.example/")!)
         try await iPhone.mirror(title: feature.sharedGroupTitle, tabs: [recreatedB, c])
-        feature.refresh()
+        // No refresh asked for: the agent's write to the WAL is enough.
         try await settle { h.runtime.tabs.tab(a.id) == nil && h.runtime.tabs.allTabs.contains { $0.url?.host == "c.example" } }
         #expect(h.runtime.tabs.tab(a.id) == nil)
         #expect(h.runtime.tabs.tab(b.id) != nil)
