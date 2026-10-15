@@ -29,20 +29,12 @@ nonisolated struct SourceProfile: Identifiable, Equatable, Sendable {
     var source: BrowserSource
     var name: String
     var directory: URL
-    var id: String { directory.path }
+    /// Offered by another feature (`BrowserImportSource`) and read through it, not from `directory`.
+    var isContributed = false
+    var id: String { directory.absoluteString }
 }
 
-nonisolated indirect enum ImportedBookmark: Equatable, Sendable {
-    case link(title: String, url: URL)
-    case folder(title: String, children: [ImportedBookmark])
-
-    var linkCount: Int {
-        switch self {
-        case .link: 1
-        case .folder(_, let children): children.reduce(0) { $0 + $1.linkCount }
-        }
-    }
-}
+typealias ImportedBookmark = BookmarkNode
 
 /// What a profile holds.
 nonisolated struct ImportedData: Equatable, Sendable {

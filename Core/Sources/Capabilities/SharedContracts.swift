@@ -26,6 +26,39 @@ public protocol HistoryService: AnyObject {
     func importEntries(_ entries: [HistoryEntry])
 }
 
+/// Another browser's bookmarks and history, offered for import by the feature that can read them (Safari, whose files
+/// need the user's permission). The import sheet lists contributed sources next to the browsers it finds itself.
+public protocol BrowserImportSource: AnyObject {
+    var name: String { get }
+    /// The browser app, for its icon.
+    var bundleIdentifier: String { get }
+    /// What can be imported; may ask the user for access first. Nil if unavailable or declined.
+    func importData() async -> ImportableData?
+}
+
+nonisolated public struct ImportableData: Equatable, Sendable {
+    public var bookmarks: [BookmarkNode]
+    public var history: [HistoryEntry]
+
+    public init(bookmarks: [BookmarkNode], history: [HistoryEntry]) {
+        self.bookmarks = bookmarks
+        self.history = history
+    }
+}
+
+/// A bookmark tree as another browser keeps it.
+nonisolated public indirect enum BookmarkNode: Equatable, Sendable {
+    case link(title: String, url: URL)
+    case folder(title: String, children: [BookmarkNode])
+
+    public var linkCount: Int {
+        switch self {
+        case .link: 1
+        case .folder(_, let children): children.reduce(0) { $0 + $1.linkCount }
+        }
+    }
+}
+
 nonisolated public struct HistoryEntry: Identifiable, Hashable, Sendable {
     public var id: URL { url }
     public var url: URL

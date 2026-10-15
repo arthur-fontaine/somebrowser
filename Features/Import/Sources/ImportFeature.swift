@@ -3,7 +3,7 @@ import BrowserCore
 import SwiftUI
 
 /// "Make it easier to switch" (Radian, 08-13): bookmarks, history and extensions from Chrome, Arc, Dia, Atlas,
-/// Helium and other Chromium browsers. Bookmarks land as a pinned folder in the current space (as Arc does);
+/// Helium and other Chromium browsers, and from sources other features offer (`BrowserImportSource`: Safari). Bookmarks land as a pinned folder in the current space (as Arc does);
 /// extensions are listed with one-click "Add" (installing needs the user's click on the Web Store).
 public final class ImportFeature: BrowserFeature {
     let context: FeatureContext
@@ -11,6 +11,7 @@ public final class ImportFeature: BrowserFeature {
     /// Overridable in tests.
     var discover: () -> [SourceProfile] = { ChromiumImport.profiles() }
     var reader: @Sendable (URL) -> ImportedData = { ChromiumImport.read($0) }
+    private var contributed: [String: BrowserImportSource] = [:]
     static let sheetFlag = "import.sheet"
 
     public init(context: FeatureContext) {
@@ -31,7 +32,14 @@ public final class ImportFeature: BrowserFeature {
 
     func open(in window: BrowserWindowState?) {
         guard let window else { return }
-        model.profiles = discover()
+        let sources = context.runtime.capabilities.all(BrowserImportSource.self)
+        let offered = sources.map { source in
+            SourceProfile(source: BrowserSource(id: "contributed.\(source.name)", name: source.name, bundleID: source.bundleIdentifier, userData: []),
+                          name: "Default", directory: URL(string: "contributed:\(source.name.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")")!,
+                          isContributed: true)
+        }
+        contributed = Dictionary(uniqueKeysWithValues: zip(offered.map(\.id), sources))
+        model.profiles = offered + discover()
         model.result = nil
         window.flags.insert(Self.sheetFlag)
         if let first = model.profiles.first { select(first) }
@@ -41,6 +49,14 @@ public final class ImportFeature: BrowserFeature {
     func select(_ profile: SourceProfile) {
         model.selected = profile
         model.preview = nil
+        if let source = contributed[profile.id] {
+            Task { [weak self] in
+                let data = await source.importData()
+                guard self?.model.selected == profile else { return }
+                self?.model.preview = ImportedData(bookmarks: data?.bookmarks ?? [], history: data?.history ?? [])
+            }
+            return
+        }
         let reader = self.reader
         Task.detached(priority: .userInitiated) { [weak self] in
             let data = reader(profile.directory)

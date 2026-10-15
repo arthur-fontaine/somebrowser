@@ -102,4 +102,36 @@ struct ImportFlowTests {
         #expect(history.imported.count == 2)
         #expect(feature.model.result?.bookmarks == 3)
     }
+
+    /// Another feature's source (e.g. Safari) is listed first and read through it.
+    @Test func importsFromContributedSources() async throws {
+        let h = try TestHarness(features: [ImportFeature.self], manifestDirectory: #filePath, activate: false)
+        let history = RecordingHistory()
+        h.runtime.capabilities.provide(HistoryService.self, history)
+        let source = FakeSource()
+        h.runtime.capabilities.contribute(BrowserImportSource.self, source)
+        h.activate()
+        let feature = try #require(h.runtime.feature(ImportFeature.self))
+        feature.discover = { [] }
+        try h.run("import.open")
+        let profile = try #require(feature.model.selected)
+        #expect(profile.isContributed && profile.source.name == "Safari")
+        for _ in 0..<100 where feature.model.preview == nil { try await Task.sleep(for: .milliseconds(20)) }
+        let data = try #require(feature.model.preview)
+        #expect(data.bookmarkCount == 2 && data.history.count == 1)
+        await feature.importData(data, from: profile, into: h.window)
+        let folder = try #require(h.runtime.tabs.nodes(in: .section(h.window.spaceID, .pinned)).compactMap { h.runtime.tabs.folder($0) }.first)
+        #expect(folder.name == "Safari")
+        #expect(history.imported.count == 1)
+    }
+
+    final class FakeSource: BrowserImportSource {
+        let name = "Safari"
+        let bundleIdentifier = "com.apple.Safari"
+        func importData() async -> ImportableData? {
+            ImportableData(bookmarks: [.folder(title: "Favorites", children: [.link(title: "Apple", url: URL(string: "https://apple.com")!),
+                                                                                .link(title: "Swift", url: URL(string: "https://swift.org")!)])],
+                           history: [HistoryEntry(url: URL(string: "https://swift.org")!, title: "Swift", lastVisit: .now, visitCount: 2)])
+        }
+    }
 }
