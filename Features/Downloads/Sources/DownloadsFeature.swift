@@ -61,7 +61,15 @@ final class DownloadsModel {
     private(set) var items: [DownloadItem] = []
     var flyToken = 0
 
-    static var downloadsFolder: URL { FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0] }
+    /// The user's Downloads folder; with an isolated data directory (BROWSER_DATA_DIR: tests, automation), one inside it.
+    static var downloadsFolder: URL {
+        if let data = ProcessInfo.processInfo.environment["BROWSER_DATA_DIR"] {
+            let folder = URL(fileURLWithPath: data, isDirectory: true).appendingPathComponent("Downloads", isDirectory: true)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            return folder
+        }
+        return FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+    }
 
     func add(_ item: DownloadItem) {
         items.removeAll { $0 === item }
