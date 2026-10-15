@@ -114,6 +114,11 @@ public final class EngineHooks {
     /// Chooses where a download is saved. Default: ~/Downloads with a unique name.
     public var downloadDestination: ((URL?, String) -> URL)?
 
+    // MARK: The browser's own requests
+
+    /// Fetches made by engine code (favicons), set by the runtime so Security Core logs them (`OutboundConnections`).
+    public var fetch: (@Sendable (URLRequest, _ purpose: String, _ isPrivate: Bool) async throws -> (Data, URLResponse))?
+
     // MARK: Engine-initiated pages
 
     /// The engine opened a page on its own (e.g. an extension called `chrome.tabs.create`). The runtime opens it as a tab.

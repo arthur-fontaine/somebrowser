@@ -91,6 +91,16 @@ enum Validator {
             }
         }
 
+        // The browser's own requests go through Core's OutboundConnections, Security Core's log: no URLSession in features
+        // or engines, so none escapes it.
+        for dir in p.features.map({ p.path("\($0.directory)/Sources") }) + [p.path("Engines")] {
+            for file in swiftFiles(in: dir) where !file.path.contains("/Tests/") {
+                if usesURLSession((try? String(contentsOf: file, encoding: .utf8)) ?? "") {
+                    error("\(relative(file, p)): uses URLSession — request through context.fetch (features) or hooks.fetch (engines) so Security Core logs it")
+                }
+            }
+        }
+
         // No stray product-name literals outside generated code (renaming must stay a one-line change).
         if p.brand.name == upstreamBrandName || !p.hasFork {
             for dir in ["Core/Sources", "Shell/Sources", "Features", "Engines"] {
@@ -106,6 +116,14 @@ enum Validator {
     }
 
     static let modifierNames: Set<String> = ["cmd", "shift", "opt", "alt", "ctrl", "fn"]
+
+    /// URLSession in code (not in a comment).
+    static func usesURLSession(_ source: String) -> Bool {
+        source.split(separator: "\n").contains { line in
+            let code = line.trimmingCharacters(in: .whitespaces)
+            return !code.hasPrefix("//") && (code.range(of: "//").map { String(code[..<$0.lowerBound]) } ?? code).contains("URLSession")
+        }
+    }
 
     static func isValidShortcut(_ s: String) -> Bool {
         let parts = s.lowercased().split(separator: "+", omittingEmptySubsequences: false).map(String.init)

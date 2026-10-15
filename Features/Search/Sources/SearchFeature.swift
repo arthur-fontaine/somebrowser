@@ -8,6 +8,8 @@ public final class SearchFeature: BrowserFeature {
     public init(context: FeatureContext) {
         self.context = context
         service = DefaultSearchService(settings: context.settings)
+        let outbound = context.runtime.outbound, source = context.featureID
+        service.fetch = { url in try? await outbound.data(for: URLRequest(url: url), purpose: "search suggestions", source: source).0 }
     }
 
     public func activate() {
@@ -42,7 +44,8 @@ final class DefaultSearchService: SearchService {
     ]
 
     private let settings: SettingsStore
-    var fetch: (URL) async -> Data? = { url in try? await URLSession.shared.data(from: url).0 }
+    /// Suggestion requests; the feature routes them through Security Core's log.
+    var fetch: (URL) async -> Data? = { _ in nil }
 
     init(settings: SettingsStore) { self.settings = settings }
 

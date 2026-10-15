@@ -9,6 +9,12 @@ import Testing
     #expect(!Validator.isValidShortcut("hyper+t"))
 }
 
+@Test func ownRequestsMustGoThroughTheLog() {
+    #expect(Validator.usesURLSession("let (data, _) = try await URLSession.shared.data(from: url)"))
+    #expect(Validator.usesURLSession("    let s = URLSession(configuration: .ephemeral) // own session"))
+    #expect(!Validator.usesURLSession("// URLSession stays out\nlet data = try await context.fetch(request, purpose: \"x\")"))
+}
+
 @Test func pascalCaseIds() {
     #expect(pascalCase("command-bar") == "CommandBar")
     #expect(pascalCase("pip") == "Pip")

@@ -70,7 +70,8 @@ This file is for coding agents and humans customizing the browser. Read it fully
 
 `./forkctl validate` enforces: unique namespaced ids, shortcut collisions (after fork overrides),
 capability graph, entry type exists, a `Tests/` dir per feature, no cross-feature imports, no hard-coded
-product name (use `Brand.name`).
+product name (use `Brand.name`), no URLSession in features or engines (the browser's own requests go through
+`context.fetch` / `hooks.fetch`, which Security Core logs).
 
 ## Running the real app in tests
 

@@ -61,7 +61,7 @@ nonisolated struct FilterListStore: Sendable {
     }
 
     /// Downloads every list (keeping the previous copy of any that fails), compiles and caches the engines.
-    func update(contentRules: Bool, fetch: @Sendable (URL) async throws -> Data = Self.download) async throws -> Engines {
+    func update(contentRules: Bool, fetch: @Sendable (URL) async throws -> Data) async throws -> Engines {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var texts: [FilterList.Kind: [String]] = [:], trusted: [FilterList.Kind: [String]] = [:]
         for list in lists {
@@ -132,11 +132,10 @@ nonisolated struct FilterListStore: Sendable {
         return try UboResources.assemble(extension: root)
     }
 
-    static func download(_ url: URL) async throws -> Data {
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
-        request.setValue(nil, forHTTPHeaderField: "Cookie")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-        return data
+    static func request(_ url: URL) -> URLRequest { URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30) }
+
+    static func body(_ result: (Data, URLResponse)) throws -> Data {
+        guard (result.1 as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+        return result.0
     }
 }

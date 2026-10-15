@@ -24,6 +24,11 @@ public final class FeatureContext {
     public var windows: [BrowserWindowState] { runtime.windows }
     public var keyWindow: BrowserWindowState? { runtime.keyWindow }
 
+    /// The feature's own requests (not a page's): Security Core logs them under the feature's id.
+    public func fetch(_ request: URLRequest, purpose: String, isPrivate: Bool = false) async throws -> (Data, URLResponse) {
+        try await runtime.outbound.data(for: request, purpose: purpose, source: featureID, isPrivate: isPrivate)
+    }
+
     /// Private storage for the feature (`<data>/Features/<id>/`), created on first access.
     public var dataDirectory: URL {
         let url = runtime.dataDirectory.appendingPathComponent("Features/\(featureID)", isDirectory: true)

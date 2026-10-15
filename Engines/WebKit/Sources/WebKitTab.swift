@@ -165,8 +165,10 @@ final class WebKitTab: NSObject, EngineTab {
     }
 
     private func loadFavicon(_ url: URL) {
+        guard let engine, let fetch = engine.hooks.fetch else { return }
+        let isPrivate = webView.configuration.websiteDataStore !== engine.dataStore
         Task { [weak self] in
-            guard let (data, _) = try? await URLSession.shared.data(from: url), let image = NSImage(data: data) else { return }
+            guard let (data, _) = try? await fetch(URLRequest(url: url), "favicon", isPrivate), let image = NSImage(data: data) else { return }
             await MainActor.run { self?.state.favicon = image }
         }
     }

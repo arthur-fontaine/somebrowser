@@ -158,9 +158,9 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
     func cefTab(_ tab: CEFTab, faviconChanged url: String?) {
         state.faviconURL = url.flatMap(URL.init(string:))
         state.favicon = nil
-        guard let u = state.faviconURL else { return }
-        Task { [weak self] in
-            guard let (data, _) = try? await URLSession.shared.data(from: u), let image = NSImage(data: data) else { return }
+        guard let u = state.faviconURL, let fetch = engine?.hooks.fetch else { return }
+        Task { [weak self, isPrivate = tab.isPrivate] in
+            guard let (data, _) = try? await fetch(URLRequest(url: u), "favicon", isPrivate), let image = NSImage(data: data) else { return }
             await MainActor.run { if self?.state.faviconURL == u { self?.state.favicon = image } }
         }
     }

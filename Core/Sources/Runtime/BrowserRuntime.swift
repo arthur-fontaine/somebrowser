@@ -27,6 +27,8 @@ public final class BrowserRuntime {
     public let ui = UIRegistry()
     @ObservationIgnored public let siteSettings: SiteSettingsStore
     @ObservationIgnored public let dataDirectory: URL
+    /// Security Core: the connections the browser makes by itself, logged.
+    @ObservationIgnored public let outbound: OutboundConnections
     @ObservationIgnored public let manifests: [FeatureManifest]
     public private(set) var windows: [BrowserWindowState] = []
     @ObservationIgnored public weak var shell: ShellServices?
@@ -52,6 +54,11 @@ public final class BrowserRuntime {
         }
         try? FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
         siteSettings = SiteSettingsStore(url: persistSession ? dataDirectory.appendingPathComponent("site-settings.json") : nil)
+        let outbound = OutboundConnections(file: persistSession ? dataDirectory.appendingPathComponent("Security/connections.json") : nil)
+        self.outbound = outbound
+        engine.hooks.fetch = { request, purpose, isPrivate in
+            try await outbound.data(for: request, purpose: purpose, source: "engine", isPrivate: isPrivate, transient: true)
+        }
         if persistSession { persistence = SessionPersistence(url: dataDirectory.appendingPathComponent("session.json")) }
         tabs.onTabsRemoved = { [weak self] removed in self?.tabsRemoved(removed) }
         tabs.onChange = { [weak self] in self?.persistence?.scheduleSave { self?.sessionSnapshot() } }

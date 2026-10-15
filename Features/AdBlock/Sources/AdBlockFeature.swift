@@ -85,9 +85,11 @@ public final class AdBlockFeature: BrowserFeature {
     func updateLists(force: Bool = false) {
         guard !updating, force || !shield.hasEngines || store.isStale, context.settings.bool("adblock.enabled") else { return }
         updating = true
-        let store = self.store, rules = usesContentRules
+        let store = self.store, rules = usesContentRules, outbound = context.runtime.outbound, source = context.featureID
         Task.detached(priority: .utility) { [weak self] in
-            let engines = try? await store.update(contentRules: rules)
+            let engines = try? await store.update(contentRules: rules) { url in
+                try FilterListStore.body(await outbound.data(for: FilterListStore.request(url), purpose: "filter list update", source: source))
+            }
             await MainActor.run {
                 self?.updating = false
                 if let engines { self?.install(engines) }
