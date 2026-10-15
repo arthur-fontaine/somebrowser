@@ -73,12 +73,15 @@ static CefString CS(NSString *s) { return CefString(s ? s.UTF8String : ""); }
 @property (nonatomic, copy, nullable) NSString *pendingURL;
 @property (nonatomic) BOOL isClosing;
 @property (nonatomic, readwrite) BOOL isPrivate;
+@property (nonatomic, readonly) BOOL isAnchor;
+- (instancetype)initAnchor;
 @end
 
 @interface CEFRuntime ()
 - (CefRefPtr<CefRequestContext>)privateContext;
 - (void)registerTab:(CEFTab *)tab;
 - (void)unregisterTab:(CEFTab *)tab;
+- (void)updateAnchor;
 - (CefRefPtr<CefDictionaryValue>)extraInfo;
 - (nullable NSString *)filter:(const std::string &)url firstParty:(const std::string &)fp type:(const char *)type;
 - (void)chromeOpened:(NSString *)url;
@@ -515,7 +518,7 @@ public:
     explicit ViewDelegate(CEFTab *tab) : tab_(tab) {}
     cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
     ChromeToolbarType GetChromeToolbarType(CefRefPtr<CefBrowserView>) override {
-        return [CEFRuntime shared].extensionToolbar ? CEF_CTT_NORMAL : CEF_CTT_NONE;
+        return [CEFRuntime shared].extensionToolbar && !tab_.isAnchor ? CEF_CTT_NORMAL : CEF_CTT_NONE;
     }
 
     void OnWindowChanged(CefRefPtr<CefView> view, bool added) override {
@@ -636,14 +639,27 @@ public:
     if ((self = [self initDetachedPopup])) {
         _delegate = delegate;
         _isPrivate = isPrivate;
-        CefBrowserSettings settings;
-        settings.background_color = CefColorSetARGB(255, 255, 255, 255);
-        CefRefPtr<CefRequestContext> context = isPrivate ? [[CEFRuntime shared] privateContext] : nullptr;
-        CefRefPtr<CefBrowserView> view = CefBrowserView::CreateBrowserView(_client, CS(url ?: @""), settings,
-                                                                           [[CEFRuntime shared] extraInfo], context, _viewDelegate);
-        [self attachBrowserView:view];
+        [self createBrowserWithURL:url];
     }
     return self;
+}
+
+/// No page and never shown: the Chrome window extensions start from while no page has one (`CEFRuntime updateAnchor`).
+- (instancetype)initAnchor {
+    if ((self = [self initDetachedPopup])) {
+        _isAnchor = YES;
+        [self createBrowserWithURL:nil];
+    }
+    return self;
+}
+
+- (void)createBrowserWithURL:(NSString *)url {
+    CefBrowserSettings settings;
+    settings.background_color = CefColorSetARGB(255, 255, 255, 255);
+    CefRefPtr<CefRequestContext> context = _isPrivate ? [[CEFRuntime shared] privateContext] : nullptr;
+    CefRefPtr<CefBrowserView> view = CefBrowserView::CreateBrowserView(_client, CS(url ?: @""), settings,
+                                                                       [[CEFRuntime shared] extraInfo], context, _viewDelegate);
+    [self attachBrowserView:view];
 }
 
 - (void)attachBrowserView:(CefRefPtr<CefBrowserView>)view {
@@ -688,7 +704,10 @@ public:
     [self removeExtensionToolbar];
     _browser = nullptr;
     if (_client) _client->Detach();
+    __weak NSWindow *window = self.window;
     if (_windowDelegate && _windowDelegate->window()) _windowDelegate->window()->Close();
+    // The anchor's window, never shown, stays open (invisible) after that: close it as AppKit would.
+    if (_isAnchor) dispatch_async(dispatch_get_main_queue(), ^{ [window close]; });
     [[CEFRuntime shared] unregisterTab:self];
     [closedByChrome cefTabRequestsClose:self];
 }
@@ -990,6 +1009,7 @@ public:
             if (!context->SetPreference(CS(name), ToCefValue(prefs[name]), error)) NSLog(@"CEF preference %@ not set: %s", name, error.ToString().c_str());
         }
         [CEFRuntime shared].contextReady = YES;
+        [[CEFRuntime shared] updateAnchor];  // now: extensions load at startup and may open a tab at once
     }
     void OnBeforeCommandLineProcessing(const CefString &process_type, CefRefPtr<CefCommandLine> command_line) override {
         for (NSString *key in switches_) {
@@ -1019,6 +1039,8 @@ private:
     CefRefPtr<CefRequestContext> _privateContext;
     std::map<uint32_t, CefRefPtr<CefDownloadItemCallback>> _downloadCallbacks;
     void (^_allClosed)(void);
+    CEFTab *_anchor;
+    BOOL _quitting;
 }
 
 + (instancetype)shared {
@@ -1075,6 +1097,11 @@ private:
     return YES;
 }
 
+- (void)setExtensionsInstalled:(BOOL)installed {
+    _extensionsInstalled = installed;
+    [self updateAnchor];
+}
+
 - (void)setExtensionToolbarWidth:(int)width {
     _extensionToolbarWidth = width;
     for (CEFTab *tab in _tabs) [tab extensionToolbarWidthChanged:width];
@@ -1097,6 +1124,25 @@ private:
 - (void)registerTab:(CEFTab *)tab {
     [_tabs addObject:tab];
     [_retained addObject:tab];
+    if (!tab.isAnchor && !tab.isPrivate) [self updateAnchor];
+}
+
+/// Extensions' `chrome.tabs.create` starts from Chrome's current window ("No current window" without one), and here
+/// each page is a window of its own: with no page open (a first launch, an empty window), welcome pages were lost. An
+/// anchor (no page, never shown) stands in until a page opens; Chrome makes the tab in a window of its own, adopted as
+/// any other. Only extensions see it, as a blank tab, and only while no page is open. Its cost: ~9 MB in this
+/// process, no renderer (measured 2026-10-15; the hidden toolbar it doesn't get would add two); none without extensions.
+- (void)updateAnchor {
+    BOOL pages = NO;
+    for (CEFTab *t in _retained) if (!t.isAnchor && !t.isPrivate && !t.isClosing) { pages = YES; break; }
+    BOOL needed = self.contextReady && self.extensionsInstalled && !_quitting && !pages;
+    if (needed && !_anchor) {
+        _anchor = [[CEFTab alloc] initAnchor];
+    } else if (!needed && _anchor) {
+        CEFTab *anchor = _anchor;
+        _anchor = nil;
+        [anchor close];
+    }
 }
 
 - (void)unregisterTab:(CEFTab *)tab {
@@ -1106,14 +1152,19 @@ private:
         for (CEFTab *t in _retained) if (t.isPrivate) { privateLeft = YES; break; }
         if (!privateLeft) _privateContext = nullptr;  // the session ends: the next private window starts empty
     }
+    if (tab == _anchor) _anchor = nil;  // closed by Chrome (an extension closing every tab…)
     if (_allClosed && _retained.count == 0) {
         void (^done)(void) = _allClosed;
         _allClosed = nil;
         done();
     }
+    // Not from inside Chrome's close callback.
+    if (!_quitting) dispatch_async(dispatch_get_main_queue(), ^{ [self updateAnchor]; });
 }
 
 - (void)closeAllBrowsers:(void (^)(void))completion {
+    _quitting = YES;
+    _anchor = nil;  // closed with the pages below
     if (_retained.count == 0) { completion(); return; }
     _allClosed = [completion copy];
     for (CEFTab *tab in [_retained allObjects]) [tab close];

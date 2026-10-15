@@ -48,8 +48,9 @@ Chrome's window chrome (tab strip, side panel, omnibox), which decides what diff
   makes the page in a window of its own, which the browser closes and reopens as a tab: the tab or window id the
   extension gets back is gone at once (`tabs.get`, `tabs.sendMessage`, `windows.get` on it fail), which matters to
   extensions that keep a pop-out window and close it later. With no page open (an empty window, a first launch),
-  Chrome has no window to put a tab in: `tabs.create` fails with "No current window", so welcome pages opened on
-  install are lost then (installs from the Web Store have its tab open). Commands that work on "the tabs of this
+  Chrome would have no window to start from ("No current window", so welcome pages opened on install were lost):
+  while extensions are installed, the engine keeps a page-less window that is never shown until a page opens. It
+  costs ~9 MB and no renderer, and extensions see it as one blank tab then. Commands that work on "the tabs of this
   window" see one tab: Vimium's in-page keys work, its tab keys (`J`/`K`, `x`) do nothing (the browser's own
   shortcuts switch and close tabs).
 - *Not working:* `downloads.download` from a service worker or popup (CEF cancels downloads tied to none of its pages;

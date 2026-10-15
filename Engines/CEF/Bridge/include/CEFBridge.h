@@ -75,6 +75,8 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @property (nonatomic) BOOL extensionToolbar;
 /// Virtual width of that toolbar: room for the pinned actions before Chrome overflows them into its menu.
 @property (nonatomic) int extensionToolbarWidth;
+/// Extensions are installed (or loaded unpacked): keep a Chrome window for them while no page is open.
+@property (nonatomic) BOOL extensionsInstalled;
 /// Profile preferences applied when the default request context is initialized (bool, number or string values).
 @property (copy) NSDictionary<NSString *, id> *profilePreferences;
 /// Set once the profile exists (preferences given before are applied then).

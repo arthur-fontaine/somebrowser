@@ -138,6 +138,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         guard stamps != preferenceStamps else { return }
         preferenceStamps = stamps
         let list = ChromiumExtensions.read(profile: profile)
+        // Unpacked ones are in the profile only once Chrome has loaded them.
+        runtime.extensionsInstalled = !list.isEmpty || CommandLine.arguments.contains { $0.hasPrefix("--load-extension") }
         guard list != installedExtensions else { return }
         installedExtensions = list
         runtime.extensionToolbarWidth = Int32(Self.toolbarWidth(pinned: list.filter(\.isPinned).count))

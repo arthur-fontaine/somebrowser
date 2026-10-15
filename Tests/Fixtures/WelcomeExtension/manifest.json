@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "E2E Welcome",
+  "version": "1.0",
+  "description": "Test fixture: opens a welcome page when installed, as many extensions do, and records the outcome.",
+  "background": { "service_worker": "worker.js" },
+  "permissions": ["storage"]
+}

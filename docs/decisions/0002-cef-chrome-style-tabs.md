@@ -43,7 +43,9 @@ Memory baseline (RSS sum, shared pages double counted): 2 tabs + `chrome://exten
 - Browsers Chrome creates on its own (extension `chrome.tabs.create`, `IDC_NEW_TAB`, …) arrive via
   `GetDefaultClient()` without a `CefBrowserView`: we **adopt** them (close the stock window, reopen
   the URL as one of our tabs, parented in the tree). Documented limitation: the extension sees the
-  original tab id close.
+  original tab id close. With no page open there is no window for Chrome to start from ("No current window"):
+  while extensions are installed, the runtime keeps a page-less, never-shown anchor window until a page opens
+  (`CEFRuntime updateAnchor`, ~9 MB, no renderer).
 - Popups from pages (`OnBeforePopup`) are created directly as our tabs (children in the tree).
 - Each tab is its own window to extensions (`chrome.windows.getAll()` returns N).
 - Engine `webkit` hosts `WKWebView`s directly in the shell window. `cef-alloy` is deferred.

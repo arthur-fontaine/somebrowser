@@ -145,7 +145,8 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] `chrome.tabs.remove` closes the tab (the page closed, the tab stayed in the sidebar)
 - [x] Real extensions: 16 checked (README), the last 10 together with no errors in chrome://extensions; Vimium's
       in-page keys work, its tab keys don't (window model)
-- [ ] `tabs.create` with no live page fails ("No current window"): install welcome pages are lost in an empty window
+- [x] `tabs.create` with no live page ("No current window"): a page-less anchor window while extensions are installed
+      and no page is open; install welcome pages open on a first launch (E2E `welcomePagesOpenWithNoPageOpen`)
 - [ ] `tabs.create`/`windows.create` ids that last, one Chrome window per browser window, `downloads.download` from
       service workers — CEF hosts each page as its own popup-type Chrome window and cancels page-less downloads: patch
       CEF in the source build
