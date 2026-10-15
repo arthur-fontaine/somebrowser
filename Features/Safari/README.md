@@ -17,6 +17,19 @@ syncs in local files, decrypted (History and iCloud Tabs are end-to-end encrypte
 into Bookmarks.plist in Safari's binary format, keeping every key it doesn't know and a backup of the last 10 versions
 in the feature's data folder. Both folders are watched, so changes show up live.
 
+**Writing like Safari** (from Safari's code, macOS 27):
+- **Lock.** Safari and its sync agent lock the file with a `lock` folder next to it, made with mkdir and holding
+  `details.plist` (who holds it). The store takes the same lock around each read-modify-write (`SafariFileLock`) and
+  takes over abandoned locks, as Safari does.
+- **Change log.** Each edit is recorded in the root's `Sync.Changes`, the change log the agent uploads and then clears.
+  A record has `Type` (Add, Modify or Delete), `Token` (a new UUID), `BookmarkUUID`, `BookmarkType` (Leaf), and for
+  synced items `BookmarkServerID`, plus `DeletedBookmarkSyncData` for a Delete. Without a record, an edit stays on this
+  Mac: that's why a deletion never reached the iPhone. Safari's rule for redundant records is kept: a Delete replaces
+  pending records, and cancels an Add that never reached iCloud.
+- **When it uploads.** The agent doesn't watch the file. It syncs bookmarks when Safari saves its own edits (Safari
+  asks over an entitled XPC connection), when iCloud pushes a bookmark change from another device, or when the account
+  changes. Records written here wait in the file for the next of these.
+
 **Access, no Full Disk Access** — "Connect to Safari…" (or the start page button) opens an open panel on each
 folder; clicking Allow is explicit consent, which macOS honors for Safari's protected data. `SafariAccess` keeps the
 grants as security-scoped bookmarks (`Grants/` in the feature's data folder), so it's two clicks once. Cancelling the
@@ -27,9 +40,9 @@ stored grants.
 reached this Mac's Bookmarks.plist and `SafariStore.favorites()`, which the start page lists) and the iPhone's
 iCloud Tabs. Adding a favorite: verified on the iPhone within
 two minutes, with Safari running on the Mac (Safari watches Bookmarks.plist and hands the change to its sync agent);
-with Safari not running, untested. Deleting: **not offered** — Safari absorbed a favorite removed from its file but
-never synced the deletion (the agent takes deletions from Safari's own change log, over an entitled XPC connection),
-so it stayed on the iPhone. Delete in Safari. Tabs and history are read-only: their stores belong to Safari's agents.
+with Safari not running, untested. Deleting: **not offered yet**. A favorite removed from the file without a change
+record never left the Mac. The store now writes the record, but it hasn't been verified on the iPhone, so delete in
+Safari for now. Tabs and history are read-only: their stores belong to Safari's agents.
 
 **Import** — offers Safari to the import sheet (`BrowserImportSource`): every bookmark except the Reading List
 (Favorites as a folder) and the history, through the same folder grants (asked for if needed).

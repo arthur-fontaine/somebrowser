@@ -29,7 +29,7 @@ nonisolated struct SafariStore: Sendable {
     var historyFile: URL { folders.library.appendingPathComponent("History.db") }
     var cloudTabsFile: URL? { folders.container?.appendingPathComponent("CloudTabs.db") }
 
-    enum StoreError: Error, Equatable { case noAccess, malformed, notFound }
+    enum StoreError: Error, Equatable { case noAccess, malformed, notFound, busy }
 
     /// Reading actually fails without the grant (`access()` would say yes).
     var hasAccess: Bool { (try? FileHandle(forReadingFrom: bookmarksFile))?.closeFile() != nil }
@@ -41,31 +41,65 @@ nonisolated struct SafariStore: Sendable {
         return Self.leaves(of: try Self.bar(in: root))
     }
 
-    /// Adds a favorite (Safari's sync agent uploads items without sync state as new).
     @discardableResult
     func addFavorite(title: String, url: URL) throws -> SafariBookmark {
-        let root = try readBookmarks()
-        let bar = try Self.bar(in: root)
         let item = SafariBookmark(id: UUID().uuidString, title: title, url: url)
-        let children = (bar["Children"] as? NSMutableArray) ?? NSMutableArray()
-        children.add(NSMutableDictionary(dictionary: [
-            "WebBookmarkType": "WebBookmarkTypeLeaf",
-            "WebBookmarkUUID": item.id,
-            "URLString": url.absoluteString,
-            "URIDictionary": NSMutableDictionary(dictionary: ["title": title]),
-        ]))
-        bar["Children"] = children
-        try write(root)
+        try editBookmarks { root in
+            let bar = try Self.bar(in: root)
+            let leaf = NSMutableDictionary(dictionary: [
+                "WebBookmarkType": "WebBookmarkTypeLeaf",
+                "WebBookmarkUUID": item.id,
+                "URLString": url.absoluteString,
+                "URIDictionary": NSMutableDictionary(dictionary: ["title": title]),
+            ])
+            let children = (bar["Children"] as? NSMutableArray) ?? NSMutableArray()
+            children.add(leaf)
+            bar["Children"] = children
+            Self.record("Add", of: leaf, in: root)
+        }
         return item
     }
 
     func removeFavorite(id: String) throws {
-        let root = try readBookmarks()
-        guard let children = try Self.bar(in: root)["Children"] as? NSMutableArray else { throw StoreError.notFound }
-        let index = children.indexOfObject { item, _, _ in (item as? NSDictionary)?["WebBookmarkUUID"] as? String == id }
-        guard index != NSNotFound else { throw StoreError.notFound }
-        children.removeObject(at: index)
-        try write(root)
+        try editBookmarks { root in
+            guard let children = try Self.bar(in: root)["Children"] as? NSMutableArray else { throw StoreError.notFound }
+            let index = children.indexOfObject { item, _, _ in (item as? NSDictionary)?["WebBookmarkUUID"] as? String == id }
+            guard index != NSNotFound, let leaf = children[index] as? NSDictionary else { throw StoreError.notFound }
+            children.removeObject(at: index)
+            Self.record("Delete", of: leaf, in: root)
+        }
+    }
+
+    /// Safari's change log, the root's `Sync.Changes`: the sync agent uploads what it lists, then clears it. Safari
+    /// records each of its own edits there; an edit made in the file without a record never leaves this Mac (a favorite
+    /// removed that way stayed on the iPhone). The format is Safari's `BookmarkChange` (macOS 27).
+    static func record(_ type: String, of leaf: NSDictionary, in root: NSMutableDictionary) {
+        let sync = (root["Sync"] as? NSMutableDictionary) ?? NSMutableDictionary()
+        root["Sync"] = sync
+        let changes = (sync["Changes"] as? NSMutableArray) ?? NSMutableArray()
+        sync["Changes"] = changes
+        let id = leaf["WebBookmarkUUID"] as? String ?? ""
+        let serverID = (leaf["Sync"] as? NSDictionary)?["ServerID"]
+        if type == "Delete" {
+            // Safari's own rule (`removeRedundantChangesInArray:`): a Delete replaces the item's pending changes, and
+            // cancels out with an Add that never reached iCloud.
+            let pending = changes.filter { ($0 as? NSDictionary)?["BookmarkUUID"] as? String == id }
+            changes.removeObjects(in: pending)
+            if serverID == nil, pending.contains(where: { ($0 as? NSDictionary)?["Type"] as? String == "Add" }) { return }
+        }
+        let change = NSMutableDictionary(dictionary: ["Type": type, "Token": UUID().uuidString, "BookmarkUUID": id, "BookmarkType": "Leaf"])
+        if let serverID { change["BookmarkServerID"] = serverID }
+        if type == "Delete", let data = (leaf["Sync"] as? NSDictionary)?["Data"] { change["DeletedBookmarkSyncData"] = data }
+        changes.add(change)
+    }
+
+    /// Reads, changes and writes Bookmarks.plist under Safari's lock, so neither Safari nor its sync agent writes in between.
+    private func editBookmarks(_ change: (NSMutableDictionary) throws -> Void) throws {
+        try SafariFileLock(folder: folders.library).withLock {
+            let root = try readBookmarks()
+            try change(root)
+            try write(root)
+        }
     }
 
     private func readBookmarks() throws -> NSMutableDictionary {

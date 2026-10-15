@@ -12,9 +12,10 @@ func makeHome() throws -> URL {
     let container = SafariAccess.Folder.container.url(home: home)
     try FileManager.default.createDirectory(at: safari, withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: container, withIntermediateDirectories: true)
+    // Synced items carry their iCloud record (`Sync`).
     let leaf = { (id: String, title: String, url: String) -> [String: Any] in
         ["WebBookmarkType": "WebBookmarkTypeLeaf", "WebBookmarkUUID": id, "URLString": url, "URIDictionary": ["title": title],
-         "ReadingListNonSync": ["neverFetchMetadata": false]]
+         "ReadingListNonSync": ["neverFetchMetadata": false], "Sync": ["ServerID": "server-\(id)", "Data": Data("record-\(id)".utf8)]]
     }
     let root: [String: Any] = [
         "WebBookmarkType": "WebBookmarkTypeList", "WebBookmarkUUID": "root", "WebBookmarkFileVersion": 1, "Title": "",
@@ -125,7 +126,10 @@ struct StoreTests {
         var format = PropertyListSerialization.PropertyListFormat.xml
         let after = try PropertyListSerialization.propertyList(from: Data(contentsOf: s.bookmarksFile), format: &format) as! NSDictionary
         #expect(format == .binary)
-        #expect(after["Sync"] as? NSDictionary == before["Sync"] as? NSDictionary)
+        let sync = (after["Sync"] as! NSDictionary).mutableCopy() as! NSMutableDictionary
+        sync.removeObject(forKey: "Changes")
+        #expect(sync == before["Sync"] as? NSDictionary)
+        #expect(!FileManager.default.fileExists(atPath: s.folders.library.appendingPathComponent("lock").path))
         let children = { (d: NSDictionary) in d["Children"] as! [NSDictionary] }
         #expect(children(after)[3] == children(before)[3])  // reading list untouched
         let bar = children(children(after)[1])
@@ -133,6 +137,63 @@ struct StoreTests {
         #expect(bar.last?["Title"] as? String == "Folder")
         let backups = try FileManager.default.contentsOfDirectory(at: s.backups, includingPropertiesForKeys: nil)
         #expect(!backups.isEmpty)
+    }
+
+    func changes(_ s: SafariStore) throws -> [NSDictionary] {
+        let root = try PropertyListSerialization.propertyList(from: Data(contentsOf: s.bookmarksFile), format: nil) as! NSDictionary
+        return (root["Sync"] as? NSDictionary)?["Changes"] as? [NSDictionary] ?? []
+    }
+
+    /// Edits are written to Safari's change log the way Safari writes its own, for its sync agent to upload.
+    @Test func editsAreRecordedForSafarisSyncAgent() throws {
+        let s = try store()
+        let added = try s.addFavorite(title: "Example", url: URL(string: "https://example.com/")!)
+        var log = try changes(s)
+        #expect(log.count == 1)
+        #expect(log[0]["Type"] as? String == "Add")
+        #expect(log[0]["BookmarkUUID"] as? String == added.id)
+        #expect(log[0]["BookmarkType"] as? String == "Leaf")
+        #expect(UUID(uuidString: log[0]["Token"] as? String ?? "") != nil)
+        #expect(log[0]["BookmarkServerID"] == nil)
+
+        // Removed before it reached iCloud: Safari's rule, the Add and the Delete cancel out.
+        try s.removeFavorite(id: added.id)
+        #expect(try changes(s).isEmpty)
+
+        // A synced favorite: the Delete names its iCloud record and keeps the record's data.
+        try s.removeFavorite(id: "A1")
+        log = try changes(s)
+        #expect(log.count == 1)
+        #expect(log[0]["Type"] as? String == "Delete")
+        #expect(log[0]["BookmarkUUID"] as? String == "A1")
+        #expect(log[0]["BookmarkServerID"] as? String == "server-A1")
+        #expect(log[0]["DeletedBookmarkSyncData"] as? Data == Data("record-A1".utf8))
+        #expect(try s.favorites().map(\.id) == ["A2"])
+    }
+
+    @Test func waitsForSafarisLockAndTakesOverAnAbandonedOne() throws {
+        let s = try store()
+        let lock = s.folders.library.appendingPathComponent("lock")
+        func hold(pid: Int32, date: Date) throws {
+            try FileManager.default.createDirectory(at: lock, withIntermediateDirectories: true)
+            let details: [String: Any] = ["LockFileProcessID": Int(pid), "LockFileDate": date, "LockFileHostname": SafariFileLock.hostname,
+                                          "LockFileProcessName": "Safari", "LockFileUsername": NSUserName()]
+            try PropertyListSerialization.data(fromPropertyList: details, format: .binary, options: 0).write(to: lock.appendingPathComponent("details.plist"))
+        }
+
+        // Held by a live process (this one): wait, then give up.
+        try hold(pid: getpid(), date: Date())
+        let busy = SafariFileLock(folder: s.folders.library, timeout: 0.2)
+        #expect(throws: SafariStore.StoreError.busy) { try busy.withLock {} }
+        #expect(FileManager.default.fileExists(atPath: lock.path))
+
+        // Held by a process that's gone, or for too long: taken over, and released after.
+        for (pid, date) in [(Int32(99_999), Date()), (getpid(), Date(timeIntervalSinceNow: -3600))] {
+            try? FileManager.default.removeItem(at: lock)
+            try hold(pid: pid, date: date)
+            _ = try s.addFavorite(title: "Example", url: URL(string: "https://example.com/")!)
+            #expect(!FileManager.default.fileExists(atPath: lock.path))
+        }
     }
 
     @Test func missingFilesMeanNoAccessOrNothing() {
