@@ -56,20 +56,39 @@ two minutes, with Safari running on the Mac (Safari watches Bookmarks.plist and 
 with Safari not running, untested. An added favorite's upload was also verified on its own: in the agent's log,
 within a second of the edit. Deleting (start page context menu): verified the same way, the agent marked the record deleted in iCloud
 within ~20 s.
-Tabs, Tab Groups and history are read-only. This Mac's open tabs reach iCloud Tabs only when Safari hands them to its agent
-directly (`saveTabsForCurrentDeviceWithDictionaryRepresentation:`, entitled XPC; the agent never uploads them from its
-database), so this browser's tabs can't appear there. Writing a Tab Group into SafariTabs.db could carry them, but
-isn't done: it means writing to a live database holding the user's groups.
 
-**Live lab** — `Tests/LiveSafariLab.swift`, off by default, edits the real Bookmarks.plist through the store, only on
-favorites named "<Brand.name> lab…": `SAFARI_LAB="add:<name>"`, `"remove:<name>"` or `status`, then
+**This browser on the iPhone** (`SafariSharing.swift`, `SafariWriters.swift`). iCloud Tabs can't carry this browser's
+tabs: Safari hands this Mac's open tabs to its agent directly, over the entitled XPC call
+`saveTabsForCurrentDeviceWithDictionaryRepresentation:`, and the agent never uploads them from its database. So the
+feature takes two other routes:
+- **Tabs** (`safari.share-tabs`): a Tab Group named after this Mac, written into SafariTabs.db as WebBookmarks writes.
+  - A new row keeps `added` 1, and the group gets its scoped-favorites folder and its `folder_ancestors` rows.
+  - A closed tab is tombstoned (`deleted` 1), or simply removed if it never reached iCloud.
+  - Every change takes a new `_dav_generation` and bumps `generations`. The agent uploads rows with
+    `dav_generation > LastSyncedRecordGeneration` that are added, deleted or modified.
+  - Rows are never modified: a tab whose page changed becomes a new row.
+  - Our own group isn't listed among Safari's here.
+- **History** (`safari.share-history`): visits from normal windows are written in batches into History.db as Safari
+  writes its own: `origin` 0, the current generation, and items marked for Safari to recompute their counts.
+
+There is no outside trigger for either sync; the only one Safari listens to resets cloud history. So both go up with
+Safari's next sync of each:
+- Tab Groups: Safari's own tab activity, or a change from the iPhone;
+- History: Safari launching, browsing in Safari, or the display sleeping or waking.
+
+Each write is one `BEGIN IMMEDIATE` transaction with a 5 s busy timeout. Private windows are never shared.
+Uploaded to iCloud: being verified (lab group and visit written 2026-10-15, waiting for Safari's sync).
+
+**Live lab** — `Tests/LiveSafariLab.swift`, off by default, edits Safari's real files through the store. It only
+touches items named "<Brand.name> lab…". The verbs are `SAFARI_LAB="add:<name>"`, `"remove:<name>"`, `"group:<name>"`,
+`"ungroup:<name>"`, `visit` (one throwaway visit) and `status`, then
 `swift test --filter safariLab`; read the agent with `log show --info --predicate 'process == "SafariBookmarksSyncAgent"'`.
 
 **Import** — offers Safari to the import sheet (`BrowserImportSource`): every bookmark except the Reading List
 (Favorites as a folder) and the history, through the same folder grants (asked for if needed).
 
 **Commands** — `safari.add-favorite`, `safari.cloud-tabs`, `safari.connect`, `safari.disconnect`.
-**Settings** — `safari.enabled`.
+**Settings** — `safari.enabled`, `safari.share-tabs`, `safari.share-history`.
 
 **Tests** — `./forkctl test safari` (fixtures in Safari's formats, including real-schema CloudTabs.db and Safari's
 position blobs; grants through a fake panel).

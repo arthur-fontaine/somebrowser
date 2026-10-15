@@ -14,6 +14,13 @@ public final class SafariFeature: BrowserFeature {
     private var watchers: [DispatchSourceFileSystemObject] = []
     private var pendingRefresh = false
     private var upload: Task<Void, Never>?
+    var mirrorTask: Task<Void, Never>?
+    var flushTask: Task<Void, Never>?
+    var pendingVisits: [UUID: SafariVisit] = [:]
+    var visitQueue: [SafariVisit] = []
+    /// Tabs change in bursts: mirror once they settle. Visits are written in batches.
+    var mirrorDelay: Duration = .seconds(10)
+    var visitFlushDelay: Duration = .seconds(20)
     /// Swapped in tests, which mustn't reach the real Safari.
     var askSafariToSync: @Sendable () -> Void = SafariStore.askSafariToSync
     /// If Safari wasn't listening, ask again until the agent has taken the records.
@@ -55,6 +62,7 @@ public final class SafariFeature: BrowserFeature {
         context.ui.contribute(.overlay, id: "safari.cloud-tabs", order: 75) { [weak self] window in
             CloudTabsPanel(model: model, window: window, open: { self?.open($0, in: window, newTab: true) })
         }
+        startSharing()
         if let folders = access.restore() { use(folders) } else { model.hasAccess = false }
     }
 
@@ -94,7 +102,7 @@ public final class SafariFeature: BrowserFeature {
             let access = store.hasAccess
             let favorites = access ? (try? store.favorites()) ?? [] : []
             let devices = (try? store.cloudTabs()) ?? []
-            let tabGroups = (try? store.tabGroups()) ?? []
+            let tabGroups = ((try? store.tabGroups()) ?? []).filter { $0.title != store.localDeviceName }  // ours: this browser's tabs
             let history = access ? (try? store.history()) ?? [] : []
             await MainActor.run {
                 guard let self, self.store?.folders == store.folders else { return }

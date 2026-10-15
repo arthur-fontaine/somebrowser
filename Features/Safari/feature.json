@@ -1,7 +1,7 @@
 {
   "id": "safari",
   "name": "Safari Sync",
-  "summary": "Safari ⇄ iPhone: Safari Favorites on the start page (both ways), iCloud Tabs, Safari history in the command bar.",
+  "summary": "Safari ⇄ iPhone: Safari Favorites on the start page (both ways), iCloud Tabs and Tab Groups, this browser's tabs and history on the iPhone.",
   "entry": "SafariFeature",
   "commands": [
     { "id": "safari.add-favorite", "title": "Add Page to Safari Favorites", "menu": "Bookmarks", "group": "safari", "order": 1, "keywords": ["iphone", "bookmark"] },
@@ -10,6 +10,8 @@
     { "id": "safari.disconnect", "title": "Disconnect from Safari", "group": "safari", "order": 4, "keywords": ["iphone", "sync"] }
   ],
   "settings": [
-    { "key": "safari.enabled", "title": "Sync with Safari on your iPhone", "type": "bool", "default": true }
+    { "key": "safari.enabled", "title": "Sync with Safari on your iPhone", "type": "bool", "default": true },
+    { "key": "safari.share-tabs", "title": "Show this browser's tabs on your iPhone (a Tab Group named after this Mac)", "type": "bool", "default": true },
+    { "key": "safari.share-history", "title": "Add this browser's history to Safari's, on your iPhone too", "type": "bool", "default": true }
   ]
 }

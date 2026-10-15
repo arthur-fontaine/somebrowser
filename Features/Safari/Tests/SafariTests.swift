@@ -40,10 +40,14 @@ func makeHome() throws -> URL {
         sqlite3_close(db)
     }
     sqlite(safari.appendingPathComponent("History.db"), """
-    CREATE TABLE history_items (id INTEGER PRIMARY KEY, url TEXT, domain_expansion TEXT, visit_count INTEGER);
-    CREATE TABLE history_visits (id INTEGER PRIMARY KEY, history_item INTEGER, visit_time REAL, title TEXT);
-    INSERT INTO history_items VALUES (1, 'https://swift.org/', 'swift', 3), (2, 'https://news.example/', 'news', 1);
-    INSERT INTO history_visits VALUES (1, 1, 770000000, 'Swift'), (2, 1, 780000000, 'Swift.org'), (3, 2, 775000000, 'News');
+    CREATE TABLE history_items (id INTEGER PRIMARY KEY AUTOINCREMENT,url TEXT NOT NULL UNIQUE,domain_expansion TEXT NULL,visit_count INTEGER NOT NULL,daily_visit_counts BLOB NOT NULL,weekly_visit_counts BLOB NULL,autocomplete_triggers BLOB NULL,should_recompute_derived_visit_counts INTEGER NOT NULL,visit_count_score INTEGER NOT NULL,status_code INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE history_visits (id INTEGER PRIMARY KEY AUTOINCREMENT,history_item INTEGER NOT NULL REFERENCES history_items(id) ON DELETE CASCADE,visit_time REAL NOT NULL,title TEXT NULL,load_successful BOOLEAN NOT NULL DEFAULT 1,http_non_get BOOLEAN NOT NULL DEFAULT 0,synthesized BOOLEAN NOT NULL DEFAULT 0,redirect_source INTEGER NULL UNIQUE REFERENCES history_visits(id) ON DELETE CASCADE,redirect_destination INTEGER NULL UNIQUE REFERENCES history_visits(id) ON DELETE CASCADE,origin INTEGER NOT NULL DEFAULT 0,generation INTEGER NOT NULL DEFAULT 0,attributes INTEGER NOT NULL DEFAULT 0,score INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE metadata (key TEXT NOT NULL UNIQUE, value);
+    INSERT INTO metadata VALUES ('last_synced_generation', 40), ('current_generation', 42);
+    INSERT INTO history_items (id, url, domain_expansion, visit_count, daily_visit_counts, should_recompute_derived_visit_counts, visit_count_score)
+        VALUES (1, 'https://swift.org/', 'swift', 3, x'2C010000', 0, 300), (2, 'https://news.example/', 'news', 1, x'64000000', 0, 100);
+    INSERT INTO history_visits (id, history_item, visit_time, title, origin, generation, score)
+        VALUES (1, 1, 770000000, 'Swift', 0, 40, 100), (2, 1, 780000000, 'Swift.org', 1, 41, 20), (3, 2, 775000000, 'News', 0, 39, 100);
     """)
     // The real schema; positions are zlib-compressed JSON.
     sqlite(container.appendingPathComponent("CloudTabs.db"), """
@@ -57,6 +61,12 @@ func makeHome() throws -> URL {
     // Tab Groups: the real table (macOS 27), with a profile, a group's scoped-favorites folder and tombstones.
     sqlite(container.appendingPathComponent("SafariTabs.db"), """
     CREATE TABLE bookmarks (id INTEGER PRIMARY KEY AUTOINCREMENT,special_id INTEGER DEFAULT 0,parent INTEGER, type INTEGER,title TEXT,url TEXT COLLATE NOCASE,num_children INTEGER DEFAULT 0,editable INTEGER DEFAULT 1,deletable INTEGER DEFAULT 1,hidden INTEGER DEFAULT 0,hidden_ancestor_count INTEGER DEFAULT 0,order_index INTEGER NOT NULL,external_uuid TEXT UNIQUE,read INTEGER DEFAULT NULL,last_modified REAL DEFAULT NULL,server_id TEXT, sync_key TEXT,sync_data BLOB,added INTEGER DEFAULT 1,deleted INTEGER DEFAULT 0,extra_attributes BLOB DEFAULT NULL,local_attributes BLOB DEFAULT NULL,fetched_icon BOOL DEFAULT 0, icon BLOB DEFAULT NULL,dav_generation INTEGER DEFAULT 0,locally_added BOOL DEFAULT 0,archive_status INTEGER DEFAULT 0,syncable BOOL DEFAULT 1,web_filter_status INTEGER DEFAULT 0, modified_attributes UNSIGNED BIG INT DEFAULT 0, date_closed REAL DEFAULT NULL, last_selected_child INTEGER DEFAULT NULL, subtype INTEGER DEFAULT 0, cookies_uuid TEXT DEFAULT NULL, local_storage_uuid TEXT DEFAULT NULL, session_storage_uuid TEXT DEFAULT NULL, topic_title TEXT, feature_text TEXT, fetched_feature_text BOOL DEFAULT 0, is_marked_for_expiration INTEGER);
+    CREATE TABLE folder_ancestors (id INTEGER PRIMARY KEY AUTOINCREMENT, folder_id INTEGER NOT NULL CONSTRAINT fk_ancestors_folder_id REFERENCES bookmarks(id) ON DELETE CASCADE, ancestor_id INTEGER NOT NULL);
+    CREATE TRIGGER fkd_ancestors_folder_id BEFORE DELETE ON bookmarks FOR EACH ROW BEGIN DELETE FROM folder_ancestors WHERE folder_id = OLD.id; END;
+    CREATE TABLE generations (generation INTEGER NOT NULL);
+    INSERT INTO generations VALUES (500);
+    CREATE TABLE sync_properties (key TEXT NOT NULL, value TEXT NOT NULL);
+    INSERT INTO sync_properties VALUES ('_dav_generation', 500), ('LastSyncedRecordGeneration', 480);
     INSERT INTO bookmarks (id, special_id, parent, type, subtype, hidden, deleted, order_index, external_uuid, title, url) VALUES
         (0, 0, NULL, 1, 0, 0, 0, 0, 'root', '', NULL),
         (1, 6, 0, 1, 0, 1, 0, 0, 'recovered', 'Recovered', NULL),
@@ -127,6 +137,68 @@ struct StoreTests {
         #expect(groups[1].tabs.first?.url.host == "docs.example")
         #expect(groups[2].tabs.map(\.id) == ["T-maps"])
         #expect(groups[0].tabs.isEmpty)
+    }
+
+    func value(_ file: URL, _ sql: String) -> Int {
+        var db: OpaquePointer?
+        sqlite3_open_v2(file.path, &db, SQLITE_OPEN_READONLY, nil)
+        defer { sqlite3_close(db) }
+        var stmt: OpaquePointer?
+        sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
+        defer { sqlite3_finalize(stmt) }
+        return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int64(stmt, 0)) : -1
+    }
+
+    /// Written as Safari writes: a group with its favorites folder and ancestry, tabs as added rows, a new generation
+    /// per change; closed tabs tombstoned once uploaded, removed before; nothing written when nothing changed.
+    @Test func mirrorsTabsIntoATabGroupLikeSafari() throws {
+        let s = try store()
+        let file = try #require(s.tabGroupsFile)
+        let tab = { (n: Int) in SafariBookmark(id: SafariStore.tabRowID(tab: UUID(), url: URL(string: "https://\(n).example/")!, title: "\(n)"),
+                                               title: "\(n)", url: URL(string: "https://\(n).example/")!) }
+        let (a, b, c) = (tab(1), tab(2), tab(3))
+        try s.mirrorTabGroup(title: "This Mac", tabs: [a, b])
+        #expect(try s.tabGroups().map(\.title) == ["Empty", "Work", "This Mac", "Trip"])
+        #expect(try s.tabGroups()[2].tabs.map(\.url) == [a.url, b.url])
+        let group = value(file, "SELECT id FROM bookmarks WHERE title = 'This Mac'")
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE parent = \(group) AND type = 1 AND subtype = 1") == 1)
+        #expect(value(file, "SELECT count(*) FROM folder_ancestors") == 3)
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE parent = \(group) AND type = 0 AND added = 1 AND syncable = 1 AND dav_generation > 500") == 2)
+        let generation = value(file, "SELECT value FROM sync_properties WHERE key = '_dav_generation'")
+        #expect(generation > 500)
+        #expect(value(file, "SELECT generation FROM generations") > 500)
+        #expect(value(file, "SELECT num_children FROM bookmarks WHERE id = \(group)") == 3)
+
+        // a reached iCloud; then a and b close and c opens.
+        try SafariStore.transaction(file) { db in try SafariStore.run(db, "UPDATE bookmarks SET server_id = 'S-a', added = 0 WHERE external_uuid = ?", a.id) }
+        try s.mirrorTabGroup(title: "This Mac", tabs: [c])
+        #expect(try s.tabGroups()[2].tabs.map(\.id) == [c.id])
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(a.id)' AND deleted = 1 AND dav_generation > \(generation)") == 1)
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(b.id)'") == 0)
+
+        let settled = value(file, "SELECT value FROM sync_properties WHERE key = '_dav_generation'")
+        try s.mirrorTabGroup(title: "This Mac", tabs: [c])
+        #expect(value(file, "SELECT value FROM sync_properties WHERE key = '_dav_generation'") == settled)
+
+        try s.removeTabGroup(title: "This Mac")
+        #expect(try !s.tabGroups().contains { $0.title == "This Mac" })
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE external_uuid = '\(a.id)' AND deleted = 1") == 1)
+        #expect(value(file, "SELECT count(*) FROM bookmarks WHERE id = \(group)") == 0)  // never uploaded: gone
+    }
+
+    /// Visits go in as Safari's own local ones (origin 0, the current generation), for its history sync to upload.
+    @Test func addsVisitsForSafarisHistorySync() throws {
+        let s = try store()
+        let date = Date(timeIntervalSinceReferenceDate: 790_000_000)
+        try s.addVisits([SafariVisit(url: URL(string: "https://new.example/page")!, title: "New", date: date),
+                         SafariVisit(url: URL(string: "https://swift.org/")!, title: "Swift", date: date.addingTimeInterval(-60))])
+        let item = value(s.historyFile, "SELECT id FROM history_items WHERE url = 'https://new.example/page'")
+        #expect(item > 0)
+        #expect(value(s.historyFile, "SELECT should_recompute_derived_visit_counts FROM history_items WHERE id = \(item)") == 1)
+        #expect(value(s.historyFile, "SELECT count(*) FROM history_visits WHERE history_item = \(item) AND origin = 0 AND generation = 42 AND score = 100") == 1)
+        #expect(value(s.historyFile, "SELECT visit_count FROM history_items WHERE id = 1") == 4)
+        #expect(value(s.historyFile, "SELECT value FROM metadata WHERE key = 'current_generation'") == 42)
+        #expect(try s.history().first?.url.host == "new.example")
     }
 
     /// Bytes as Safari writes them (Python's zlib), with two changes: the latest one wins.
@@ -351,6 +423,39 @@ struct FeatureTests {
         #expect(feature.model.hasAccess == false)
         #expect(feature.model.favorites.isEmpty)
         #expect(SafariAccess(grants: h.context.dataDirectory, home: home) { _, _ in nil }.restore() == nil)
+    }
+
+    /// Open tabs become the Tab Group named after this Mac (not listed among Safari's here), visits go to Safari's
+    /// history; private windows are left out of both.
+    @Test func sharesTabsAndHistoryWithSafari() async throws {
+        let home = try makeHome()
+        let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
+        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
+        feature.mirrorDelay = .milliseconds(10)
+        feature.visitFlushDelay = .milliseconds(10)
+        feature.activate()
+        try h.run("safari.connect")
+        let store = try #require(feature.store)
+
+        let tab = h.openTab("https://shared.example/page")
+        h.fakeTab(tab).simulateTitle("Shared page")
+        h.runtime.events.publish(TabFinishedLoading(tabID: tab.id))
+        let privateWindow = h.runtime.makeWindowState(spaceID: h.window.spaceID, isPrivate: true)
+        h.runtime.openTab(URL(string: "https://secret.example/")!, in: privateWindow)
+
+        func shared() -> SafariTabGroup? { (try? store.tabGroups())?.first { $0.title == feature.sharedGroupTitle } }
+        for _ in 0..<200 where shared()?.tabs.isEmpty != false || (try? store.history())?.first?.url.host != "shared.example" {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(shared()?.tabs.map(\.url.host) == ["shared.example"])
+        #expect(shared()?.tabs.first?.title == "Shared page")
+        let visit = try #require(try store.history().first)
+        #expect(visit.url.host == "shared.example")
+        #expect(visit.title == "shared.example")  // the title once loaded (the fake page has its host)
+        #expect(try !store.history().contains { $0.url.host == "secret.example" })
+        feature.refresh()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!feature.model.tabGroups.contains { $0.title == feature.sharedGroupTitle })
     }
 
     @Test func offersSafariForImport() async throws {
