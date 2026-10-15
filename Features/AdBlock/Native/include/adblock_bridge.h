@@ -9,6 +9,7 @@ AdbEngine *adb_engine_deserialize(const uint8_t *data, size_t len);
 uint8_t *adb_engine_serialize(const AdbEngine *engine, size_t *len);
 void adb_bytes_free(uint8_t *data, size_t len);
 void adb_engine_free(AdbEngine *engine);
+int32_t adb_engine_use_resources(AdbEngine *engine, const char *json);
 void adb_string_free(char *s);
 int32_t adb_check(const AdbEngine *engine, const char *url, const char *source_url, const char *request_type,
                   char **redirect, char **rewritten);

@@ -188,9 +188,12 @@ nonisolated final class Shield: @unchecked Sendable {
         for engine in engines {
             switch engine.check(url: request.url.absoluteString, source: page.absoluteString, type: type) {
             case .allow: continue
-            case .block, .redirect:
+            case .block:
                 lock.withLock { blocked[Self.site(page), default: 0] += 1 }
                 return .block
+            case .respond(let mimeType, let body):
+                lock.withLock { blocked[Self.site(page), default: 0] += 1 }
+                return .respond(mimeType: mimeType, body: body)
             case .rewrite(let url): return .redirect(url)
             }
         }

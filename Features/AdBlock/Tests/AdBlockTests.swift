@@ -15,6 +15,36 @@ nonisolated let privacyList = """
 $removeparam=utm_source
 """
 
+/// Brave's resources.json format: a redirect stand-in and a scriptlet template.
+nonisolated let resourcesJSON = """
+[{"name":"noop.js","aliases":["noopjs"],"kind":{"mime":"application/javascript"},"content":"\(Data("(function(){})();".utf8).base64EncodedString())"},
+ {"name":"set-flag.js","aliases":["set-flag"],"kind":"template","content":"\(Data("window.flag = '{{1}}';".utf8).base64EncodedString())"}]
+"""
+nonisolated let resourceList = """
+||ads.example/ima.js$script,redirect=noop.js
+news.example##+js(set-flag, on)
+"""
+
+struct ResourceTests {
+    @Test func redirectsAnswerWithStandInsAndScriptletsRun() throws {
+        let engine = AdBlockEngine(lists: resourceList)
+        // Without resources a redirect filter still blocks.
+        #expect(engine.check(url: "https://ads.example/ima.js", source: "https://news.example/", type: "script") == .block)
+        #expect(engine.useResources(json: resourcesJSON) == 2)
+        #expect(engine.check(url: "https://ads.example/ima.js", source: "https://news.example/", type: "script")
+            == .respond(mimeType: "application/javascript", body: Data("(function(){})();".utf8)))
+        let cosmetic = try #require(engine.cosmetic(for: "https://news.example/a"))
+        #expect(cosmetic.injected_script.contains("window.flag = 'on'"))
+        #expect(engine.useResources(json: "not json") == nil)
+    }
+
+    @Test func parsesDataURLs() {
+        #expect(AdBlockEngine.parseDataURL("data:text/plain;base64,aGk=")?.body == Data("hi".utf8))
+        #expect(AdBlockEngine.parseDataURL("data:text/html,%3Cp%3E")! == (mimeType: "text/html", body: Data("<p>".utf8)))
+        #expect(AdBlockEngine.parseDataURL("https://x.example/") == nil)
+    }
+}
+
 struct EngineTests {
     @Test func blocksAllowsAndExcepts() {
         let engine = AdBlockEngine(lists: adsList)
@@ -115,6 +145,13 @@ struct ListStoreTests {
         #expect(!store.isStale)
         let cached = try #require(store.loadCached(contentRules: true))
         #expect(cached.privacy.check(url: "https://tracker.example/", source: "https://x.example/", type: "image") == .block)
+        // Resources come with the lists and are loaded again with the cache.
+        let withResources = try await store.update(contentRules: false) { url in
+            Data((url == store.resourcesURL ? resourcesJSON : url.absoluteString.contains("privacy") ? privacyList : adsList + "\n" + resourceList).utf8)
+        }
+        let stub = AdBlockEngine.Verdict.respond(mimeType: "application/javascript", body: Data("(function(){})();".utf8))
+        #expect(withResources.ads.check(url: "https://ads.example/ima.js", source: "https://x.example/", type: "script") == stub)
+        #expect(store.loadCached(contentRules: false)?.ads.check(url: "https://ads.example/ima.js", source: "https://x.example/", type: "script") == stub)
         // A failing download keeps the previous copy.
         let again = try await store.update(contentRules: false) { _ in throw URLError(.notConnectedToInternet) }
         #expect(again.ads.check(url: "https://ads.example/a.js", source: "https://x.example/", type: "script") == .block)
@@ -126,8 +163,12 @@ struct FeatureTests {
     @Test func requestsGoThroughTheEngineHook() throws {
         let h = try TestHarness(features: [AdBlockFeature.self], manifestDirectory: #filePath)
         let feature = try #require(h.runtime.feature(AdBlockFeature.self))
-        feature.install(.init(ads: AdBlockEngine(lists: adsList), privacy: AdBlockEngine(lists: privacyList), contentRules: nil))
+        let ads = AdBlockEngine(lists: adsList + "\n" + resourceList)
+        ads.useResources(json: resourcesJSON)
+        feature.install(.init(ads: ads, privacy: AdBlockEngine(lists: privacyList), contentRules: nil))
         #expect(h.engine.simulateRequest(URL(string: "https://ads.example/x.js")!, documentURL: URL(string: "https://news.example/")) == .block)
+        #expect(h.engine.simulateRequest(URL(string: "https://ads.example/ima.js")!, documentURL: URL(string: "https://news.example/"))
+            == .respond(mimeType: "application/javascript", body: Data("(function(){})();".utf8)))
         let tab = h.openTab("https://news.example/")
         try h.run("adblock.toggle-site")
         #expect(h.runtime.siteSettings.bool("adblock.enabled", for: "news.example") == false)

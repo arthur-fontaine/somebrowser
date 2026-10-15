@@ -19,6 +19,14 @@ nonisolated final class AdBlockEngine: @unchecked Sendable {
 
     deinit { adb_engine_free(handle) }
 
+    /// Loads Brave's redirect and scriptlet resources (`resources.json`); they aren't part of `serialized`. Call before
+    /// sharing the engine. Returns how many were loaded, nil if the JSON doesn't parse.
+    @discardableResult
+    func useResources(json: String) -> Int? {
+        let count = adb_engine_use_resources(handle, json)
+        return count < 0 ? nil : Int(count)
+    }
+
     var serialized: Data {
         var length = 0
         guard let bytes = adb_engine_serialize(handle, &length) else { return Data() }
@@ -29,8 +37,8 @@ nonisolated final class AdBlockEngine: @unchecked Sendable {
     enum Verdict: Equatable {
         case allow
         case block
-        /// Serve this instead (a resource body from the lists' `redirect=` option, as a data: URL).
-        case redirect(String)
+        /// Answer with this instead (a stand-in from the lists' `redirect=` option, e.g. a no-op script).
+        case respond(mimeType: String, body: Data)
         /// Load this URL instead (tracking parameters removed).
         case rewrite(URL)
     }
@@ -41,10 +49,19 @@ nonisolated final class AdBlockEngine: @unchecked Sendable {
         var rewritten: UnsafeMutablePointer<CChar>?
         let blocked = adb_check(handle, url, source, type, &redirect, &rewritten) == 1
         defer { adb_string_free(redirect); adb_string_free(rewritten) }
-        if blocked, let redirect { return .redirect(String(cString: redirect)) }
+        if blocked, let redirect, let (mimeType, body) = Self.parseDataURL(String(cString: redirect)) { return .respond(mimeType: mimeType, body: body) }
         if blocked { return .block }
         if let rewritten, let u = URL(string: String(cString: rewritten)) { return .rewrite(u) }
         return .allow
+    }
+
+    /// adblock-rust hands redirect resources over as `data:<mime>;base64,<body>`.
+    static func parseDataURL(_ url: String) -> (mimeType: String, body: Data)? {
+        guard url.hasPrefix("data:"), let comma = url.firstIndex(of: ",") else { return nil }
+        let meta = url[url.index(url.startIndex, offsetBy: 5)..<comma].split(separator: ";")
+        let payload = String(url[url.index(after: comma)...])
+        let body = meta.contains("base64") ? Data(base64Encoded: payload) : payload.removingPercentEncoding.map { Data($0.utf8) }
+        return body.map { (meta.first.map(String.init) ?? "text/plain", $0) }
     }
 
     struct Cosmetic: Decodable, Equatable {

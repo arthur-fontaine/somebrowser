@@ -27,6 +27,22 @@ pub extern "C" fn adb_engine_new(lists: *const c_char) -> *mut Engine {
     Box::into_raw(Box::new(Engine::new_with_filter_set(set)))
 }
 
+/// Loads redirect and scriptlet resources (Brave's `resources.json`: a JSON array of adblock-rust `Resource`s),
+/// replacing any loaded before. Resources aren't part of the serialized engine. Returns how many were loaded, or -1 if
+/// the JSON doesn't parse. Call before the engine is shared between threads.
+#[no_mangle]
+pub extern "C" fn adb_engine_use_resources(engine: *mut Engine, json: *const c_char) -> i32 {
+    let Some(engine) = (unsafe { engine.as_mut() }) else { return -1 };
+    match serde_json::from_str::<Vec<adblock::resources::Resource>>(text(json)) {
+        Ok(resources) => {
+            let count = resources.len() as i32;
+            engine.use_resources(resources);
+            count
+        }
+        Err(_) => -1,
+    }
+}
+
 /// Restores an engine from `adb_engine_serialize` output (fast startup). Null when the data is stale.
 #[no_mangle]
 pub extern "C" fn adb_engine_deserialize(data: *const u8, len: usize) -> *mut Engine {
