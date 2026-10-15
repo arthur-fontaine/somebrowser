@@ -111,5 +111,5 @@ to check that the feature still works (`forkctl test <feature>`).
 
 ## 9. Performance (U)
 - [~] Lazy feature activation (heavy work deferred) · paint shell before CEF init (todo)
-- [ ] Budgets: app process < 150 MB (excl. renderers); 500-tab model < 20 MB; switch tab < 16 ms
-- [ ] Perf regression tests (signposts)
+- [x] Budgets: app process < 150 MB (excl. renderers; ~110 MB); 500-tab model < 20 MB (~0.7 MB); switch tab < 16 ms (~6 ms)
+- [x] Perf regression tests: budgets checked in E2E (both engines) and Core tests
