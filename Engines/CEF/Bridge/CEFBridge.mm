@@ -161,6 +161,12 @@ private:
     IMPLEMENT_REFCOUNTING(FilterHandler);
 };
 
+/// DevTools windows: CEF's own window, none of a page's handlers. Without a client of their own they would get the
+/// default client, which adopts Chrome-made windows as tabs (a DevTools tab cut off from the page it inspects).
+class DevToolsClient : public CefClient {
+    IMPLEMENT_REFCOUNTING(DevToolsClient);
+};
+
 /// Per-tab client: routes every CEF callback to the ObjC tab (UI thread unless noted).
 class TabClient : public CefClient, public CefLifeSpanHandler, public CefDisplayHandler, public CefLoadHandler,
                   public CefRequestHandler, public CefKeyboardHandler, public CefFindHandler, public CefPermissionHandler,
@@ -199,6 +205,12 @@ public:
         extra_info = [[CEFRuntime shared] extraInfo];
         pendingPopups_.push_back(popup);
         return false;
+    }
+
+    // ⌥⌘I and Chrome's "Inspect" both come here.
+    void OnBeforeDevToolsPopup(CefRefPtr<CefBrowser> browser, CefWindowInfo &windowInfo, CefRefPtr<CefClient> &client,
+                               CefBrowserSettings &settings, CefRefPtr<CefDictionaryValue> &extra_info, bool *use_default_window) override {
+        client = new DevToolsClient;
     }
 
     CEFTab *TakePendingPopup() {
