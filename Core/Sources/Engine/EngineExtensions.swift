@@ -42,4 +42,10 @@ public protocol EngineExtensions: AnyObject {
     @discardableResult func runAction(of extensionID: String, in tab: EngineTab) -> Bool
     /// Shows the engine's extensions menu (pin, options, site access, manage) for `tab`.
     @discardableResult func showExtensionsMenu(in tab: EngineTab) -> Bool
+    /// The text extensions show on their action in `tab` (`action.setBadgeText`), by extension id.
+    func actionBadges(in tab: EngineTab) -> [String: String]
+}
+
+public extension EngineExtensions {
+    func actionBadges(in tab: EngineTab) -> [String: String] { [:] }
 }

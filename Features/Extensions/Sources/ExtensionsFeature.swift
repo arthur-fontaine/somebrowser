@@ -17,6 +17,9 @@ public final class ExtensionsFeature: BrowserFeature {
     }
 
     var engine: EngineExtensions? { context.engine as? EngineExtensions }
+    /// Extensions change their badges at will: read every few seconds while pinned actions show and the app is active.
+    var badgeInterval: TimeInterval = 2
+    private var badgeTimer: Timer?
 
     public func activate() {
         guard let engine else { return }  // engines without Chrome extensions: no buttons, commands stay unhandled
@@ -38,9 +41,29 @@ public final class ExtensionsFeature: BrowserFeature {
 
         let model = self.model, settings = context.settings
         context.ui.contribute("sidebar.header", id: "extensions.buttons", order: 200) { [weak self] window in
-            ExtensionButtons(model: model, showPinned: settings.bool("extensions.showPinned"),
+            ExtensionButtons(model: model, windowID: window.id, showPinned: settings.bool("extensions.showPinned"),
                              run: { self?.run($0, in: window) }, menu: { self?.showMenu(in: window) })
         }
+        let timer = Timer(timeInterval: badgeInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshBadges() }
+        }
+        timer.tolerance = badgeInterval / 2  // coalesced with other wake-ups
+        RunLoop.main.add(timer, forMode: .common)
+        badgeTimer = timer
+    }
+
+    /// Each window's selected page's badges, if it's live (an asleep page shows none).
+    func refreshBadges(force: Bool = false) {
+        guard let engine, force || NSApp?.isActive == true else { return }
+        var badges: [UUID: [String: String]] = [:]
+        if context.settings.bool("extensions.showPinned"), !model.pinned.isEmpty {
+            for window in context.windows {
+                guard let page = context.runtime.selectedTab(in: window)?.engineTab else { continue }
+                let found = engine.actionBadges(in: page)
+                if !found.isEmpty { badges[window.id] = found }
+            }
+        }
+        if badges != model.badges { model.badges = badges }
     }
 
     /// The selected page, loaded if it was discarded: actions always act on a live tab.
@@ -108,12 +131,15 @@ final class ExtensionsModel {
     private(set) var icons: [String: NSImage] = [:]
     /// The pinned extension ⌘E ran last.
     var lastCycled: String?
+    /// Badge text by window, then extension id.
+    var badges: [UUID: [String: String]] = [:]
     var pinned: [BrowserExtension] { extensions.filter(\.isPinned) }
 }
 
 /// Pinned actions and the extensions menu, next to the navigation buttons; Chrome opens popups beside them.
 struct ExtensionButtons: View {
     let model: ExtensionsModel
+    let windowID: UUID
     let showPinned: Bool
     let run: (String) -> Void
     let menu: () -> Void
@@ -123,7 +149,7 @@ struct ExtensionButtons: View {
             HStack(spacing: 0) {
                 if showPinned {
                     ForEach(model.pinned) { ext in
-                        ExtensionIcon(title: ext.name, image: model.icons[ext.id]) { run(ext.id) }
+                        ExtensionIcon(title: ext.name, image: model.icons[ext.id], badge: model.badges[windowID]?[ext.id]) { run(ext.id) }
                     }
                 }
                 ExtensionIcon(title: "Extensions", image: nil, help: "Extensions (⌘⇧E)", action: menu)
@@ -135,6 +161,7 @@ struct ExtensionButtons: View {
 struct ExtensionIcon: View {
     let title: String
     let image: NSImage?
+    var badge: String?
     var help: String?
     let action: () -> Void
     @State private var hovering = false
@@ -149,6 +176,18 @@ struct ExtensionIcon: View {
                 }
             }
             .frame(width: 28, height: 28)
+            .overlay(alignment: .bottomTrailing) {
+                if let badge, !badge.isEmpty {
+                    Text(badge.prefix(4))
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 3)
+                        .frame(minWidth: 12, minHeight: 11)
+                        .background(Capsule().fill(Color.red))
+                        .offset(x: -1, y: -2)
+                        .accessibilityHidden(true)
+                }
+            }
             .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(hovering ? Color.primary.opacity(0.08) : .clear))
             .contentShape(Rectangle())
         }
@@ -156,6 +195,7 @@ struct ExtensionIcon: View {
         .foregroundStyle(.secondary)
         .help(help ?? title)
         .accessibilityLabel(title)
+        .accessibilityValue(badge ?? "")
         .onHover { hovering = $0 }
     }
 }

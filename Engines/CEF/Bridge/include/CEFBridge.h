@@ -125,6 +125,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 - (void)evaluate:(NSString *)code identifier:(int)identifier;
 /// Opens Chrome's extensions menu, anchored to the hidden toolbar. NO without a toolbar.
 - (BOOL)showExtensionsMenu;
+/// Badge text of each pinned action, by its accessible name (our Chromium build exposes badges as the button's
+/// description; stock CEF: none).
+- (NSDictionary<NSString *, NSString *> *)extensionActionBadges;
 /// Runs an extension's action as a toolbar click would (popup, onClicked, activeTab): its pinned button, else
 /// its entry in the extensions menu. `name` is the name Chrome displays.
 - (void)runExtensionActionNamed:(NSString *)name completion:(void (^)(BOOL ran))completion;

@@ -825,6 +825,21 @@ static id AXButtonNamed(id e, NSString *name, int depth) {
     return container ? [AXKids(container).lastObject accessibilityPerformPress] : NO;
 }
 
+- (NSDictionary<NSString *, NSString *> *)extensionActionBadges {
+    NSMutableDictionary<NSString *, NSString *> *badges = [NSMutableDictionary dictionary];
+    id container = AXExtensionsContainer(self.toolbarWindow, 0);
+    NSArray *buttons = container ? AXKids(container) : @[];
+    for (id button in buttons) {
+        if (button == buttons.lastObject) continue;  // the extensions menu
+        NSString *name = AXName(button);
+        NSString *help = [button respondsToSelector:@selector(accessibilityHelp)] ? [button accessibilityHelp] : nil;
+        id value = [button respondsToSelector:@selector(accessibilityValue)] ? [button accessibilityValue] : nil;
+        NSString *badge = help.length ? help : ([value isKindOfClass:NSString.class] ? value : nil);
+        if (name.length && badge.length && ![badge isEqualToString:name]) badges[name] = badge;
+    }
+    return badges;
+}
+
 - (void)runExtensionActionNamed:(NSString *)name completion:(void (^)(BOOL))completion {
     NSWindow *toolbarWindow = self.toolbarWindow;
     id container = AXExtensionsContainer(toolbarWindow, 0);

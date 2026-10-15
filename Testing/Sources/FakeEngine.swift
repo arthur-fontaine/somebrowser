@@ -48,6 +48,8 @@ public final class FakeEngine: BrowserEngine, EngineExtensions, EngineFloating {
     public private(set) var installedExtensions: [BrowserExtension] = []
     public var onExtensionsChanged: (() -> Void)?
     public var toolbarAvailable = true
+    /// What `actionBadges(in:)` reports (extension id → badge text).
+    public var badges: [String: String] = [:]
     public private(set) var ranActions: [(id: String, tab: FakeEngineTab)] = []
     public private(set) var extensionMenus: [FakeEngineTab] = []
 
@@ -190,6 +192,8 @@ extension FakeEngine {
         extensionMenus.append(tab)
         return true
     }
+
+    public func actionBadges(in tab: EngineTab) -> [String: String] { badges }
 
     func recordCreated(_ t: FakeEngineTab) { createdTabs.append(t) }
 }

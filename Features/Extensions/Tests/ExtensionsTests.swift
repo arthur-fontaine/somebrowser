@@ -33,6 +33,25 @@ struct ExtensionsTests {
         #expect(model.icons["a"] === first)
     }
 
+    /// Badges of pinned actions, from the window's selected page; none for a page that's asleep or when nothing is
+    /// pinned.
+    @Test func showsBadgesOfPinnedActions() throws {
+        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(ExtensionsFeature.self))
+        h.engine.simulateExtensions([ublock, notes])
+        h.engine.badges = ["ublock": "12"]
+        _ = h.openTab("https://a.example")
+        feature.refreshBadges(force: true)
+        #expect(feature.model.badges[h.window.id] == ["ublock": "12"])
+        h.engine.badges = [:]
+        feature.refreshBadges(force: true)
+        #expect(feature.model.badges.isEmpty)
+        h.engine.badges = ["ublock": "3"]
+        h.engine.simulateExtensions([notes])  // nothing pinned
+        feature.refreshBadges(force: true)
+        #expect(feature.model.badges.isEmpty)
+    }
+
     @Test func runsActionsOnTheSelectedPage() throws {
         let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
         h.engine.simulateExtensions([ublock])

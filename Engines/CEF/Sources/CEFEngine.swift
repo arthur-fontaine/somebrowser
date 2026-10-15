@@ -235,6 +235,17 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         (tab as? CEFPage)?.tab?.showExtensionsMenu() ?? false
     }
 
+    /// Read from the page's hidden toolbar (our Chromium build exposes badges to accessibility). An action's accessible
+    /// name starts with the extension's name.
+    public func actionBadges(in tab: EngineTab) -> [String: String] {
+        guard runtime.extensionToolbar, let byName = (tab as? CEFPage)?.tab?.extensionActionBadges(), !byName.isEmpty else { return [:] }
+        var badges: [String: String] = [:]
+        for ext in installedExtensions {
+            if let badge = byName.first(where: { $0.key.hasPrefix(ext.name) })?.value { badges[ext.id] = badge }
+        }
+        return badges
+    }
+
     /// Chrome's default search follows the user's engine, for "Search … for" in the context menu. No suggestion URL,
     /// favicon or preconnect: Chrome never contacts the engine on its own.
     func syncDefaultSearch() {
