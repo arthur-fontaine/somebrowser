@@ -53,7 +53,8 @@ reached this Mac's Bookmarks.plist and `SafariStore.favorites()`, which the star
 iCloud Tabs. Adding a favorite: verified on the iPhone within
 two minutes, with Safari running on the Mac (Safari watches Bookmarks.plist and hands the change to its sync agent);
 with Safari not running, untested. An added favorite's upload was also verified on its own: in the agent's log,
-within a second of the edit. Deleting: **not offered yet**, until a Delete record is seen uploaded the same way.
+within a second of the edit. Deleting (start page context menu): verified the same way, the agent marked the record deleted in iCloud
+within ~20 s.
 Tabs and history are read-only: their stores belong to Safari's agents.
 
 **Live lab** — `Tests/LiveSafariLab.swift`, off by default, edits the real Bookmarks.plist through the store, only on

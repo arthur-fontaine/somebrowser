@@ -49,6 +49,7 @@ public final class SafariFeature: BrowserFeature {
                                openInNewWindow: { url in
                                    self?.context.shell?.openWindow(spaceID: window.spaceID, isPrivate: window.isPrivate, initialURL: url)
                                },
+                               delete: { self?.removeFavorite($0) },
                                connect: { self?.connect() })
         }
         context.ui.contribute(.overlay, id: "safari.cloud-tabs", order: 75) { [weak self] window in
@@ -139,6 +140,18 @@ public final class SafariFeature: BrowserFeature {
             context.notify("Added to Safari Favorites", systemImage: "star.fill")
         } catch {
             context.notify("Couldn't add to Safari Favorites", systemImage: "exclamationmark.triangle")
+        }
+    }
+
+    /// Removed here, in Safari and on the iPhone (verified live).
+    func removeFavorite(_ favorite: SafariBookmark) {
+        guard let store else { return }
+        do {
+            try store.removeFavorite(id: favorite.id)
+            model.favorites.removeAll { $0.id == favorite.id }
+            uploadEdits()
+        } catch {
+            context.notify("Couldn't delete the Safari favorite", systemImage: "exclamationmark.triangle")
         }
     }
 

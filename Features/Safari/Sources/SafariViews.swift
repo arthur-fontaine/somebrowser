@@ -2,13 +2,13 @@ import AppKit
 import BrowserCore
 import SwiftUI
 
-/// Start page: Safari Favorites (live) and the iPhone's tabs, or the button that connects Safari. No Delete: Safari
-/// doesn't sync a favorite that disappears from its file, so deleting is done in Safari.
+/// Start page: Safari Favorites (live) and the iPhone's tabs, or the button that connects Safari.
 struct SafariStartSection: View {
     let model: SafariModel
     let window: BrowserWindowState
     let open: (URL, Bool) -> Void
     let openInNewWindow: (URL) -> Void
+    let delete: (SafariBookmark) -> Void
     let connect: () -> Void
 
     var body: some View {
@@ -31,6 +31,7 @@ struct SafariStartSection: View {
                                 .contextMenu {
                                     Button("Open in New Tab") { open(favorite.url, true) }
                                     Button("Open in New Window") { openInNewWindow(favorite.url) }
+                                    Button("Delete", role: .destructive) { delete(favorite) }
                                     Button("Copy Link") {
                                         NSPasteboard.general.clearContents()
                                         NSPasteboard.general.setString(favorite.url.absoluteString, forType: .string)

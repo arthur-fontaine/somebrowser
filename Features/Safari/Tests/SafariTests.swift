@@ -309,6 +309,13 @@ struct FeatureTests {
         try await Task.sleep(for: .milliseconds(100))
         #expect(asked.value == settled)
 
+        // Delete from the start page: gone here and recorded for the agent.
+        let apple = try #require(feature.model.favorites.first { $0.id == "A1" })
+        feature.removeFavorite(apple)
+        #expect(!feature.model.favorites.contains { $0.id == "A1" })
+        #expect(try !store.favorites().contains { $0.id == "A1" })
+        #expect(try store.pendingChanges() == 1)
+
         let provider = SafariHistoryOmnibox(model: feature.model, runtime: h.runtime)
         #expect(provider.items(for: "swift", in: h.window).first?.subtitle == "swift.org")
 
