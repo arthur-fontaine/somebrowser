@@ -358,11 +358,23 @@ public:
         return true;
     }
 
-    // Keyboard: browser shortcuts go to the native menu first.
+    // Keyboard: browser shortcuts go to the native menu first, unless the page should see them first; then the menu
+    // gets them after the page, if the page didn't handle them.
     bool OnPreKeyEvent(CefRefPtr<CefBrowser> browser, const CefKeyEvent &event, CefEventHandle os_event,
                        bool *is_keyboard_shortcut) override {
         if (event.type != KEYEVENT_RAWKEYDOWN || !os_event) return false;
         if (!(event.modifiers & (EVENTFLAG_COMMAND_DOWN | EVENTFLAG_CONTROL_DOWN))) return false;
+        if ([tab_.delegate cefTab:tab_ prefersPageForKey:(__bridge NSEvent *)os_event]) {
+            *is_keyboard_shortcut = true;
+            return false;
+        }
+        return [tab_.delegate cefTab:tab_ handleKeyEquivalent:(__bridge NSEvent *)os_event];
+    }
+
+    bool OnKeyEvent(CefRefPtr<CefBrowser> browser, const CefKeyEvent &event, CefEventHandle os_event) override {
+        if (event.type != KEYEVENT_RAWKEYDOWN || !os_event) return false;
+        if (!(event.modifiers & (EVENTFLAG_COMMAND_DOWN | EVENTFLAG_CONTROL_DOWN))) return false;
+        // Only page-first shortcuts get here unhandled (the menu declined the others before the page).
         return [tab_.delegate cefTab:tab_ handleKeyEquivalent:(__bridge NSEvent *)os_event];
     }
 

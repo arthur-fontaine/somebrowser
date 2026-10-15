@@ -270,6 +270,20 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
     }
 
     /// Browser shortcuts (native menu) win over the page; everything else goes to the page.
+    /// A second press right after the page had its turn goes to the browser.
+    private var lastPageFirstKey: (code: UInt16, flags: UInt, at: TimeInterval)?
+
+    func cefTab(_ tab: CEFTab, prefersPageForKey event: NSEvent) -> Bool {
+        guard engine?.hooks.pageFirstShortcut?(event) == true else { return false }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).rawValue
+        if let last = lastPageFirstKey, last.code == event.keyCode, last.flags == flags, event.timestamp - last.at < 0.5 {
+            lastPageFirstKey = nil
+            return false
+        }
+        lastPageFirstKey = (event.keyCode, flags, event.timestamp)
+        return true
+    }
+
     func cefTab(_ tab: CEFTab, handleKeyEquivalent event: NSEvent) -> Bool {
         NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
     }

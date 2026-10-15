@@ -74,8 +74,9 @@ product name (use `Brand.name`).
 
 Launch with `BROWSER_DATA_DIR=<tmp>` (isolated profile) and `BROWSER_AUTOMATION_SOCKET=<path>`; send
 newline-delimited JSON: `{"op":"open","url":…}`, `{"op":"navigate","url":…}`, `{"op":"run","command":"tabs.close"}`,
-`{"op":"state"}`, `{"op":"eval","js":…}`, `{"op":"setting","key":…,"value":…}`, `{"op":"views"}`,
-`{"op":"quit"}`. Socket paths must be short (< 104 bytes): use a relative path and launch from that
+`{"op":"state"}` (tabs, windows, the app's memory footprint), `{"op":"eval","js":…}`, `{"op":"setting","key":…,"value":…}`,
+`{"op":"views"}`, `{"op":"documentStart","js":…,"prefix":…}`, `{"op":"key","key":"f","modifiers":["cmd"],"keyCode":3,"page":true}`
+(key windows only exist when the app is frontmost), `{"op":"quit"}`. `run` replies with the command's main-thread time. Socket paths must be short (< 104 bytes): use a relative path and launch from that
 directory.
 
 End-to-end tests: `./forkctl test --e2e` builds the app and runs `Tests/E2E` against the selected engine

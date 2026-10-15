@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -117,6 +118,12 @@ public final class EngineHooks {
 
     /// The engine opened a page on its own (e.g. an extension called `chrome.tabs.create`). The runtime opens it as a tab.
     public var onEngineOpenedURL: ((URL) -> Void)?
+
+    // MARK: Keyboard
+
+    /// "Prefer website shortcuts" (Arc): true for a ⌘/⌃ shortcut a focused page should see first. The browser runs it only
+    /// if the page doesn't use it, or when it's pressed again right away. Nil (or false): the browser goes first.
+    public var pageFirstShortcut: ((NSEvent) -> Bool)?
 
     // MARK: Search
 

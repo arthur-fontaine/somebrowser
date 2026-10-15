@@ -124,6 +124,33 @@ final class AutomationServer {
             guard let js = req["js"] as? String, let prefix = req["prefix"] as? String else { return reply(["ok": false, "error": "missing js/prefix"]) }
             runtime.engine.hooks.addDocumentStartScript { $0.absoluteString.hasPrefix(prefix) ? js : nil }
             reply(["ok": true])
+        case "key":
+            // A key press, as if typed (keyboard routing tests): in the key window, or with `page: true` in the page's
+            // window (the engine's child window over the content area), focused first.
+            let shellWindow = window.flatMap { shell?.nsWindow(for: $0) }
+            let pageWindow = shellWindow?.childWindows?.last { $0.identifier != ShellOverlay.windowIdentifier && $0.frame.width > 2 && $0.isVisible }
+            if req["page"] as? Bool == true { window?.viewport?.focusContent() }
+            guard let chars = req["key"] as? String, let target = req["page"] as? Bool == true ? pageWindow : NSApp.keyWindow else {
+                return reply(["ok": false, "error": "missing key or no target window"])
+            }
+            var flags: NSEvent.ModifierFlags = []
+            for m in req["modifiers"] as? [String] ?? [] {
+                switch m {
+                case "cmd": flags.insert(.command)
+                case "shift": flags.insert(.shift)
+                case "opt": flags.insert(.option)
+                case "ctrl": flags.insert(.control)
+                default: break
+                }
+            }
+            for type in [NSEvent.EventType.keyDown, .keyUp] {
+                guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime,
+                                                   windowNumber: target.windowNumber, context: nil, characters: chars,
+                                                   charactersIgnoringModifiers: chars, isARepeat: false, keyCode: UInt16(req["keyCode"] as? Int ?? 0))
+                else { continue }
+                if target.isKeyWindow { NSApp.sendEvent(event) } else { target.sendEvent(event) }
+            }
+            reply(["ok": true, "keyWindow": String(describing: type(of: target))])
         case "state":
             reply(["ok": true, "state": stateJSON()])
         case "eval":

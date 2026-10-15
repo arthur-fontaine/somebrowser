@@ -75,6 +75,11 @@ nonisolated public final class AppDriver: @unchecked Sendable {
         return (r["ms"] as? Double ?? 0, r["msUntilDrawn"] as? Double ?? 0)
     }
 
+    /// Types a key in the key window (`modifiers`: cmd, shift, opt, ctrl; `keyCode`: the virtual key code).
+    public func key(_ key: String, modifiers: [String] = [], keyCode: Int, inPage: Bool = true) throws {
+        try call(["op": "key", "key": key, "modifiers": modifiers, "keyCode": keyCode, "page": inPage])
+    }
+
     /// The app process's physical footprint in bytes (renderers and GPU excluded).
     public func footprint() throws -> Int { ((try state()["memory"] as? [String: Any])?["footprint"] as? Int) ?? -1 }
 
