@@ -35,8 +35,9 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Our CEF source build (`Engines/CEF/build/build-cef.sh`, `docs/recipes/ungoogled-cef.md`): Chromium 156 (latest;
       CEF skipped 155), official + ThinLTO + PGO, H.264/AAC/HEVC, Widevine compiled in, our patches. Built 2026-10-16 in
       2h44 on the spare M1 Pro; all E2E (32) and unit (283) tests pass on it (U)
-- [ ] Publish our CEF build and pin it in `Engines/CEF/vendor.json` (needs a place to host the 130 MB archive; pinned
-      locally through an uncommitted `Fork/` override for now)
+- [~] Publish our CEF build: `./forkctl release <tag> --cef <archive>` uploads it to the GitHub release and pins it. It
+      waits for the repository, which the user will create; pinned locally through an uncommitted `Fork/` override
+      until then
 - [ ] ungoogled-chromium's patches on top, once it tags 156 (its tags stop at 155)
 - [-] `cef-alloy` engine (deferred; no extensions)
 

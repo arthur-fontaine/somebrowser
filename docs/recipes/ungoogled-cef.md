@@ -63,12 +63,14 @@ First build on an M1 Pro (8 cores, 16 GB): checkout about 7 minutes (shallow), b
    python3 make_distrib.py --output-dir=../binary_distrib --ninja-build --arm64-build --minimal --no-docs
    cd ../binary_distrib && tar cjf <name>_minimal.tar.bz2 <name>_minimal
    ```
-3. Publish the `.tar.bz2` and pin it:
+3. Publish and pin: `./forkctl release <tag> --cef <archive.tar.bz2>` uploads it to that GitHub release of `origin`
+   (with `gh`), then writes the pin:
    ```json
-   { "version": "<version>-somebrowser", "url": "https://…/cef_binary_…_macosarm64_minimal.tar.bz2", "sha1": "<shasum -a 1>" }
+   { "version": "<version>-somebrowser", "url": "https://github.com/<owner>/<repo>/releases/download/<tag>/cef_binary_…", "sha1": "…" }
    ```
-   A fork pins its own in `Fork/Engines/CEF/vendor.json`; for a local try, a `file://` URL works. Then run
-   `./forkctl vendor cef`, `./forkctl build` and `./forkctl test --e2e`.
+   With `--fork`, a fork pins its own build in `Fork/Engines/CEF/vendor.json`. For a local try before publishing, a
+   `file://` URL in `Fork/Engines/CEF/vendor.json` works. Then run `./forkctl vendor cef`, `./forkctl build` and
+   `./forkctl test --e2e`.
 
 ## Gotchas met
 

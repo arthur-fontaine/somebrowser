@@ -27,6 +27,9 @@ Customize a fork (writes only Fork/, never upstream files)
 
 Engines
   vendor cef               Download + verify the pinned CEF build and its C++ wrapper
+  release <tag> --cef <archive.tar.bz2> [--fork]
+                           Upload our CEF build (Engines/CEF/build) to that GitHub release of origin (gh), then pin
+                           it in Engines/CEF/vendor.json (Fork/'s with --fork)
 """
 
 struct CLI {
@@ -131,6 +134,11 @@ struct CLI {
         case "vendor":
             guard positional.first == "cef" else { throw ProjectError.invalid("usage: forkctl vendor cef") }
             try Vendor.cef(root: root)
+        case "release":
+            guard let tag = positional.first, let archive = option("--cef") else {
+                throw ProjectError.invalid("usage: forkctl release <tag> --cef <archive.tar.bz2> [--fork]")
+            }
+            try Release.publish(root: root, tag: tag, archive: URL(fileURLWithPath: archive), fork: flag("--fork"))
         default:
             print(usage)
         }
