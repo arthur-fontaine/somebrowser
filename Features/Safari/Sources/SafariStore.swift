@@ -98,13 +98,41 @@ nonisolated struct SafariStore: Sendable {
         ((try readBookmarks()["Sync"] as? NSDictionary)?["Changes"] as? NSArray)?.count ?? 0
     }
 
-    /// The agent posts this after each bookmark sync (`WBSSafariBookmarksSyncAgentDidUpdateBookmarksNotificationName`),
-    /// and Safari answers it by asking the agent to sync the changes Safari holds, which include records written here
-    /// once Safari has reloaded the file. Only Safari can ask: the agent requires an Apple entitlement. Delivered at once,
-    /// or Safari in the background would only get it when next activated.
+    /// Result 5 also starts Safari's migration to CloudKit bookmarks, done on any current Mac (3): only ask then.
+    var isMigratedToCloudKit: Bool {
+        ((try? readBookmarks())?["Sync"] as? NSDictionary)?["CloudKitMigrationState"] as? Int == 3
+    }
+
+    /// Safari forgets the change log it loaded when a reload changes the bookmarks themselves (an add, a removal),
+    /// and keeps it when only sync data changed: touching the file gives it that second reload.
+    func remindSafariOfChanges() throws {
+        try SafariFileLock(folder: folders.library).withLock {
+            try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: bookmarksFile.path)
+        }
+    }
+
+    /// The agent posts this after a bookmark sync (`WBSSafariBookmarksSyncAgentDidUpdateBookmarksNotificationName`).
+    /// With `syncResult` 5, Safari answers by asking the agent to sync if it holds change records (only Safari may ask:
+    /// the agent requires an Apple entitlement). Delivered at once, even to Safari in the background.
     static func askSafariToSync() {
         DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.apple.SafariBookmarksSync.UpdateReceived"),
-                                                                     object: nil, userInfo: nil, deliverImmediately: true)
+                                                                     object: nil, userInfo: ["syncResult": 5], deliverImmediately: true)
+    }
+
+    /// Gets the change records to iCloud: remind Safari, ask it, and again later until the agent has taken them
+    /// (verified on macOS 27: uploaded within a second). Needs Safari running; otherwise they go with its next sync.
+    func upload(attempts: [Duration], reloadGrace: Duration = .milliseconds(500), ask: @Sendable () -> Void = askSafariToSync,
+                progress: @Sendable (Int) -> Void = { _ in }) async {
+        guard isMigratedToCloudKit else { return }
+        for delay in attempts {
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let pending = try? pendingChanges() else { return }
+            progress(pending)
+            guard pending > 0 else { return }
+            try? remindSafariOfChanges()
+            try? await Task.sleep(for: reloadGrace)  // Safari reloads within milliseconds of the change
+            ask()
+        }
     }
 
     /// Reads, changes and writes Bookmarks.plist under Safari's lock, so neither Safari nor its sync agent writes in between.

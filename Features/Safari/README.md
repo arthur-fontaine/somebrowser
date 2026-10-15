@@ -27,12 +27,20 @@ in the feature's data folder. Both folders are watched, so changes show up live.
   Mac: that's why a deletion never reached the iPhone. Safari's rule for redundant records is kept: a Delete replaces
   pending records, and cancels an Add that never reached iCloud.
 - **When it uploads.** The agent doesn't watch the file. It syncs bookmarks when Safari asks over an entitled XPC
-  connection, when iCloud pushes a bookmark change from another device, or when the account changes. Safari asks after
-  saving its own edits, and when it receives the agent's distributed notification
-  `com.apple.SafariBookmarksSync.UpdateReceived` while it holds change records. Records loaded from the file count.
-  So after an edit the feature posts that notification, again at growing intervals, until the change log is empty
-  (`uploadEdits`): Safari notices the file a few seconds after it changes (13 s seen). With Safari closed, the records
-  wait for Safari's next sync.
+  connection, when iCloud pushes a bookmark change from another device, or when the account changes. Safari asks
+  after saving its own edits. It also asks when it receives the agent's distributed notification
+  `com.apple.SafariBookmarksSync.UpdateReceived` with `syncResult` 5 while it holds change records, and records it
+  loaded from the file count. Safari reloads the file as soon as it changes (FSEvents). Such a reload forgets the loaded
+  change log when the bookmarks themselves changed, and keeps it when only sync data did. So after an edit,
+  `SafariStore.upload` does three things:
+  1. touches the file, which makes Safari reload again and keep the records;
+  2. posts the notification;
+  3. repeats at growing intervals until the change log is empty.
+
+  Result 5 also starts Safari's CloudKit migration, so the store only posts it when `CloudKitMigrationState` is 3.
+  Verified 2026-10-15 on macOS 27 with real data: the agent uploaded an added favorite in under a second
+  ("Assigning new record … to locally added item", then "Cleared 1 changes"). With Safari closed, the records wait
+  for its next sync.
 
 **Access, no Full Disk Access** — "Connect to Safari…" (or the start page button) opens an open panel on each
 folder; clicking Allow is explicit consent, which macOS honors for Safari's protected data. `SafariAccess` keeps the
@@ -44,9 +52,9 @@ stored grants.
 reached this Mac's Bookmarks.plist and `SafariStore.favorites()`, which the start page lists) and the iPhone's
 iCloud Tabs. Adding a favorite: verified on the iPhone within
 two minutes, with Safari running on the Mac (Safari watches Bookmarks.plist and hands the change to its sync agent);
-with Safari not running, untested. Deleting: **not offered yet**. A favorite removed from the file without a change
-record never left the Mac. The store now writes the record, but it hasn't been verified on the iPhone, so delete in
-Safari for now. Tabs and history are read-only: their stores belong to Safari's agents.
+with Safari not running, untested. An added favorite's upload was also verified on its own: in the agent's log,
+within a second of the edit. Deleting: **not offered yet**, until a Delete record is seen uploaded the same way.
+Tabs and history are read-only: their stores belong to Safari's agents.
 
 **Live lab** — `Tests/LiveSafariLab.swift`, off by default, edits the real Bookmarks.plist through the store, only on
 favorites named "<Brand.name> lab…": `SAFARI_LAB="add:<name>"`, `"remove:<name>"` or `status`, then

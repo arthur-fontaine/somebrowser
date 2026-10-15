@@ -16,8 +16,9 @@ public final class SafariFeature: BrowserFeature {
     private var upload: Task<Void, Never>?
     /// Swapped in tests, which mustn't reach the real Safari.
     var askSafariToSync: @Sendable () -> Void = SafariStore.askSafariToSync
-    /// Safari notices the file changed seconds later (13 s seen), so ask again until the agent has taken the records.
-    var uploadAttempts: [Duration] = [2, 5, 10, 20, 40, 80, 160].map { .seconds($0) }
+    /// If Safari wasn't listening, ask again until the agent has taken the records.
+    var uploadAttempts: [Duration] = [1, 5, 10, 20, 40, 80, 160].map { .seconds($0) }
+    var reloadGrace: Duration = .milliseconds(500)
     static let cloudTabsFlag = "safari.cloud-tabs"
 
     public convenience init(context: FeatureContext) {
@@ -142,18 +143,11 @@ public final class SafariFeature: BrowserFeature {
     }
 
     /// Gets the change records just written to iCloud: Safari's agent doesn't watch the file (README, "Writing like Safari").
-    /// Needs Safari running; otherwise they go with Safari's next sync.
     func uploadEdits() {
         guard let store else { return }
         upload?.cancel()
-        let (ask, attempts) = (askSafariToSync, uploadAttempts)
-        upload = Task.detached(priority: .utility) {
-            for delay in attempts {
-                try? await Task.sleep(for: delay)
-                guard !Task.isCancelled, let pending = try? store.pendingChanges(), pending > 0 else { return }
-                ask()
-            }
-        }
+        let (ask, attempts, grace) = (askSafariToSync, uploadAttempts, reloadGrace)
+        upload = Task.detached(priority: .utility) { await store.upload(attempts: attempts, reloadGrace: grace, ask: ask) }
     }
 }
 

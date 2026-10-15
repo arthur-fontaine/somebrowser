@@ -19,7 +19,7 @@ func makeHome() throws -> URL {
     }
     let root: [String: Any] = [
         "WebBookmarkType": "WebBookmarkTypeList", "WebBookmarkUUID": "root", "WebBookmarkFileVersion": 1, "Title": "",
-        "Sync": ["CloudKitDeviceIdentifier": "device", "CloudKitMigrationState": 0],
+        "Sync": ["CloudKitDeviceIdentifier": "device", "CloudKitMigrationState": 3],
         "Children": [
             ["WebBookmarkType": "WebBookmarkTypeProxy", "WebBookmarkIdentifier": "History", "Title": "History", "WebBookmarkUUID": "hist"],
             ["WebBookmarkType": "WebBookmarkTypeList", "Title": "BookmarksBar", "WebBookmarkUUID": "bar", "Children": [
@@ -196,6 +196,36 @@ struct StoreTests {
         }
     }
 
+    /// Each attempt touches the file (Safari reloads and keeps the records) then asks; stops once the agent took them.
+    @Test func uploadRemindsSafariThenAsksUntilTheAgentTookTheRecords() async throws {
+        let s = try store()
+        _ = try s.addFavorite(title: "Example", url: URL(string: "https://example.com/")!)
+        try FileManager.default.setAttributes([.modificationDate: Date.distantPast], ofItemAtPath: s.bookmarksFile.path)
+        let asked = Counter()
+        let file = s.bookmarksFile
+        await s.upload(attempts: Array(repeating: .milliseconds(1), count: 5), reloadGrace: .milliseconds(1), ask: {
+            asked.increment()
+            guard asked.value == 2 else { return }
+            // The agent takes the records on the second request.
+            let root = try! PropertyListSerialization.propertyList(from: Data(contentsOf: file), options: .mutableContainers, format: nil) as! NSMutableDictionary
+            (root["Sync"] as! NSMutableDictionary).removeObject(forKey: "Changes")
+            try! PropertyListSerialization.data(fromPropertyList: root, format: .binary, options: 0).write(to: file)
+        })
+        #expect(asked.value == 2)
+        let touched = try FileManager.default.attributesOfItem(atPath: s.bookmarksFile.path)[.modificationDate] as? Date
+        #expect(touched.map { $0 > Date.distantPast } == true)
+
+        // Not migrated to CloudKit bookmarks: the request would start Safari's migration, so nothing is asked.
+        let old = try store()
+        let root = try PropertyListSerialization.propertyList(from: Data(contentsOf: old.bookmarksFile), options: .mutableContainers, format: nil) as! NSMutableDictionary
+        (root["Sync"] as! NSMutableDictionary)["CloudKitMigrationState"] = 1
+        try PropertyListSerialization.data(fromPropertyList: root, format: .binary, options: 0).write(to: old.bookmarksFile)
+        _ = try old.addFavorite(title: "Example", url: URL(string: "https://example.com/")!)
+        let unasked = Counter()
+        await old.upload(attempts: [.milliseconds(1)], reloadGrace: .milliseconds(1), ask: { unasked.increment() })
+        #expect(unasked.value == 0)
+    }
+
     @Test func missingFilesMeanNoAccessOrNothing() {
         let s = SafariStore(folders: SafariFolders(library: URL(fileURLWithPath: "/nonexistent-library"), container: nil),
                             backups: FileManager.default.temporaryDirectory)
@@ -253,6 +283,7 @@ struct FeatureTests {
         let asked = Counter()
         feature.askSafariToSync = { asked.increment() }
         feature.uploadAttempts = Array(repeating: .milliseconds(20), count: 50)
+        feature.reloadGrace = .milliseconds(1)
         feature.activate()
         #expect(feature.model.hasAccess == false)
 
