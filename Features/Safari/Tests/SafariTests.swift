@@ -58,7 +58,8 @@ func makeHome() throws -> URL {
     INSERT INTO cloud_tab_devices VALUES ('D1', x'', 'Arthur’s iPhone', 'com.apple.iphone', 0, 0, 2), ('D2', x'', 'Old iPad', 'com.apple.ipad', 0, 0, 1),
         ('D3', x'', 'This Mac', 'com.apple.macbookpro', 0, 0, 3);
     """)
-    // Tab Groups: the real table (macOS 27), with a profile, a group's scoped-favorites folder and tombstones.
+    // Tab Groups: the real table (macOS 27), with a profile, a group's scoped-favorites folder and tombstones. Safari
+    // leaves groups' order_index at 0, so their tabs' order indexes interleave.
     sqlite(container.appendingPathComponent("SafariTabs.db"), """
     CREATE TABLE bookmarks (id INTEGER PRIMARY KEY AUTOINCREMENT,special_id INTEGER DEFAULT 0,parent INTEGER, type INTEGER,title TEXT,url TEXT COLLATE NOCASE,num_children INTEGER DEFAULT 0,editable INTEGER DEFAULT 1,deletable INTEGER DEFAULT 1,hidden INTEGER DEFAULT 0,hidden_ancestor_count INTEGER DEFAULT 0,order_index INTEGER NOT NULL,external_uuid TEXT UNIQUE,read INTEGER DEFAULT NULL,last_modified REAL DEFAULT NULL,server_id TEXT, sync_key TEXT,sync_data BLOB,added INTEGER DEFAULT 1,deleted INTEGER DEFAULT 0,extra_attributes BLOB DEFAULT NULL,local_attributes BLOB DEFAULT NULL,fetched_icon BOOL DEFAULT 0, icon BLOB DEFAULT NULL,dav_generation INTEGER DEFAULT 0,locally_added BOOL DEFAULT 0,archive_status INTEGER DEFAULT 0,syncable BOOL DEFAULT 1,web_filter_status INTEGER DEFAULT 0, modified_attributes UNSIGNED BIG INT DEFAULT 0, date_closed REAL DEFAULT NULL, last_selected_child INTEGER DEFAULT NULL, subtype INTEGER DEFAULT 0, cookies_uuid TEXT DEFAULT NULL, local_storage_uuid TEXT DEFAULT NULL, session_storage_uuid TEXT DEFAULT NULL, topic_title TEXT, feature_text TEXT, fetched_feature_text BOOL DEFAULT 0, is_marked_for_expiration INTEGER);
     CREATE TABLE folder_ancestors (id INTEGER PRIMARY KEY AUTOINCREMENT, folder_id INTEGER NOT NULL CONSTRAINT fk_ancestors_folder_id REFERENCES bookmarks(id) ON DELETE CASCADE, ancestor_id INTEGER NOT NULL);
@@ -70,16 +71,19 @@ func makeHome() throws -> URL {
     INSERT INTO bookmarks (id, special_id, parent, type, subtype, hidden, deleted, order_index, external_uuid, title, url) VALUES
         (0, 0, NULL, 1, 0, 0, 0, 0, 'root', '', NULL),
         (1, 6, 0, 1, 0, 1, 0, 0, 'recovered', 'Recovered', NULL),
-        (10, 0, 0, 1, 0, 0, 0, 2, 'G-work', 'Work', NULL),
+        (10, 0, 0, 1, 0, 0, 0, 0, 'G-work', 'Work', NULL),
         (11, 0, 10, 1, 1, 0, 0, 0, 'G-work-favorites', '', NULL),
         (12, 0, 10, 0, 0, 0, 0, 2, 'T-mail', 'Mail', 'https://mail.example/'),
         (13, 0, 10, 0, 0, 0, 0, 1, 'T-docs', 'Docs', 'https://docs.example/'),
         (14, 0, 10, 0, 0, 0, 1, 3, 'T-gone', 'Gone', 'https://gone.example/'),
         (15, 0, 0, 1, 0, 0, 1, 3, 'G-old', 'Old', NULL),
-        (16, 0, 0, 1, 0, 0, 0, 1, 'G-empty', 'Empty', NULL),
+        (16, 0, 0, 1, 0, 0, 0, 0, 'G-empty', 'Empty', NULL),
         (20, 0, 0, 1, 2, 0, 0, 4, 'P-personal', '', NULL),
         (21, 0, 20, 1, 0, 0, 0, 0, 'G-trip', 'Trip', NULL),
-        (22, 0, 21, 0, 0, 0, 0, 0, 'T-maps', 'Maps', 'https://maps.example/');
+        (22, 0, 21, 0, 0, 0, 0, 0, 'T-maps', 'Maps', 'https://maps.example/'),
+        (30, 0, 0, 1, 0, 0, 0, 0, 'G-home', 'Home', NULL),
+        (31, 0, 30, 0, 0, 0, 0, 3, 'T-shop', 'Shop', 'https://shop.example/'),
+        (32, 0, 30, 0, 0, 0, 0, 0, 'T-news', 'News', 'https://news.example/');
     """)
     var db: OpaquePointer?
     sqlite3_open(container.appendingPathComponent("CloudTabs.db").path, &db)
@@ -128,15 +132,16 @@ struct StoreTests {
         #expect(history.first?.lastVisit == Date(timeIntervalSinceReferenceDate: 780_000_000))
     }
 
-    /// Groups in Safari's order (the default profile's first), their tabs in order; tombstones, the scoped-favorites
-    /// folder and Safari's hidden folders left out.
+    /// Groups by profile (the default one's first), each once with all its tabs in order, though their order indexes
+    /// interleave; tombstones, the scoped-favorites folder and Safari's hidden folders left out.
     @Test func readsTabGroups() throws {
         let groups = try store().tabGroups()
-        #expect(groups.map(\.title) == ["Empty", "Work", "Trip"])
-        #expect(groups[1].tabs.map(\.title) == ["Docs", "Mail"])
-        #expect(groups[1].tabs.first?.url.host == "docs.example")
-        #expect(groups[2].tabs.map(\.id) == ["T-maps"])
-        #expect(groups[0].tabs.isEmpty)
+        #expect(groups.map(\.title) == ["Work", "Empty", "Home", "Trip"])
+        #expect(groups[0].tabs.map(\.title) == ["Docs", "Mail"])
+        #expect(groups[0].tabs.first?.url.host == "docs.example")
+        #expect(groups[1].tabs.isEmpty)
+        #expect(groups[2].tabs.map(\.title) == ["News", "Shop"])
+        #expect(groups[3].tabs.map(\.id) == ["T-maps"])
     }
 
     func value(_ file: URL, _ sql: String) -> Int {
@@ -572,18 +577,23 @@ struct FeatureTests {
         let store = try #require(feature.store)
         func group() -> SafariTabGroup? { (try? store.tabGroups())?.first { $0.title == feature.sharedGroupTitle } }
         func settle(_ done: () -> Bool) async throws { for _ in 0..<200 where !done() { try await Task.sleep(for: .milliseconds(10)) } }
+        try await iPhone.mirror(title: "Reading", tabs: (1...3).map {
+            SafariBookmark(id: UUID().uuidString, title: "R\($0)", url: URL(string: "https://r\($0).example/")!)
+        })
 
         let a = h.openTab("https://a.example/")
         let b = h.openTab("https://b.example/")
         try await settle { group()?.tabs.count == 2 && feature.sharedRows?.count == 2 }
         let rows = try #require(group()?.tabs)
         let rowB = try #require(rows.first { $0.url.host == "b.example" })
+        // In Safari's database every group's order_index is 0 (seen live): the groups' tabs' indexes interleave.
+        try SafariStore.transaction(tabsFile) { db in try SafariStore.run(db, "UPDATE bookmarks SET order_index = 0 WHERE type = 1 AND subtype = 0") }
 
         // The agent recreating a row (new id on this Mac, same record) isn't a close.
         let recordB = try #require(rowB.serverID)
         try SafariStore.transaction(tabsFile) { db in try SafariStore.run(db, "UPDATE bookmarks SET external_uuid = ? WHERE server_id = ?", UUID().uuidString, recordB) }
         feature.refresh()
-        try await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(800))  // well past the second look
         #expect(h.runtime.tabs.tab(b.id) != nil)
         let recreatedB = try #require(group()?.tabs.first { $0.serverID == recordB })
 

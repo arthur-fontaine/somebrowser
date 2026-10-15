@@ -85,6 +85,9 @@ feature takes two other routes:
     - a record this browser didn't write was opened there. It opens here in the background.
 
     Refreshes that overlap a mirror are skipped. Without a saved map (first run), the browser's tabs set the group.
+    Safari leaves every group's `order_index` at 0, so groups are read row by row grouped by id. Sorted by tab
+    alone, the groups' tabs interleaved, the shared group came out in pieces, and its other tabs looked closed (seen
+    live).
 
 Each write is one `BEGIN IMMEDIATE` transaction with a 5 s busy timeout. Private windows are never shared.
 

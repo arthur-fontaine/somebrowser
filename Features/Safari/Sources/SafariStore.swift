@@ -251,9 +251,10 @@ nonisolated struct SafariStore: Sendable {
 
     // MARK: Tab Groups
 
-    /// Safari's Tab Groups, in Safari's order, read-only: SafariTabs.db keeps them as folders (type 1, subtype 0) under
-    /// the root or a profile (subtype 2), their tabs as leaves (type 0); a group's subtype-1 folder holds its scoped
-    /// favorites, and deleted rows stay as tombstones until synced.
+    /// Safari's Tab Groups, read-only: SafariTabs.db keeps them as folders (type 1, subtype 0) under the root or a
+    /// profile (subtype 2), their tabs as leaves (type 0); a group's subtype-1 folder holds its scoped favorites, and
+    /// deleted rows stay as tombstones until synced. Groups share order_index 0, so rows are kept together by group id:
+    /// sorted by tab alone, groups came out in pieces and the shared one looked closed (seen live).
     func tabGroups() throws -> [SafariTabGroup] {
         guard let file = tabGroupsFile, FileManager.default.fileExists(atPath: file.path) else { return [] }
         return try Self.query(file) { db in
@@ -263,7 +264,7 @@ nonisolated struct SafariStore: Sendable {
             LEFT JOIN bookmarks t ON t.parent = g.id AND t.type = 0 AND t.deleted = 0 AND t.hidden = 0
             WHERE g.type = 1 AND g.subtype = 0 AND g.special_id = 0 AND g.hidden = 0 AND g.deleted = 0
               AND g.parent IN (SELECT id FROM bookmarks WHERE parent IS NULL OR (type = 1 AND subtype = 2 AND deleted = 0))
-            ORDER BY g.parent, g.order_index, t.order_index
+            ORDER BY g.parent, g.order_index, g.id, t.order_index
             """
             Self.rows(db, sql) { s in
                 let id = Self.text(s, 0)
