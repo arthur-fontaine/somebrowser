@@ -149,6 +149,8 @@ nonisolated public struct WebRequest: Sendable {
 nonisolated public enum RequestVerdict: Equatable, Sendable {
     case allow, block
     case redirect(URL)
+    /// Answer with this body instead of the network (e.g. a harmless stand-in for a blocked script).
+    case respond(mimeType: String, body: Data)
 }
 
 public struct UserScript: Sendable {

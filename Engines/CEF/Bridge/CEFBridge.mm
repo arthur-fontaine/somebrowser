@@ -138,6 +138,19 @@ public:
         NSString *verdict = [[CEFRuntime shared] filter:url firstParty:fp type:ResourceTypeName(request->GetResourceType())];
         if (!verdict) return RV_CONTINUE;
         if (verdict.length == 0) return RV_CANCEL;
+        // A body to answer with (Chromium won't redirect subresources to data: URLs): GetResourceHandler serves it.
+        if ([verdict hasPrefix:@"data:"]) {
+            NSRange comma = [verdict rangeOfString:@","];
+            if (comma.location == NSNotFound) return RV_CANCEL;
+            NSString *meta = [verdict substringWithRange:NSMakeRange(5, comma.location - 5)];
+            NSData *body = [[NSData alloc] initWithBase64EncodedString:[verdict substringFromIndex:comma.location + 1] options:0];
+            if (!body) return RV_CANCEL;
+            Simulated response{200, "OK", [meta componentsSeparatedByString:@";"].firstObject.UTF8String ?: "text/plain", {},
+                               std::string(static_cast<const char *>(body.bytes), body.length)};
+            response.headers.insert({"Access-Control-Allow-Origin", "*"});
+            Simulate(url, std::move(response));
+            return RV_CONTINUE;
+        }
         request->SetURL(CS(verdict));  // an internal redirect: the new URL is filtered again
         return RV_CONTINUE;
     }

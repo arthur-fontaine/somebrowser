@@ -195,6 +195,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         case .allow: return nil
         case .block: return ""
         case .redirect(let target): return target == u ? nil : target.absoluteString
+        case .respond(let mimeType, let body): return "data:\(mimeType);base64,\(body.base64EncodedString())"  // served by the bridge
         }
     }
 
