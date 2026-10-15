@@ -90,8 +90,15 @@ final class AutomationServer {
             guard let id = req["command"] as? String else { return reply(["ok": false, "error": "missing command"]) }
             let args = (req["args"] as? [String: Any] ?? [:]).mapValues { "\($0)" }
             do {
+                // Main-thread time of the command and of the layout/drawing it caused (perf budgets).
+                let start = DispatchTime.now()
                 try runtime.commands.run(id, window: window, arguments: args)
-                reply(["ok": true])
+                let ran = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6
+                DispatchQueue.main.async {
+                    NSApp.windows.forEach { $0.displayIfNeeded() }
+                    let total = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6
+                    reply(["ok": true, "ms": ran, "msUntilDrawn": total])
+                }
             } catch { reply(["ok": false, "error": "\(error)"]) }
         case "open":
             guard let s = req["url"] as? String, let url = URL(string: s), let window else { return reply(["ok": false, "error": "bad url or no window"]) }
@@ -165,6 +172,16 @@ final class AutomationServer {
         }
     }
 
+    /// This process's physical footprint in bytes (Activity Monitor's "Memory"), renderers and GPU excluded.
+    static func footprint() -> Int {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+        }
+        return result == KERN_SUCCESS ? Int(info.phys_footprint) : -1
+    }
+
     private func stateJSON() -> [String: Any] {
         func tabJSON(_ id: NodeID) -> [String: Any]? {
             guard let t = runtime.tabs.tab(id) else { return nil }
@@ -178,6 +195,7 @@ final class AutomationServer {
             ]
         }
         return [
+            "memory": ["footprint": Self.footprint()],
             "engine": runtime.engine.id,
             "features": runtime.activationOrder,
             "extensions": ((runtime.engine as? EngineExtensions)?.installedExtensions ?? []).map {

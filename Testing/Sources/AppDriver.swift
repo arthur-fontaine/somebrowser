@@ -67,10 +67,16 @@ nonisolated public final class AppDriver: @unchecked Sendable {
         return obj
     }
 
-    public func run(_ command: String, _ args: [String: String] = [:]) throws {
+    /// Runs a command; returns its main-thread time in ms, and the time until the windows were drawn.
+    @discardableResult
+    public func run(_ command: String, _ args: [String: String] = [:]) throws -> (ms: Double, drawn: Double) {
         let r = try call(["op": "run", "command": command, "args": args])
         if r["ok"] as? Bool != true { throw DriverError.socket("\(command): \(r["error"] ?? "?")") }
+        return (r["ms"] as? Double ?? 0, r["msUntilDrawn"] as? Double ?? 0)
     }
+
+    /// The app process's physical footprint in bytes (renderers and GPU excluded).
+    public func footprint() throws -> Int { ((try state()["memory"] as? [String: Any])?["footprint"] as? Int) ?? -1 }
 
     public func open(_ url: String) throws { try call(["op": "open", "url": url]) }
 

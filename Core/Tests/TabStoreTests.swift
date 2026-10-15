@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Testing
 @testable import BrowserCore
@@ -147,5 +148,32 @@ extension TabStoreTests {
         store.reopenLastClosed()
         #expect(store.parent(of: b.id) == a.id)
         #expect(titles(today) == ["a", "b"])
+    }
+
+    /// Performance budget: 500 tabs (as trees, with titles and URLs) cost under 20 MB, and the sidebar rows are rebuilt
+    /// in well under a frame.
+    @Test func fiveHundredTabsStayCheap() {
+        func footprint() -> Int {
+            var info = task_vm_info_data_t()
+            var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+            _ = withUnsafeMutablePointer(to: &info) {
+                $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count) }
+            }
+            return Int(info.phys_footprint)
+        }
+        let before = footprint()
+        var parent: BrowserTab?
+        for i in 0..<500 {
+            let t = BrowserTab(url: URL(string: "https://site\(i).example/a/rather/long/path?query=\(i)")!, title: "A page title number \(i) of the session")
+            if i % 5 != 0, let p = parent { store.insertChild(t, of: p.id) } else { parent = store.insert(t, into: today) }
+        }
+        let grown = footprint() - before
+        let start = DispatchTime.now()
+        let rows = store.rows(in: today)
+        let ms = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6
+        print("500 tabs: \(grown >> 10) KB, rows in \(ms) ms")
+        #expect(rows.count == 500)
+        #expect(grown < 20 << 20)
+        #expect(ms < 8)
     }
 }

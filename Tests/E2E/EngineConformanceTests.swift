@@ -87,6 +87,29 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// Performance budgets: switching tabs costs under 16 ms of main-thread time (drawing included, median), and the
+    /// app process stays under 150 MB with pages open (renderers and GPU are separate processes).
+    @Test func staysWithinPerformanceBudgets() throws {
+        let (app, server) = try launch()
+        for page in ["/one", "/two", "/three", "/early"] { try app.open(server.url(page)) }
+        try app.waitUntil(timeout: 20) { try app.tabs().filter { $0.url.contains("127.0.0.1") && !$0.title.isEmpty }.count == 4 }
+        // One switch at a time, as a person would (each measured on its own, not queued behind the previous).
+        let runs = try (0..<24).map { _ in
+            Thread.sleep(forTimeInterval: 0.1)
+            return try app.run("tabs.next")
+        }
+        let switches = runs.map(\.drawn).sorted()
+        let median = switches[switches.count / 2]
+        print("tab switch ms: median \(median), max \(switches.last!), command median \(runs.map(\.ms).sorted()[runs.count / 2])")
+        #expect(median < 16)
+        // Steady state: graphics memory from the switches is reclaimed within moments.
+        var footprint = try app.footprint()
+        for _ in 0..<20 where footprint >= 150 << 20 { Thread.sleep(forTimeInterval: 0.5); footprint = try app.footprint() }
+        print("app footprint MB:", footprint >> 20)
+        #expect(footprint > 0 && footprint < 150 << 20)
+        try app.quit()
+    }
+
     /// A hibernated tab wakes on its page with its back/forward history.
     @Test func hibernatedTabsWakeWithTheirHistory() throws {
         let (app, server) = try launch()
