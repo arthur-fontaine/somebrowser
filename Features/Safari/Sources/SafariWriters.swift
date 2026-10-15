@@ -14,23 +14,26 @@ nonisolated struct SafariVisit: Equatable, Sendable {
 nonisolated extension SafariStore {
     // MARK: Tab Groups (written through WebBookmarks: SafariTabGroupWriter)
 
-    /// The tabs in a Tab Group (by the group's `external_uuid`), from the live database.
-    static func tabIDs(in file: URL, groupID: String) throws -> Set<String> {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(file.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { sqlite3_close(db); throw StoreError.noAccess }
-        defer { sqlite3_close(db) }
-        sqlite3_busy_timeout(db, 5000)
-        var ids = Set<String>()
+    /// A Tab Group's tabs as rows (by the group's `external_uuid`), from the live database.
+    static func groupRows(in file: URL, groupID: String) throws -> [SafariBookmark] {
         let id = groupID.replacingOccurrences(of: "'", with: "''")
-        rows(db, "SELECT t.external_uuid FROM bookmarks t JOIN bookmarks g ON t.parent = g.id WHERE g.external_uuid = '\(id)' AND t.type = 0 AND t.deleted = 0") { s in
-            ids.insert(text(s, 0))
+        return try read(file) { db in
+            var tabs: [SafariBookmark] = []
+            rows(db, """
+            SELECT t.external_uuid, t.title, t.url, t.server_id FROM bookmarks t JOIN bookmarks g ON t.parent = g.id
+            WHERE g.external_uuid = '\(id)' AND t.type = 0 AND t.deleted = 0
+            """) { s in
+                guard let url = URL(string: text(s, 2)) else { return }
+                tabs.append(SafariBookmark(id: text(s, 0), title: text(s, 1), url: url,
+                                           serverID: sqlite3_column_type(s, 3) == SQLITE_NULL ? nil : text(s, 3)))
+            }
+            return tabs
         }
-        return ids
     }
 
-    /// A tab's id in the Tab Group: the same tab at the same page keeps it, anything else is a new tab.
-    static func tabRowID(tab: UUID, url: URL, title: String) -> String {
-        var bytes = Array(SHA256.hash(data: Data("\(tab.uuidString)|\(url.absoluteString)|\(title)".utf8)).prefix(16))
+    /// A tab's id in the Tab Group when it writes the row: the same tab at the same page gets the same one.
+    static func tabRowID(tab: UUID, url: URL) -> String {
+        var bytes = Array(SHA256.hash(data: Data("\(tab.uuidString)|\(url.absoluteString)".utf8)).prefix(16))
         bytes[6] = (bytes[6] & 0x0F) | 0x50  // version 5 (name-based)
         bytes[8] = (bytes[8] & 0x3F) | 0x80
         return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],

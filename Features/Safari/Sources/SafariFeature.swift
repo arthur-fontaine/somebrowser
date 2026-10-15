@@ -22,11 +22,12 @@ public final class SafariFeature: BrowserFeature {
     var mirrorDelay: Duration = .seconds(10)
     var visitFlushDelay: Duration = .seconds(20)
     let backgroundSync = SafariBackgroundSync()
-    /// The shared Tab Group's rows and the tabs here they stand for, from the last mirror (`SafariSharing`); nil until
+    /// The shared Tab Group's rows, by iCloud record, and the tabs here they stand for (`SafariSharing`); nil until
     /// the browser's tabs first set the group.
     var sharedRows: [String: UUID]?
-    /// Tabs opened here from a row added on another device: they keep that row while their page doesn't change.
-    var adoptedRows: [UUID: AdoptedRow] = [:]
+    /// Records missing from the group, since when: closed elsewhere once a second look agrees.
+    var missingRows: [String: Date] = [:]
+    var remoteCloseDelay: TimeInterval = 5
     /// Odd while a mirror runs: a refresh that overlapped one doesn't read remote changes from it.
     var mirrorRevision = 0
     /// The last history generation written here: waiting until Safari uploads it.

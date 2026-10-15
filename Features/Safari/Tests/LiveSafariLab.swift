@@ -28,7 +28,7 @@ func safariLab() async throws {
     case "group":
         let tabs = ["one", "two"].map { n in
             let url = URL(string: "https://example.com/somebrowser-lab-\(n)")!
-            return SafariBookmark(id: SafariStore.tabRowID(tab: UUID(), url: url, title: "Lab \(n)"), title: "Lab \(n)", url: url)
+            return SafariBookmark(id: SafariStore.tabRowID(tab: UUID(), url: url), title: "Lab \(n)", url: url)
         }
         let file = try #require(store.tabGroupsFile)
         let writer = try #require(SafariTabGroupWriter(database: file))

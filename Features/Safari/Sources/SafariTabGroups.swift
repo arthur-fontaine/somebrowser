@@ -19,27 +19,51 @@ final class SafariTabGroupWriter {
         if createIfNeeded, Session(database: database, create: true) == nil { return nil }
     }
 
-    /// Makes the Tab Group `title` hold exactly `tabs` (their ids become the tabs' UUIDs), creating it if needed; true
-    /// if anything was written.
+    /// What a mirror did: whether it wrote, and each tab's iCloud record (in the order given).
+    struct Mirrored {
+        var changed: Bool
+        var serverIDs: [String?]
+    }
+
+    /// Makes the Tab Group `title` hold exactly `tabs`, creating it if needed. A tab keeps its row when the row is its
+    /// record (`serverID`) at the same page, or the row it wrote (`id`); any other row goes, any tab without one is added
+    /// with `id` as its UUID.
     @discardableResult
-    func mirror(title: String, tabs: [SafariBookmark]) async throws -> Bool {
+    func mirror(title: String, tabs: [SafariBookmark]) async throws -> Mirrored {
         // A session per change: a manager loads the groups and their tabs from the database when it's made.
         guard let session = Session(database: database, create: false),
               let group = try await session.group(title: title, create: true),
-              let groupID = group.value(forKey: "uuid") as? String else { return false }
-        let currentIDs = try SafariStore.tabIDs(in: database, groupID: groupID)
-        let removed = currentIDs.subtracting(tabs.map(\.id))
-        let added = tabs.filter { !currentIDs.contains($0.id) }
-        guard !removed.isEmpty || !added.isEmpty else { return false }
+              let groupID = group.value(forKey: "uuid") as? String else { return Mirrored(changed: false, serverIDs: tabs.map { _ in nil }) }
+        var unmatched = try SafariStore.groupRows(in: database, groupID: groupID)
+        var serverIDs: [String?] = []
+        var added: [SafariBookmark] = []
+        for tab in tabs {
+            let index = unmatched.firstIndex { row in
+                (tab.serverID != nil && row.serverID == tab.serverID && row.url == tab.url) || row.id == tab.id
+            }
+            if let index {
+                serverIDs.append(unmatched.remove(at: index).serverID)
+            } else {
+                serverIDs.append(nil)
+                added.append(tab)
+            }
+        }
+        let removed = Set(unmatched.map(\.id))
+        guard !removed.isEmpty || !added.isEmpty else { return Mirrored(changed: false, serverIDs: serverIDs) }
         let closing = ((group.value(forKey: "tabs") as? [NSObject]) ?? []).filter { removed.contains($0.value(forKey: "uuid") as? String ?? "") }
         if !added.isEmpty, let editable = group.mutableCopy() as? NSObject {
             // Out of the copy saved below, or saving it would keep them.
             for tab in closing { editable.perform(NSSelectorFromString("removeTab:"), with: tab) }
             editable.perform(NSSelectorFromString("appendTabs:"), with: added.compactMap(Self.makeTab) as NSArray)
             await session.save(editable)
+            // WebBookmarks gives new rows their record up front.
+            let rows = try SafariStore.groupRows(in: database, groupID: groupID)
+            for (index, tab) in tabs.enumerated() where serverIDs[index] == nil {
+                serverIDs[index] = rows.first { $0.id == tab.id }?.serverID
+            }
         }
         if !closing.isEmpty { session.collection.perform(NSSelectorFromString("deleteTabs:"), with: closing as NSArray) }
-        return true
+        return Mirrored(changed: true, serverIDs: serverIDs)
     }
 
     /// Removes the Tab Group `title` and its tabs, as Safari deletes a group.

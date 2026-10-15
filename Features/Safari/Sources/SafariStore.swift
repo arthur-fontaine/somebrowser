@@ -4,9 +4,11 @@ import SQLite3
 
 /// A Safari bookmark (Favorites are the bookmarks bar's leaves).
 nonisolated struct SafariBookmark: Identifiable, Equatable, Sendable {
-    var id: String  // WebBookmarkUUID
+    var id: String  // WebBookmarkUUID: this Mac's id for it
     var title: String
     var url: URL
+    /// Its iCloud record (Tab Groups): the same on every device, and when the agent recreates the row.
+    var serverID: String? = nil
 }
 
 nonisolated struct SafariDevice: Identifiable, Equatable, Sendable {
@@ -257,7 +259,7 @@ nonisolated struct SafariStore: Sendable {
         return try Self.query(file) { db in
             var groups: [SafariTabGroup] = []
             let sql = """
-            SELECT g.external_uuid, g.title, t.external_uuid, t.title, t.url FROM bookmarks g
+            SELECT g.external_uuid, g.title, t.external_uuid, t.title, t.url, t.server_id FROM bookmarks g
             LEFT JOIN bookmarks t ON t.parent = g.id AND t.type = 0 AND t.deleted = 0 AND t.hidden = 0
             WHERE g.type = 1 AND g.subtype = 0 AND g.special_id = 0 AND g.hidden = 0 AND g.deleted = 0
               AND g.parent IN (SELECT id FROM bookmarks WHERE parent IS NULL OR (type = 1 AND subtype = 2 AND deleted = 0))
@@ -267,7 +269,8 @@ nonisolated struct SafariStore: Sendable {
                 let id = Self.text(s, 0)
                 if groups.last?.id != id { groups.append(SafariTabGroup(id: id, title: Self.text(s, 1), tabs: [])) }
                 guard sqlite3_column_type(s, 2) != SQLITE_NULL, let url = URL(string: Self.text(s, 4)) else { return }
-                groups[groups.count - 1].tabs.append(SafariBookmark(id: Self.text(s, 2), title: Self.text(s, 3), url: url))
+                let serverID = sqlite3_column_type(s, 5) == SQLITE_NULL ? nil : Self.text(s, 5)
+                groups[groups.count - 1].tabs.append(SafariBookmark(id: Self.text(s, 2), title: Self.text(s, 3), url: url, serverID: serverID))
             }
             return groups
         }

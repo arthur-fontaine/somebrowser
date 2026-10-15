@@ -39,16 +39,18 @@ extension SafariFeature {
         }
     }
 
-    /// Every open tab of normal windows, in sidebar order, web pages only, with the tab each row stands for.
+    /// Every open tab of normal windows, in sidebar order, web pages only, with its record in the group if it has one.
     func sharedTabs() -> [(row: SafariBookmark, tab: UUID)] {
+        let records = Dictionary((sharedRows ?? [:]).map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
         var seen = Set<UUID>()
         var out: [(row: SafariBookmark, tab: UUID)] = []
         for space in context.tabs.spaces {
             for tab in context.tabs.orderedTabs(in: space.id, includeFavorites: true) where !tab.isPrivate && seen.insert(tab.id).inserted {
                 guard let url = tab.live?.url ?? tab.url, ["http", "https"].contains(url.scheme ?? "") else { continue }
-                let title = tab.displayTitle
-                let adopted = adoptedRows[tab.id].flatMap { $0.url == url ? $0.row : nil }
-                out.append((SafariBookmark(id: adopted ?? SafariStore.tabRowID(tab: tab.id, url: url, title: title), title: title, url: url), tab.id))
+                // Closed elsewhere, waiting for a second look: not written back meanwhile.
+                if let record = records[tab.id], missingRows[record] != nil { continue }
+                out.append((SafariBookmark(id: SafariStore.tabRowID(tab: tab.id, url: url), title: tab.displayTitle, url: url,
+                                           serverID: records[tab.id]), tab.id))
                 if out.count == Self.sharedTabsLimit { return out }
             }
         }
@@ -62,29 +64,40 @@ extension SafariFeature {
         mirrorRevision += 1
         defer { mirrorRevision += 1 }
         let shared = sharedTabs()
-        guard let written = try? await writer.mirror(title: sharedGroupTitle, tabs: shared.map(\.row)) else { return }
-        sharedRows = Dictionary(shared.map { ($0.row.id, $0.tab) }, uniquingKeysWith: { a, _ in a })
-        adoptedRows = adoptedRows.filter { tab, _ in shared.contains { $0.tab == tab } }
+        guard let result = try? await writer.mirror(title: sharedGroupTitle, tabs: shared.map(\.row)) else { return }
+        var rows: [String: UUID] = [:]
+        for (record, entry) in zip(result.serverIDs, shared) { if let record { rows[record] = entry.tab } }
+        for (record, tab) in sharedRows ?? [:] where missingRows[record] != nil { rows[record] = tab }
+        sharedRows = rows
         saveSharedRows()
-        if written { requestBackgroundSync() }
+        if result.changed { requestBackgroundSync() }
     }
 
-    /// The group as another device left it: a row gone since the last mirror was closed there, so is its tab here; a
-    /// row this browser didn't write was opened there, so it opens here (in the background) and keeps that row.
+    /// The group as other devices left it, by iCloud record (this Mac's row ids change when the agent recreates a row).
+    /// A record gone since the last mirror was closed there, so is its tab here, once a second look agrees (the agent
+    /// may rewrite a row in two steps). A record this browser didn't write was opened there: it opens here in the
+    /// background, and keeps its row.
     func applyRemoteTabChanges(_ group: SafariTabGroup) {
         guard context.settings.bool("safari.share-tabs"), var rows = sharedRows else { return }
-        let present = Set(group.tabs.map(\.id))
+        let present = Set(group.tabs.compactMap(\.serverID))
+        let now = Date()
         var changed = false
-        for (row, tab) in rows where !present.contains(row) {
-            rows[row] = nil
-            changed = true
-            if context.tabs.tab(tab)?.isPrivate == false { context.runtime.close(tab) }
+        for record in missingRows.keys where present.contains(record) { missingRows[record] = nil }
+        for (record, tab) in rows where !present.contains(record) {
+            if let since = missingRows[record], now.timeIntervalSince(since) >= remoteCloseDelay {
+                missingRows[record] = nil
+                rows[record] = nil
+                changed = true
+                if context.tabs.tab(tab)?.isPrivate == false { context.runtime.close(tab) }
+            } else if missingRows[record] == nil {
+                missingRows[record] = now
+                DispatchQueue.main.asyncAfter(deadline: .now() + remoteCloseDelay + 0.2) { [weak self] in self?.refresh() }
+            }
         }
         if let window = context.windows.first(where: { !$0.isPrivate }) {
-            for remote in group.tabs where rows[remote.id] == nil {
-                let tab = context.runtime.openTab(remote.url, in: window, select: false)
-                adoptedRows[tab.id] = AdoptedRow(row: remote.id, url: remote.url)
-                rows[remote.id] = tab.id
+            for remote in group.tabs {
+                guard let record = remote.serverID, rows[record] == nil else { continue }
+                rows[record] = context.runtime.openTab(remote.url, in: window, select: false).id
                 changed = true
             }
         }
@@ -98,11 +111,10 @@ extension SafariFeature {
     func loadSharedRows() {
         guard let data = try? Data(contentsOf: sharedRowsFile), let saved = try? JSONDecoder().decode(SharedRows.self, from: data) else { return }
         sharedRows = saved.rows
-        adoptedRows = saved.adopted
     }
 
     private func saveSharedRows() {
-        guard let rows = sharedRows, let data = try? JSONEncoder().encode(SharedRows(rows: rows, adopted: adoptedRows)) else { return }
+        guard let rows = sharedRows, let data = try? JSONEncoder().encode(SharedRows(rows: rows)) else { return }
         try? FileManager.default.createDirectory(at: context.dataDirectory, withIntermediateDirectories: true)
         try? data.write(to: sharedRowsFile, options: .atomic)
     }
@@ -177,13 +189,7 @@ extension SafariFeature {
     }
 }
 
-nonisolated struct AdoptedRow: Codable, Equatable, Sendable {
-    var row: String
-    var url: URL
-}
-
-/// The shared group's rows as of the last mirror, kept between launches.
+/// The shared group's records and their tabs here as of the last mirror, kept between launches (`SharedTabs.json`).
 nonisolated struct SharedRows: Codable {
     var rows: [String: UUID]
-    var adopted: [UUID: AdoptedRow]
 }

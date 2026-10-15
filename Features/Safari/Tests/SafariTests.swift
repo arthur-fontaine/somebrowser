@@ -158,7 +158,7 @@ struct StoreTests {
         let file = dir.appendingPathComponent("SafariTabs.db")
         let writer = try #require(SafariTabGroupWriter(database: file, createIfNeeded: true))
         let s = SafariStore(folders: SafariFolders(library: dir, container: dir), backups: dir, localDeviceName: nil)
-        let tab = { (n: Int) in SafariBookmark(id: SafariStore.tabRowID(tab: UUID(), url: URL(string: "https://\(n).example/")!, title: "\(n)"),
+        let tab = { (n: Int) in SafariBookmark(id: SafariStore.tabRowID(tab: UUID(), url: URL(string: "https://\(n).example/")!),
                                                title: "\(n)", url: URL(string: "https://\(n).example/")!) }
         let (a, b, c) = (tab(1), tab(2), tab(3))
         // Safari orders a group's tabs by their CRDT positions (in `sync_data`), not `order_index`: compare sets.
@@ -444,6 +444,7 @@ struct BackgroundSyncTests {
         let app = FakeSafari()
         var waiting = true
         let s = sync(app) { waiting }
+        s.minimumInterval = .seconds(1)
         s.request()
         try await settle { app.launches == 1 }
         waiting = false
@@ -452,7 +453,7 @@ struct BackgroundSyncTests {
         s.request()
         try await Task.sleep(for: .milliseconds(100))
         #expect(app.launches == 1)
-        try await settle { app.launches == 2 }
+        for _ in 0..<300 where app.launches < 2 { try await Task.sleep(for: .milliseconds(10)) }
         #expect(app.launches == 2)
     }
 }
@@ -564,6 +565,7 @@ struct FeatureTests {
         let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
         let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
         feature.mirrorDelay = .milliseconds(10)
+        feature.remoteCloseDelay = 0.05
         feature.backgroundSync.app = FakeSafari()
         feature.activate()
         try h.run("safari.connect")
@@ -577,9 +579,17 @@ struct FeatureTests {
         let rows = try #require(group()?.tabs)
         let rowB = try #require(rows.first { $0.url.host == "b.example" })
 
+        // The agent recreating a row (new id on this Mac, same record) isn't a close.
+        let recordB = try #require(rowB.serverID)
+        try SafariStore.transaction(tabsFile) { db in try SafariStore.run(db, "UPDATE bookmarks SET external_uuid = ? WHERE server_id = ?", UUID().uuidString, recordB) }
+        feature.refresh()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(h.runtime.tabs.tab(b.id) != nil)
+        let recreatedB = try #require(group()?.tabs.first { $0.serverID == recordB })
+
         // On the iPhone: a closed, c opened.
         let c = SafariBookmark(id: UUID().uuidString, title: "C", url: URL(string: "https://c.example/")!)
-        try await iPhone.mirror(title: feature.sharedGroupTitle, tabs: [rowB, c])
+        try await iPhone.mirror(title: feature.sharedGroupTitle, tabs: [recreatedB, c])
         feature.refresh()
         try await settle { h.runtime.tabs.tab(a.id) == nil && h.runtime.tabs.allTabs.contains { $0.url?.host == "c.example" } }
         #expect(h.runtime.tabs.tab(a.id) == nil)
@@ -589,7 +599,7 @@ struct FeatureTests {
 
         // The mirror that follows keeps the group as the iPhone left it.
         try await Task.sleep(for: .milliseconds(200))
-        #expect(Set(group()?.tabs.map(\.id) ?? []) == [rowB.id, c.id])
+        #expect(Set(group()?.tabs.map(\.id) ?? []) == [recreatedB.id, c.id])
         #expect(h.runtime.tabs.allTabs.filter { $0.url?.host == "c.example" }.count == 1)
     }
 
