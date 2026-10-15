@@ -1,58 +1,79 @@
-# Recipe — an ungoogled CEF build (with H.264/AAC)
+# Recipe — our CEF (Chromium) source build
 
-The browser ships the prebuilt CEF minimal distribution pinned in `Engines/CEF/vendor.json` and keeps it quiet at run
-time (ADR-0001, `CEFEngine.privacySwitches`: the idle-profile E2E net-log test proves an idle browser contacts no one).
-A source build goes further: Google code paths removed at compile time, proprietary codecs, and our own patches. This
-is the recipe; it has not been run end to end in this repository yet (it needs a large Mac, below).
+The browser runs on CEF. Upstream's `Engines/CEF/vendor.json` pins a prebuilt CEF; ours is built from source with our
+patches (`Engines/CEF/patches/`) by `Engines/CEF/build/build-cef.sh`. The idle-profile E2E net-log test enforces that
+an idle browser contacts no one, whichever build runs.
 
-## What you get
+## What the build adds
 
-- ungoogled-chromium's patches and domain substitution: no Google endpoints compiled in.
-- `proprietary_codecs` + `ffmpeg_branding="Chrome"`: H.264/AAC playback (licensing is yours to check).
-- Our patches (to write; tracked in `TODO.md`): drop the hidden omnibox's AI-mode popup WebUI (~50 MB renderer), expose
-  `ExtensionAction` badge text to CEF (sidebar badges).
+- Chromium 156 (CEF branch 8078; Chrome stable is 156, and CEF skipped 155): official build, ThinLTO, Chrome's PGO
+  profile for this branch on Apple silicon, V8's builtins profiles.
+- H.264/AAC/HEVC (`proprietary_codecs`, `ffmpeg_branding=Chrome`); licensing is yours to check.
+- Widevine compiled in. It's fetched only with the engine option `protectedMedia: chromium`, and then the component
+  updater fetches nothing else. By default DRM pages play in WebKit with FairPlay (ADR-0004).
+- Patches:
+
+  | Patch | Effect |
+  |---|---|
+  | `chromium/0001` | Extension badges exposed to accessibility, so they show on the sidebar's pinned actions |
+  | `chromium/0002` | `--disable-webui-omnibox`: no hidden AI-mode omnibox popup (one renderer per tab) |
+  | `chromium/0003` | `--widevine-only-components`: the component updater registers only Widevine |
+  | `cef/0001` | `downloads.download` from an extension's service worker or popup goes to the client instead of being canceled |
+
+Measured 2026-10-16, one page open, fresh profile:
+
+| | Renderers | Helpers' memory |
+|---|---|---|
+| Stock CEF 154 | 3 | 583 MB |
+| Ours | 2 | 433 MB |
+
+The app process is unchanged (~105 MB). All E2E (32) and unit (283) tests pass on it.
+
+ungoogled-chromium has no 156 patch set yet (its tags stop at 155), so de-googling comes from build flags, our run-time
+switches (`CEFEngine.privacySwitches`) and the net-log test. When ungoogled tags 156, its patches can be applied
+before ours (`utils/patches.py apply` with `patches/series`, then `utils/domain_substitution.py`). They remove the
+component updater, so Widevine (`protectedMedia: chromium`) would go too.
 
 ## Machine
 
-Chromium does not fit GitHub-hosted runners (≈14 GB disk). Use a self-hosted runner or a rented Mac: Apple silicon,
-macOS and Xcode matching CEF's branch requirements, 16+ cores, 32+ GB RAM, 250+ GB free disk. A first build takes hours;
-incremental rebuilds after a patch change are much faster on the same machine.
+Apple silicon, 16 GB RAM is enough (ThinLTO picks its own link concurrency), 250+ GB free. Xcode with the macOS SDK.
+Chromium 156 accepts SDK 15 and up, and Xcode 26.2 built it on macOS 26.0 (CEF documents Xcode 27). The machine also
+needs:
+- the license accepted (`sudo xcodebuild -license accept`);
+- first launch done (`sudo xcodebuild -runFirstLaunch`);
+- the Metal toolchain (`xcodebuild -downloadComponent MetalToolchain`), which ANGLE's shaders need.
+
+A non-standard Xcode location works through `DEVELOPER_DIR`; the script sets it from `XCODE`.
+
+First build on an M1 Pro (8 cores, 16 GB): checkout about 7 minutes (shallow), build 2 h 44 min.
 
 ## Steps
 
-1. Read the pinned version: `Engines/CEF/vendor.json` → today `154.0.34+g14c5a08+chromium-154.0.8037.98`. The CEF
-   branch is the one whose builds carry that Chromium version (CEF's branches table:
-   https://github.com/chromiumembedded/cef/wiki/BranchesAndBuilding). Use ungoogled-chromium's tag for the same
-   Chromium version (`154.0.8037.98-*`).
-2. Check out without building:
+1. On the build machine: `CEF_BRANCH=8078 XCODE=/path/to/Xcode.app Engines/CEF/build/build-cef.sh`. It:
+   - checks out (once);
+   - applies our patches;
+   - downloads the PGO profiles;
+   - builds the release `cefsimple` target.
+2. Package. `make_distrib` copies the framework from `cefclient.app`, and we build only `cefsimple`, so:
    ```sh
-   mkdir -p ~/cef && cd ~/cef
-   curl -O https://raw.githubusercontent.com/chromiumembedded/cef/master/tools/automate/automate-git.py
-   python3 automate-git.py --download-dir=$PWD/download --branch=<branch> --arm64-build --no-build --no-distrib
+   out=$WORK/download/chromium/src/out/Release_GN_arm64
+   mkdir -p "$out/cefclient.app/Contents/Frameworks"
+   cp -R "$out/cefsimple.app/Contents/Frameworks/Chromium Embedded Framework.framework" "$out/cefclient.app/Contents/Frameworks/"
+   cd $WORK/download/chromium/src/cef/tools
+   python3 make_distrib.py --output-dir=../binary_distrib --ninja-build --arm64-build --minimal --no-docs
+   cd ../binary_distrib && tar cjf <name>_minimal.tar.bz2 <name>_minimal
    ```
-3. Apply ungoogled-chromium to `download/chromium/src` (its `utils/prune_binaries.py`, `utils/patches.py apply` with its
-   `patches/series`, `utils/domain_substitution.py`), then the CEF adjustment patch from
-   `nmlynch94/com.adamcake.ungoogled_cef.BaseApp` (`ungoogled-chromium-adjust-for-cef.patch`) and its `gn_args.py`
-   change (`enable_widevine`/`enable_rlz`). Expect to refresh hunks when versions differ from theirs. Then our patches.
-4. Build the minimal distribution without updating the patched tree:
-   ```sh
-   export GN_DEFINES="is_official_build=true proprietary_codecs=true ffmpeg_branding=Chrome chrome_pgo_phase=0 \
-     symbol_level=0 enable_widevine=false enable_rlz=false"
-   export CEF_ARCHIVE_FORMAT=tar.bz2
-   python3 automate-git.py --download-dir=$PWD/download --branch=<branch> --arm64-build --no-update \
-     --minimal-distrib --no-debug-build --force-build
-   ```
-   The archive lands in `download/chromium/src/cef/binary_distrib/` as `cef_binary_<version>_macosarm64_minimal.tar.bz2`.
-5. Publish it (a release of your fork) and pin it in your fork, never in upstream's file:
+3. Publish the `.tar.bz2` and pin it:
    ```json
-   // Fork/Engines/CEF/vendor.json
-   { "version": "<version>-ungoogled", "url": "https://…/cef_binary_…_macosarm64_minimal.tar.bz2", "sha1": "<shasum -a 1>" }
+   { "version": "<version>-somebrowser", "url": "https://…/cef_binary_…_macosarm64_minimal.tar.bz2", "sha1": "<shasum -a 1>" }
    ```
-   `./forkctl vendor cef` then downloads, verifies and links it instead of upstream's build (`Vendor.cefPin`).
-6. `./forkctl build`, `./forkctl test --e2e` (the net-log test still applies; extension tests check the Web Store
-   install path still works, since ungoogled patches may touch it).
+   A fork pins its own in `Fork/Engines/CEF/vendor.json`; for a local try, a `file://` URL works. Then run
+   `./forkctl vendor cef`, `./forkctl build` and `./forkctl test --e2e`.
 
-## Keeping up
+## Gotchas met
 
-Each CEF bump in upstream's `vendor.json` means a new source build: same steps with the new branch and ungoogled tag.
-Keep the patch set in your fork (`Fork/patches/…`) so it merges like everything else under `Fork/`.
+- Chromium's git server fails over HTTP/2 ("Error in the HTTP2 framing layer"). The script gives the build its own git
+  config with HTTP/1.1, which also skips a user's global config (e.g. GitHub routed through an SSH agent that isn't
+  there unattended).
+- `concurrent_links` can't be set with ThinLTO.
+- `v8/tools/builtins-pgo/profiles/*.profile` must be downloaded (the script does).

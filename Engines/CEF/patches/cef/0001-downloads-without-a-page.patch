@@ -1,0 +1,36 @@
+diff --git a/libcef/browser/download_manager_delegate_impl.cc b/libcef/browser/download_manager_delegate_impl.cc
+index e5363cc..260d9e6 100644
+--- a/libcef/browser/download_manager_delegate_impl.cc
++++ b/libcef/browser/download_manager_delegate_impl.cc
+@@ -14,6 +14,8 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "cef/include/cef_download_handler.h"
+ #include "cef/libcef/browser/browser_host_base.h"
++#include "cef/libcef/browser/browser_info.h"
++#include "cef/libcef/browser/browser_info_manager.h"
+ #include "cef/libcef/browser/context.h"
+ #include "cef/libcef/browser/download_item_impl.h"
+ #include "cef/libcef/browser/thread_util.h"
+@@ -493,7 +495,21 @@ CefDownloadManagerDelegateImpl::GetOrAssociateBrowser(
+       content::DownloadItemUtils::GetWebContents(item);
+   if (contents) {
+     browser = CefBrowserHostBase::GetBrowserForContents(contents);
+-    LOG_IF(WARNING, !browser) << "No CefBrowser for download item";
++  }
++  if (!browser) {
++    // Started by no browser's page (an extension's service worker or popup
++    // calling downloads.download): give it to a browser of the same profile,
++    // so the client's download handler gets it instead of it being canceled.
++    content::BrowserContext* context =
++        content::DownloadItemUtils::GetBrowserContext(item);
++    for (const auto& info :
++         CefBrowserInfoManager::GetInstance()->GetBrowserInfoList()) {
++      CefRefPtr<CefBrowserHostBase> candidate = info->browser();
++      if (candidate && candidate->GetBrowserContext() == context) {
++        browser = candidate;
++        break;
++      }
++    }
+   }
+   if (!browser) {
+     return nullptr;

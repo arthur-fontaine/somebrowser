@@ -1,0 +1,25 @@
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index bac174d..f3d278a 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -10,6 +10,7 @@
+ #include <string_view>
+ #include <utility>
+ 
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+@@ -194,6 +195,12 @@ bool CanHostWebUIOmnibox(BrowserWindowInterface* browser, bool is_popup_mode) {
+   if (is_popup_mode) {
+     return false;
+   }
++  // Embedders that never show Chrome's omnibox (its location bar stays hidden)
++  // skip its WebUI popups, each a renderer of its own.
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "disable-webui-omnibox")) {
++    return false;
++  }
+   if (!browser) {
+     return true;
+   }

@@ -1,0 +1,71 @@
+diff --git a/chrome/browser/ui/extensions/extension_action_view_model.cc b/chrome/browser/ui/extensions/extension_action_view_model.cc
+index cf96364..b648224 100644
+--- a/chrome/browser/ui/extensions/extension_action_view_model.cc
++++ b/chrome/browser/ui/extensions/extension_action_view_model.cc
+@@ -311,6 +311,15 @@ std::u16string ExtensionActionViewModel::GetActionTitle(
+   return base::UTF8ToUTF16(title);
+ }
+ 
++std::u16string ExtensionActionViewModel::GetBadgeText(
++    content::WebContents* web_contents) const {
++  if (!ExtensionIsValid() || !web_contents) {
++    return std::u16string();
++  }
++  return base::UTF8ToUTF16(extension_action_->GetDisplayBadgeText(
++      sessions::SessionTabHelper::IdForTab(web_contents).id()));
++}
++
+ std::u16string ExtensionActionViewModel::GetAccessibleName(
+     content::WebContents* web_contents) const {
+   if (!ExtensionIsValid()) {
+diff --git a/chrome/browser/ui/extensions/extension_action_view_model.h b/chrome/browser/ui/extensions/extension_action_view_model.h
+index 4df24d1..3a4b86a 100644
+--- a/chrome/browser/ui/extensions/extension_action_view_model.h
++++ b/chrome/browser/ui/extensions/extension_action_view_model.h
+@@ -80,6 +80,8 @@ class ExtensionActionViewModel
+   std::u16string GetAccessibleName(
+       content::WebContents* web_contents) const override;
+   std::u16string GetTooltip(content::WebContents* web_contents) const override;
++  std::u16string GetBadgeText(
++      content::WebContents* web_contents) const override;
+   ToolbarActionViewModel::HoverCardState GetHoverCardState(
+       content::WebContents* web_contents) const override;
+   ToolbarActionViewModel::HoverCardUiState GetHoverCardUiState(
+diff --git a/chrome/browser/ui/toolbar/toolbar_action_view_model.h b/chrome/browser/ui/toolbar/toolbar_action_view_model.h
+index 4f062b9..2404c8e 100644
+--- a/chrome/browser/ui/toolbar/toolbar_action_view_model.h
++++ b/chrome/browser/ui/toolbar/toolbar_action_view_model.h
+@@ -144,6 +144,14 @@ class ToolbarActionViewModel {
+   virtual std::u16string GetTooltip(
+       content::WebContents* web_contents) const = 0;
+ 
++  // Returns the badge text shown on the action for the given |web_contents|,
++  // empty if none. Exposed to accessibility so embedders that keep the
++  // toolbar hidden can show badges themselves.
++  virtual std::u16string GetBadgeText(
++      content::WebContents* web_contents) const {
++    return std::u16string();
++  }
++
+   // Returns the hover card state to use for the given `web_contents`.
+   virtual HoverCardState GetHoverCardState(
+       content::WebContents* web_contents) const = 0;
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_action_view.cc b/chrome/browser/ui/views/toolbar/toolbar_action_view.cc
+index a9b7a01..892ee0b 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_action_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_action_view.cc
+@@ -199,6 +199,14 @@ void ToolbarActionView::UpdateState() {
+   if (!sessions::SessionTabHelper::IdForTab(web_contents).is_valid()) {
+     return;
+   }
++  // The badge as the button's description: embedders with a hidden toolbar
++  // read it through accessibility.
++  const std::u16string badge = view_model_->GetBadgeText(web_contents);
++  if (badge.empty()) {
++    GetViewAccessibility().RemoveDescription();
++  } else {
++    GetViewAccessibility().SetDescription(badge);
++  }
+ 
+   ui::ImageModel icon = view_model_->GetIcon(web_contents, GetPreferredSize());
+   if (!icon.IsEmpty()) {
