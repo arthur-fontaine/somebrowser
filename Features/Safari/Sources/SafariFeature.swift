@@ -167,7 +167,8 @@ public final class SafariFeature: BrowserFeature {
                 if self.walWatcher == nil { self.watchTabGroups() }  // the WAL came back
                 guard !self.pendingRefresh else { return }
                 self.pendingRefresh = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.pendingRefresh = false; self.refresh() }
+                // Weakly: a refresh must not keep the feature (and its context) past the runtime.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.pendingRefresh = false; self?.refresh() }
             }
             source.setCancelHandler { close(fd) }
             source.resume()
@@ -192,7 +193,7 @@ public final class SafariFeature: BrowserFeature {
             }
             guard !self.pendingGroupsRefresh else { return }
             self.pendingGroupsRefresh = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.pendingGroupsRefresh = false; self.refreshTabGroups() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.pendingGroupsRefresh = false; self?.refreshTabGroups() }
         }
         source.setCancelHandler { close(fd) }
         source.resume()
