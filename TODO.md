@@ -62,8 +62,8 @@ to check that the feature still works (`forkctl test <feature>`).
 ## 4. Command bar & keyboard (A, H, U)
 - [x] Command bar ⌘T: URL/search, open tabs, history, bookmarks, actions by name, site search (Tab), paste-and-go
 - [x] ⌘L edit current URL (in sidebar or centered bar)
-- [~] Full shortcut set (Arc + Horse tables), every action reachable from the keyboard: all but ⌘Z sidebar undo, ⇧⌘2
-      capture, ⌘E cycle pinned extensions, ⌃D developer mode (console ⌥⌘J, inspect ⌥⌘C, save ⇧⌘S, ⇧⌘I, ⇧⌘H added)
+- [x] Full shortcut set (Arc + Horse tables), every action reachable from the keyboard: console ⌥⌘J, inspect ⌥⌘C, save
+      ⇧⌘S, ⇧⌘I, ⇧⌘H, sidebar undo/redo ⌘Z/⇧⌘Z (typing first), Capture ⇧⌘2, next pinned extension ⌘E, developer mode ⌃D
 - [x] Remappable shortcuts + "prefer website shortcuts" (page first; browser on a second press or if unused) (A)
 - [x] Ctrl-Tab MRU switcher (A)
 - [x] Shortcut hints in tooltips/menus (A)
