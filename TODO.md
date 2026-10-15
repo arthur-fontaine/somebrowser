@@ -18,7 +18,11 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Fork overlay `Fork/fork.json` never touched upstream; merge-conflict-free customization
 - [x] Branding in one place (name, bundle id, URL scheme, UA brand, icon)
 - [x] AGENTS.md + per-feature README template + ADRs
-- [ ] CI: build, unit tests, engine conformance suite, fork smoke test
+- [x] CI: `./forkctl ci` — validate, every unit test (forkctl's too), the E2E suite on every engine, and a fork smoke test
+      (rename, engine swap, feature off/new, shortcut, setting on a copy: builds, and only `Fork/` changes). No git remote
+      here, so no hosted workflow yet; a hosted Mac needs Chromium-sized disk for the CEF E2E
+- [ ] Rare CEF quit flake in E2E (1 of ~200 launches, 2026-10-15): after `quit` the app idles in its run loop, shutdown
+      apparently never starts (AppDriver's timeout sample); not reproduced in 5 reruns of the test
 
 ## 1. Engines (U)
 - [x] `cef-chrome`: Chrome-style CEF 154, page child windows + shell overlay window (ADR-0002); real clicks, typing, tree, clean quit verified
@@ -73,9 +77,10 @@ to check that the feature still works (`forkctl test <feature>`).
 - [~] Import from Arc, Atlas, Chrome, Dia, Helium (+ Brave, Edge, Vivaldi): bookmarks → pinned folder, history,
       Web Store extensions with one-click Add — verified with this Mac's Chrome profiles. Safari (via the Safari feature's grants) done; Arc's
       own sidebar (`StorableSidebar.json`, no data here) todo; Atlas path is community-reported (R)
-- [ ] Split view (A) — gated on engine capability, later
-- [ ] Air Traffic Control link routing rules (A) — later
-- [ ] Boosts (per-site CSS/JS) (A) — later
+- [x] Split view: two tabs side by side (⌃⇧= / ⌃⇧] / ⌃⇧-), pane in the `content-trailing` slot; engines let a page belong to
+      one viewport at a time (A)
+- [x] Air Traffic Control: rules route links from other apps to a Space, a mini window or the main window (A)
+- [x] Boosts: per-site CSS (before first paint), JavaScript, zapped elements; editor + site-controls row (A)
 
 ## 6. Apple integrations (R)
 - [~] Apple Passwords autofill via PasswordManagerBrowserExtensionHelper — `passwords` feature: SRP pairing (verified
