@@ -80,6 +80,9 @@ nonisolated public final class AppDriver: @unchecked Sendable {
     /// Loads `url` in the selected tab answered with `html` (no network), with `url`'s origin.
     public func simulate(_ url: String, html: String) throws { try call(["op": "simulate", "url": url, "html": html]) }
 
+    /// Registers `js` to run at document start of pages whose URL starts with `prefix`.
+    public func documentStart(_ js: String, prefix: String) throws { try call(["op": "documentStart", "js": js, "prefix": prefix]) }
+
     public func eval(_ js: String) throws -> Any? { try call(["op": "eval", "js": js])["value"] }
 
     public func state() throws -> [String: Any] { (try call(["op": "state"]))["state"] as? [String: Any] ?? [:] }

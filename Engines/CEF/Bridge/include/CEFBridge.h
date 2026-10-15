@@ -31,6 +31,8 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 - (void)cefTab:(CEFTab *)tab findResultCount:(int)count active:(int)active;
 /// Main-frame navigation decision (UI thread). Return NO to cancel.
 - (BOOL)cefTab:(CEFTab *)tab shouldNavigateTo:(NSString *)url userGesture:(BOOL)gesture isRedirect:(BOOL)redirect;
+/// Script to run in the main-frame document about to load at `url`, before the page's own scripts.
+- (nullable NSString *)cefTab:(CEFTab *)tab documentStartScriptFor:(NSString *)url;
 /// The page opened `newTab` (popup, target=_blank, ⌘-click, context menu "Open in New Tab").
 - (void)cefTab:(CEFTab *)tab didOpen:(CEFTab *)newTab url:(nullable NSString *)url disposition:(CEFDisposition)disposition userGesture:(BOOL)gesture;
 /// `window.__browser.post(name, body)`; `json` is `JSON.stringify(body)`. The sending frame is the browser

@@ -7,6 +7,8 @@ final class WebKitTab: NSObject, EngineTab {
     weak var delegate: EngineTabDelegate?
     let webView: WKWebView
     private weak var engine: WebKitEngine?
+    /// The current navigation's document-start script and the host it belongs to.
+    var documentStartScript: (script: String, host: String)?
     private var observations: [NSKeyValueObservation] = []
     private var downloads: [ObjectIdentifier: DownloadItem] = [:]
     private var downloadProgress: [ObjectIdentifier: NSKeyValueObservation] = [:]
@@ -187,6 +189,7 @@ extension WebKitTab: WKNavigationDelegate {
                 openNew(target, disposition: .foregroundTab, gesture: true)
                 return (.cancel, preferences)
             }
+            engine.setDocumentStartScript(engine.hooks.documentStartScript(for: url), for: url, in: self)
         }
         return (.allow, preferences)
     }

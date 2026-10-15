@@ -112,6 +112,11 @@ final class AutomationServer {
             else { return reply(["ok": false, "error": "bad request or no tab"]) }
             tab.loadSimulated(url, response: response, body: Data(html.utf8))
             reply(["ok": true])
+        case "documentStart":
+            // Runs `js` at document start of main-frame pages whose URL starts with `prefix` (engine conformance).
+            guard let js = req["js"] as? String, let prefix = req["prefix"] as? String else { return reply(["ok": false, "error": "missing js/prefix"]) }
+            runtime.engine.hooks.addDocumentStartScript { $0.absoluteString.hasPrefix(prefix) ? js : nil }
+            reply(["ok": true])
         case "state":
             reply(["ok": true, "state": stateJSON()])
         case "eval":

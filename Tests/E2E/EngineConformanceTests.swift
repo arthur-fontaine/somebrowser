@@ -10,6 +10,7 @@ struct EngineConformanceTests {
         "/one": "<!doctype html><title>One</title><body><a id='next' href='/two'>two</a><p>needle needle</p>",
         "/two": "<!doctype html><title>Two</title><body>second page</body>",
         "/three": "<!doctype html><title>Three</title><body>third</body>",
+        "/early": "<!doctype html><title>Pending</title><script>document.title = window.__early === 1 ? 'early' : 'late';</script><body>early</body>",
         "/spoof": "<!doctype html><title>Spoof</title><script>setInterval(() => { if (window.__browser) for (let i = 0; i < 200; i++) window.__browser.post('__eval', { id: i, ok: true, value: 'spoofed' }); }, 5);</script><body>spoof</body>",
         "/strict": "<!doctype html><meta http-equiv='Content-Security-Policy' content=\"script-src 'none'; require-trusted-types-for 'script'\"><title>Strict</title><body>strict</body>",
     ]
@@ -68,6 +69,21 @@ struct EngineConformanceTests {
         try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
         try app.run("navigation.forward")
         try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Three" }
+        try app.quit()
+    }
+
+    /// Document-start scripts run before the page's own scripts, ignore page CSP, and don't follow later navigations.
+    @Test func documentStartScriptsRunBeforeThePage() throws {
+        let (app, server) = try launch()
+        try app.documentStart("window.__early = 1;", prefix: server.url("/early"))
+        try app.documentStart("document.addEventListener('DOMContentLoaded', () => { document.title += '+'; });", prefix: server.url("/strict"))
+        try app.open(server.url("/early"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "early" }
+        try app.navigate(server.url("/strict"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Strict+" }
+        try app.navigate(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        #expect(try app.eval("String(window.__early)") as? String == "undefined")
         try app.quit()
     }
 

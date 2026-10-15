@@ -46,6 +46,16 @@ struct RuntimeTests {
         #expect(h.runtime.settings.bool("probe.flag") == false)
     }
 
+    @Test func documentStartScriptsCombineAndIsolateFailures() throws {
+        let hooks = try harness().engine.hooks
+        #expect(hooks.documentStartScript(for: URL(string: "https://a.example/")!) == nil)
+        hooks.addDocumentStartScript { $0.host() == "a.example" ? "one()" : nil }
+        hooks.addDocumentStartScript { _ in "" }
+        hooks.addDocumentStartScript { _ in "two()" }
+        #expect(hooks.documentStartScript(for: URL(string: "https://a.example/")!) == "try {\none()\n} catch (e) {}\ntry {\ntwo()\n} catch (e) {}")
+        #expect(hooks.documentStartScript(for: URL(string: "https://b.example/")!) == "try {\ntwo()\n} catch (e) {}")
+    }
+
     @Test func unknownCommandsThrow() throws {
         let h = try harness()
         #expect(throws: CommandError.self) { try h.run("nope.nothing") }

@@ -164,7 +164,7 @@ private:
 /// Per-tab client: routes every CEF callback to the ObjC tab (UI thread unless noted).
 class TabClient : public CefClient, public CefLifeSpanHandler, public CefDisplayHandler, public CefLoadHandler,
                   public CefRequestHandler, public CefKeyboardHandler, public CefFindHandler, public CefPermissionHandler,
-                  public CefDownloadHandler, public CefCommandHandler {
+                  public CefDownloadHandler, public CefCommandHandler, public CefDevToolsMessageObserver {
 public:
     explicit TabClient(CEFTab *tab) : tab_(tab), filter_(new FilterHandler) {}
 
@@ -222,7 +222,10 @@ public:
         return false;
     }
 
-    void OnBeforeClose(CefRefPtr<CefBrowser> browser) override { [tab_ browserClosed]; }
+    void OnBeforeClose(CefRefPtr<CefBrowser> browser) override {
+        devtools_ = nullptr;  // the registration holds this client
+        [tab_ browserClosed];
+    }
 
     // Display
     void OnAddressChange(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, const CefString &url) override {
@@ -264,7 +267,54 @@ public:
                         bool user_gesture, bool is_redirect) override {
         if (!frame->IsMain() || !tab_.delegate) return false;
         BOOL allowed = [tab_.delegate cefTab:tab_ shouldNavigateTo:NS(request->GetURL()) userGesture:user_gesture isRedirect:is_redirect];
+        if (allowed) {
+            NSString *url = NS(request->GetURL());
+            SetDocumentStartScript(browser, url, [tab_.delegate cefTab:tab_ documentStartScriptFor:url]);
+        }
         return !allowed;
+    }
+
+    /// The navigation's document-start script, through DevTools (Page.addScriptToEvaluateOnNewDocument): Chromium runs it
+    /// in the new document before the page's scripts, even across a process swap. Replaces the previous navigation's.
+    /// DevTools attaches only once a page gets a script.
+    void SetDocumentStartScript(CefRefPtr<CefBrowser> browser, NSString *url, NSString *script) {
+        if (scriptID_.empty() && pendingAdd_ == 0 && !script.length) return;
+        CefRefPtr<CefBrowserHost> host = browser->GetHost();
+        if (!devtools_) {
+            devtools_ = host->AddDevToolsMessageObserver(this);
+            host->ExecuteDevToolsMethod(0, "Page.enable", nullptr);  // Blink applies these scripts only with Page enabled
+        }
+        if (!scriptID_.empty()) {
+            CefRefPtr<CefDictionaryValue> params = CefDictionaryValue::Create();
+            params->SetString("identifier", scriptID_);
+            host->ExecuteDevToolsMethod(0, "Page.removeScriptToEvaluateOnNewDocument", params);
+            scriptID_.clear();
+        }
+        if (pendingAdd_) staleAdds_.insert(pendingAdd_);  // removed as soon as its identifier arrives
+        pendingAdd_ = 0;
+        if (!script.length) return;
+        // Top document only, and only on the navigation's host (a script that outlives its navigation, e.g. a redirect
+        // before its identifier came back, never runs elsewhere).
+        NSData *hostJSON = [NSJSONSerialization dataWithJSONObject:@[[NSURL URLWithString:url].host ?: @""] options:0 error:nil];
+        NSString *hostLiteral = [[NSString alloc] initWithData:hostJSON encoding:NSUTF8StringEncoding];
+        CefRefPtr<CefDictionaryValue> params = CefDictionaryValue::Create();
+        params->SetString("source", CS([NSString stringWithFormat:@"if (window === window.top && location.hostname === %@[0]) {\n%@\n}",
+                                                                   hostLiteral, script]));
+        pendingAdd_ = host->ExecuteDevToolsMethod(0, "Page.addScriptToEvaluateOnNewDocument", params);
+    }
+
+    void OnDevToolsMethodResult(CefRefPtr<CefBrowser> browser, int message_id, bool success, const void *result, size_t result_size) override {
+        bool current = message_id == pendingAdd_;
+        bool stale = staleAdds_.erase(message_id) > 0;
+        if ((!current && !stale) || !success) { if (current) pendingAdd_ = 0; return; }
+        CefRefPtr<CefValue> value = CefParseJSON(result, result_size, JSON_PARSER_RFC);
+        std::string id = value && value->GetType() == VTYPE_DICTIONARY ? value->GetDictionary()->GetString("identifier").ToString() : "";
+        if (current) { pendingAdd_ = 0; scriptID_ = id; return; }
+        if (!id.empty()) {
+            CefRefPtr<CefDictionaryValue> params = CefDictionaryValue::Create();
+            params->SetString("identifier", id);
+            browser->GetHost()->ExecuteDevToolsMethod(0, "Page.removeScriptToEvaluateOnNewDocument", params);
+        }
     }
 
     bool OnOpenURLFromTab(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, const CefString &target_url,
@@ -382,6 +432,10 @@ private:
     __weak CEFTab *tab_;
     CefRefPtr<FilterHandler> filter_;
     std::deque<CEFTab *> pendingPopups_;
+    CefRefPtr<CefRegistration> devtools_;
+    std::string scriptID_;
+    int pendingAdd_ = 0;
+    std::set<int> staleAdds_;
     IMPLEMENT_REFCOUNTING(TabClient);
 };
 

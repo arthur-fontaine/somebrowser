@@ -47,6 +47,19 @@ public final class EngineHooks {
         onUserScriptsChanged?()
     }
 
+    /// Scripts for one page: given the URL a main-frame document is about to load, a script to run in it before any of the
+    /// page's own scripts, in the page's world (page CSP doesn't apply). Engines ask at the start of each main-frame
+    /// navigation and redirect; a script must not assume the page loaded (it may be replaced by a later navigation).
+    public private(set) var documentStartScripts: [(URL) -> String?] = []
+    public func addDocumentStartScript(_ provider: @escaping (URL) -> String?) {
+        documentStartScripts.append(provider)
+    }
+    /// Called by engines.
+    public func documentStartScript(for url: URL) -> String? {
+        let scripts = documentStartScripts.compactMap { $0(url) }.filter { !$0.isEmpty }
+        return scripts.isEmpty ? nil : scripts.map { "try {\n\($0)\n} catch (e) {}" }.joined(separator: "\n")
+    }
+
     /// Messages posted from pages with `window.__browser.post(name, body)`. Any page script can post any
     /// name and body: treat the body as untrusted input.
     public private(set) var messageHandlers: [String: (EngineTab, ScriptMessage) -> Void] = [:]

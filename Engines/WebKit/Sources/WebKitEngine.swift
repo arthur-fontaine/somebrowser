@@ -75,12 +75,18 @@ public final class WebKitEngine: BrowserEngine {
         return c
     }
 
-    private func install(scriptsInto ucc: WKUserContentController) {
-        ucc.removeAllUserScripts()
+    private func install(scriptsInto ucc: WKUserContentController, documentStart: (script: String, host: String)? = nil) {
         ucc.removeAllScriptMessageHandlers()
         for world in [WKContentWorld.page, WKContentWorld.defaultClient] {
-            ucc.addUserScript(WKUserScript(source: Self.bridgeScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: world))
             ucc.add(ScriptMessageProxy(engine: self), contentWorld: world, name: "browser")
+        }
+        installScripts(into: ucc, documentStart: documentStart)
+    }
+
+    private func installScripts(into ucc: WKUserContentController, documentStart: (script: String, host: String)?) {
+        ucc.removeAllUserScripts()
+        for world in [WKContentWorld.page, WKContentWorld.defaultClient] {
+            ucc.addUserScript(WKUserScript(source: Self.bridgeScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: world))
         }
         ucc.addUserScript(WKUserScript(source: Self.pageObserverScript, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .defaultClient))
         for s in hooks.userScripts {
@@ -90,10 +96,26 @@ public final class WebKitEngine: BrowserEngine {
                 forMainFrameOnly: s.mainFrameOnly,
                 in: s.world == .page ? .page : .defaultClient))
         }
+        if let documentStart {
+            let host = String(data: (try? JSONEncoder().encode(documentStart.host)) ?? Data(), encoding: .utf8) ?? "\"\""
+            ucc.addUserScript(WKUserScript(source: "if (location.hostname === \(host)) {\n\(documentStart.script)\n}",
+                                           injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page))
+        }
+    }
+
+    /// The tab's scripts again with its navigation's document-start script. WebKit reads user scripts when it creates a
+    /// document, so setting them while the navigation is decided applies them to it.
+    func setDocumentStartScript(_ script: String?, for url: URL, in tab: WebKitTab) {
+        let next = script.map { (script: $0, host: url.host() ?? "") }
+        guard tab.documentStartScript?.script != next?.script || tab.documentStartScript?.host != next?.host else { return }
+        tab.documentStartScript = next
+        installScripts(into: tab.webView.configuration.userContentController, documentStart: next)
     }
 
     private func refreshScripts() {
-        for tab in liveTabs.allObjects { install(scriptsInto: tab.webView.configuration.userContentController) }
+        for tab in liveTabs.allObjects {
+            install(scriptsInto: tab.webView.configuration.userContentController, documentStart: tab.documentStartScript)
+        }
     }
 
     private func compileRuleLists() {

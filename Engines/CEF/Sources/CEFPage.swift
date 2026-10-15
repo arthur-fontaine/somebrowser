@@ -210,6 +210,10 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         state.findResult = FindResult(matches: Int(count), activeIndex: Int(active))
     }
 
+    func cefTab(_ tab: CEFTab, documentStartScriptFor url: String) -> String? {
+        URL(string: url).flatMap { engine?.hooks.documentStartScript(for: $0) }
+    }
+
     func cefTab(_ tab: CEFTab, shouldNavigateTo url: String, userGesture gesture: Bool, isRedirect redirect: Bool) -> Bool {
         guard !redirect, let engine, let u = URL(string: url) else { return true }
         var mods = NSEventModifierFlagsBox()
