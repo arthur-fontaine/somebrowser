@@ -1,4 +1,5 @@
 @testable import EngineCEF
+@testable import EngineWebKit
 import Foundation
 import Testing
 
@@ -67,5 +68,17 @@ struct ProtectedMediaTests {
                                                               "secure": false, "httpOnly": false]))
         #expect(session.isSessionOnly && !session.isHTTPOnly && session.path == "/")
         #expect(ProtectedMedia.httpCookie(["value": "no name"]) == nil)
+    }
+
+    /// WebKit pages of an isolated profile (BROWSER_DATA_DIR) keep their own store, apart from the user's and from
+    /// other profiles'; the browser's own profile keeps its fixed store.
+    @Test func isolatedProfilesHaveTheirOwnWebKitStore() {
+        let a = URL(fileURLWithPath: "/tmp/e2e-aaaa/data"), b = URL(fileURLWithPath: "/tmp/e2e-bbbb/data")
+        let own = WebKitEngine.storeIdentifier(options: [:], profileDirectory: a, isolated: false)
+        #expect(own == UUID(uuidString: "5A3E9C2B-6D1F-4B8E-9C4A-1F2E3D4C5B6A"))
+        let isolatedA = WebKitEngine.storeIdentifier(options: [:], profileDirectory: a, isolated: true)
+        #expect(isolatedA != own)
+        #expect(isolatedA != WebKitEngine.storeIdentifier(options: [:], profileDirectory: b, isolated: true))
+        #expect(isolatedA == WebKitEngine.storeIdentifier(options: [:], profileDirectory: a, isolated: true))
     }
 }

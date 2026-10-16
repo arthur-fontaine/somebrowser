@@ -1,5 +1,6 @@
 import AppKit
 import BrowserCore
+import CryptoKit
 import WebKit
 
 /// WKWebView-based engine. Features that need per-request blocking use content rule lists instead
@@ -28,9 +29,32 @@ public final class WebKitEngine: BrowserEngine {
     }
 
     public func bootstrap(profileDirectory: URL) throws {
-        // A stable identifier per profile so forks with another bundle id keep separate data.
-        let id = UUID(uuidString: options["webkit.profile"]?.stringValue ?? "") ?? UUID(uuidString: "5A3E9C2B-6D1F-4B8E-9C4A-1F2E3D4C5B6A")!
+        let isolated = ProcessInfo.processInfo.environment["BROWSER_DATA_DIR"] != nil
+        let id = Self.storeIdentifier(options: options, profileDirectory: profileDirectory, isolated: isolated)
         dataStore = WKWebsiteDataStore(forIdentifier: id)
+        if isolated { Self.removeEarlierIsolatedStores(keeping: [id, Self.storeIdentifier(options: options, profileDirectory: profileDirectory, isolated: false)]) }
+    }
+
+    /// Isolated profiles' stores outlive their folders (WebKit keeps them in ~/Library): an isolated launch removes
+    /// the earlier ones. WebKit refuses to remove a store still in use, so a running instance keeps its own.
+    private static func removeEarlierIsolatedStores(keeping: Set<UUID>) {
+        WKWebsiteDataStore.fetchAllDataStoreIdentifiers { ids in
+            for id in ids where !keeping.contains(id) { WKWebsiteDataStore.remove(forIdentifier: id) { _ in } }
+        }
+    }
+
+    /// WebKit keeps a store per identifier, outside the profile folder. The browser's own profile has a fixed one
+    /// (a fork may set `webkit.profile`); a profile given with BROWSER_DATA_DIR (tests, automation) gets one made from
+    /// its folder, else it would share cookies with the user's browsing and with every other such profile.
+    static func storeIdentifier(options: [String: SettingValue], profileDirectory: URL, isolated: Bool) -> UUID {
+        if isolated {
+            var bytes = Array(SHA256.hash(data: Data(profileDirectory.standardizedFileURL.path.utf8)).prefix(16))
+            bytes[6] = (bytes[6] & 0x0F) | 0x40
+            bytes[8] = (bytes[8] & 0x3F) | 0x80
+            return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                               bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+        }
+        return UUID(uuidString: options["webkit.profile"]?.stringValue ?? "") ?? UUID(uuidString: "5A3E9C2B-6D1F-4B8E-9C4A-1F2E3D4C5B6A")!
     }
 
     public func runMainLoop(ready: @escaping () -> Void) {
