@@ -9,6 +9,7 @@ public final class ExtensionsFeature: BrowserFeature {
     let model = ExtensionsModel()
     let sidePanels: SidePanels
     static let manageURL = URL(string: "chrome://extensions/")!
+    static let panelFlag = "extensions.panel"
     static let storeURL = URL(string: "https://chromewebstore.google.com/")!
 
     public init(context: FeatureContext) {
@@ -40,6 +41,12 @@ public final class ExtensionsFeature: BrowserFeature {
         context.capabilities.provide(NewTabPageProvider.self, self)
 
         let model = self.model, settings = context.settings
+        context.ui.contribute(.overlay, id: "extensions.panel", order: 55) { [weak self] window in
+            ExtensionsPanel(model: model, window: window, run: { self?.run($0, in: window) },
+                            pin: { self?.engine?.setPinned($0, $1) }, open: { self?.open($0, in: window) },
+                            sidePanel: { self?.toggleSidePanel($0, in: window) },
+                            close: { window.flags.remove(Self.panelFlag) })
+        }
         context.ui.contribute("sidebar.header", id: "extensions.buttons", order: 200) { [weak self] window in
             ExtensionButtons(model: model, windowID: window.id, showPinned: settings.bool("extensions.showPinned"),
                              run: { self?.run($0, in: window) }, menu: { self?.showMenu(in: window) })
@@ -99,9 +106,9 @@ public final class ExtensionsFeature: BrowserFeature {
         run(pinned[next].id, in: window)
     }
 
+    /// The browser's own extensions panel (Chrome's menu never shows).
     func showMenu(in window: BrowserWindowState?) {
-        guard let engine, let tab = liveTab(in: window) else { return }
-        if !engine.showExtensionsMenu(in: tab), let window { open(Self.manageURL, in: window) }
+        window?.toggle(flag: Self.panelFlag)
     }
 
     func open(_ url: URL, in window: BrowserWindowState?) {
@@ -196,6 +203,101 @@ struct ExtensionIcon: View {
         .help(help ?? title)
         .accessibilityLabel(title)
         .accessibilityValue(badge ?? "")
+        .onHover { hovering = $0 }
+    }
+}
+
+/// Every extension: run its action, show it in the sidebar or not, its options and side panel; Manage… opens Chrome's
+/// page for the rest (site access, removal), and the Web Store adds more.
+struct ExtensionsPanel: View {
+    let model: ExtensionsModel
+    let window: BrowserWindowState
+    let run: (String) -> Void
+    let pin: (String, Bool) -> Void
+    let open: (URL) -> Void
+    let sidePanel: (String) -> Void
+    let close: () -> Void
+
+    var body: some View {
+        if window.flags.contains(ExtensionsFeature.panelFlag) {
+            ZStack(alignment: .topLeading) {
+                Color.black.opacity(0.001).contentShape(Rectangle()).onTapGesture(perform: close)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Extensions").font(.headline).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
+                    if model.extensions.isEmpty {
+                        Text("No extensions yet").foregroundStyle(.secondary).padding(10)
+                    }
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(model.extensions) { ext in
+                                ExtensionRow(ext: ext, icon: model.icons[ext.id],
+                                             run: { close(); run(ext.id) }, pin: { pin(ext.id, !ext.isPinned) },
+                                             options: ext.optionsPath.flatMap(ext.page).map { url in { close(); open(url) } },
+                                             sidePanel: ext.sidePanelPath == nil ? nil : { close(); sidePanel(ext.id) })
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 360)
+                    Divider().padding(.vertical, 4)
+                    HStack {
+                        Button("Manage Extensions…") { close(); open(ExtensionsFeature.manageURL) }
+                        Spacer()
+                        Button("Chrome Web Store") { close(); open(ExtensionsFeature.storeURL) }
+                    }
+                    .buttonStyle(.borderless)
+                    .padding(.horizontal, 10).padding(.bottom, 6)
+                }
+                .padding(6)
+                .frame(width: 320)
+                .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.top, 52)
+                .padding(.leading, 8)
+                .transition(.scale(scale: 0.96, anchor: .topLeading).combined(with: .opacity))
+            }
+            .onExitCommand(perform: close)
+        }
+    }
+}
+
+struct ExtensionRow: View {
+    let ext: BrowserExtension
+    let icon: NSImage?
+    let run: () -> Void
+    let pin: () -> Void
+    let options: (() -> Void)?
+    let sidePanel: (() -> Void)?
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: run) {
+                HStack(spacing: 8) {
+                    Group {
+                        if let icon { Image(nsImage: icon).resizable().interpolation(.high) } else { Image(systemName: "puzzlepiece.extension") }
+                    }
+                    .frame(width: 18, height: 18)
+                    Text(ext.name).lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(ext.name)
+            if let sidePanel {
+                Button(action: sidePanel) { Image(systemName: "sidebar.right") }.buttonStyle(.borderless).help("Side Panel")
+            }
+            if let options {
+                Button(action: options) { Image(systemName: "gearshape") }.buttonStyle(.borderless).help("Options")
+            }
+            Button(action: pin) { Image(systemName: ext.isPinned ? "pin.fill" : "pin") }
+                .buttonStyle(.borderless)
+                .help(ext.isPinned ? "Hide from the Sidebar" : "Show in the Sidebar")
+                .accessibilityLabel(ext.isPinned ? "Hide \(ext.name) from the Sidebar" : "Show \(ext.name) in the Sidebar")
+        }
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 8)
+        .frame(height: 30)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(hovering ? Color.primary.opacity(0.08) : .clear))
         .onHover { hovering = $0 }
     }
 }

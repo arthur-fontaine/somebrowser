@@ -22,13 +22,34 @@ struct ChromiumExtensionsTests {
             "pdf": ["location": 5, "path": "/internal/pdf", "manifest": ["name": "Chromium PDF Viewer"]],
             "alpha": ["location": 1, "path": "alpha/2_0", "open_side_panel_on_icon_click": true,
                       "manifest": ["name": "Alpha", "action": ["default_icon": "a.png"], "side_panel": ["default_path": "panel.html"],
-                                   "chrome_url_overrides": ["newtab": "/tab.html"]]],
+                                   "chrome_url_overrides": ["newtab": "/tab.html"], "options_ui": ["page": "options.html"]]],
         ]
         try write(["extensions": ["settings": settings]], "Secure Preferences")
         try write(["extensions": ["pinned_extensions": ["unpacked", "ublockid"]]], "Preferences")
         try write(["extName": ["message": "uBlock Origin Lite"]], "Extensions/ublockid/1.0_0/_locales/en/messages.json")
         try write(["extName": ["message": "uBlock Origin Lite (fr)"]], "Extensions/ublockid/1.0_0/_locales/fr/messages.json")
         return profile
+    }
+
+    /// Every extension gets pinned in Chrome's toolbar (its pins first, in order), keeping the rest of the file; the
+    /// options page comes from the manifest.
+    @Test func pinsEveryExtensionInChrome() throws {
+        let profile = try makeProfile()
+        defer { try? FileManager.default.removeItem(at: profile) }
+        ChromiumExtensions.pinAll(profile: profile)
+        #expect(ChromiumExtensions.pinned(profile: profile) == ["unpacked", "ublockid", "alpha"])
+        #expect(ChromiumExtensions.read(profile: profile).allSatisfy { $0.isPinned })
+        #expect(ChromiumExtensions.read(profile: profile).first { $0.id == "alpha" }?.optionsPath == "options.html")
+    }
+
+    /// A pin of an extension Chrome hasn't listed yet (unpacked, loaded at launch) stays.
+    @Test func pinsOfExtensionsNotListedYetStay() throws {
+        let profile = FileManager.default.temporaryDirectory.appendingPathComponent("ext-pins-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: profile) }
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: ["extensions": ["pinned_extensions": ["loaded-later"]]]).write(to: profile.appendingPathComponent("Preferences"))
+        ChromiumExtensions.pinAll(profile: profile)
+        #expect(ChromiumExtensions.pinned(profile: profile) == ["loaded-later"])
     }
 
     @Test func listsEnabledUserExtensionsPinnedFirst() throws {

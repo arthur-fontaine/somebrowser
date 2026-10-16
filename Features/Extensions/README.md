@@ -1,16 +1,21 @@
 # Extensions
 
-**Purpose** — Chrome extensions from the sidebar: pinned extension buttons and the extensions menu next to the
-navigation buttons. Popups, permission prompts, pinning, site access and options pages are Chrome's own UI, so
-extensions behave exactly as in Chrome (popups, `action.onClicked`, badges' actions, the `activeTab` grant).
+**Purpose** — Chrome extensions from the sidebar: the extensions you chose show as buttons next to the navigation
+buttons, and the Extensions panel (⌘⇧E, the puzzle button) lists them all: run one, show it in the sidebar or not, its
+options and side panel. The panel is the browser's own; Chrome's extensions menu never shows. Popups, permission
+prompts and options pages are the extensions' (or Chrome's), so extensions behave as in Chrome (popups,
+`action.onClicked`, the `activeTab` grant); Manage Extensions… opens Chrome's page for site access and removal.
 
 **How it works** — The engine implements `EngineExtensions` (Core). On Chromium, every page carries Chrome's real
-toolbar in an invisible 1×1 overlay; actions are pressed through it, and Chrome anchors popups to its (virtual)
+toolbar in an invisible 1×1 overlay where every extension is pinned (the engine pins them all in Chrome's preferences
+before launch; one installed meanwhile goes through Chrome's menu, unseen behind the overlay, until the next launch).
+Which ones show in the sidebar is the browser's own list (`sidebar-extensions.json` in the engine profile, taken from
+Chrome's pins the first time). Actions are pressed through the hidden toolbar, and Chrome anchors popups to its (virtual)
 buttons at the page's top-left, beside the sidebar. See `docs/decisions/0003-hidden-chrome-toolbar.md`.
 Engines without extensions (WebKit) get no buttons and the commands do nothing.
 
 **Commands**
-- `extensions.menu` — Extensions… (cmd+shift+e)
+- `extensions.menu` — Extensions… (cmd+shift+e): the browser's Extensions panel
 - `extensions.run` — runs one extension's action (argument `id`; automation and other features)
 - `extensions.cycle` — Next Pinned Extension (⌘E, Arc): each press runs the next pinned one
 - `extensions.manage` — Manage Extensions (`chrome://extensions`, where "Load unpacked" lives)

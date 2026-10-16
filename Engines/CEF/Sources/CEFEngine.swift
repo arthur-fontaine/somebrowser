@@ -155,6 +155,13 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         runtime.anchorStartupDelay = firstLaunch ? 0 : 2
         try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
         self.profile = profile
+        // Every action gets a button in Chrome's hidden toolbar, so Chrome's extensions menu is never needed; which
+        // ones show in the sidebar is the browser's own list, taken from Chrome's pins the first time.
+        sidebarPinsFile = profileDirectory.appendingPathComponent("sidebar-extensions.json")
+        sidebarPins = (try? Data(contentsOf: sidebarPinsFile!)).flatMap { try? JSONDecoder().decode([String].self, from: $0) }
+            ?? ChromiumExtensions.pinned(profile: profile)
+        saveSidebarPins()
+        ChromiumExtensions.pinAll(profile: profile)
         reloadExtensions()
         watchProfile(profile)
         NativeMessagingHosts.mirror(into: profileDirectory.appendingPathComponent("NativeMessagingHosts", isDirectory: true))
@@ -197,13 +204,46 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         }
         guard stamps != preferenceStamps else { return }
         preferenceStamps = stamps
-        let list = ChromiumExtensions.read(profile: profile)
+        let chromeOrder = ChromiumExtensions.read(profile: profile)
+        toolbarOrder = chromeOrder.filter(\.isPinned).map(\.id)
         // Unpacked ones are in the profile only once Chrome has loaded them.
-        runtime.extensionsInstalled = !list.isEmpty || CommandLine.arguments.contains { $0.hasPrefix("--load-extension") }
+        runtime.extensionsInstalled = !chromeOrder.isEmpty || CommandLine.arguments.contains { $0.hasPrefix("--load-extension") }
+        runtime.extensionToolbarWidth = Int32(Self.toolbarWidth(pinned: toolbarOrder.count))
+        publishExtensions(chromeOrder)
+    }
+
+    /// The extensions with the sidebar's pins: those first, in their order, then by name.
+    private func publishExtensions(_ chromeOrder: [BrowserExtension]) {
+        var list = chromeOrder.map { ext in var e = ext; e.isPinned = sidebarPins.contains(ext.id); return e }
+        list.sort { a, b in
+            switch (sidebarPins.firstIndex(of: a.id), sidebarPins.firstIndex(of: b.id)) {
+            case let (x?, y?): return x < y
+            case (.some, nil): return true
+            case (nil, .some): return false
+            case (nil, nil): return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            }
+        }
         guard list != installedExtensions else { return }
         installedExtensions = list
-        runtime.extensionToolbarWidth = Int32(Self.toolbarWidth(pinned: list.filter(\.isPinned).count))
         onExtensionsChanged?()
+    }
+
+    /// Extensions shown in the sidebar, in order (the browser's own list, apart from Chrome's toolbar pins).
+    private var sidebarPins: [String] = []
+    private var sidebarPinsFile: URL?
+    /// Chrome's toolbar order (every extension pinned there): how its buttons line up, for badges.
+    private var toolbarOrder: [String] = []
+
+    private func saveSidebarPins() {
+        guard let sidebarPinsFile, let data = try? JSONEncoder().encode(sidebarPins) else { return }
+        try? data.write(to: sidebarPinsFile, options: .atomic)
+    }
+
+    public func setPinned(_ extensionID: String, _ pinned: Bool) {
+        sidebarPins.removeAll { $0 == extensionID }
+        if pinned { sidebarPins.append(extensionID) }
+        saveSidebarPins()
+        publishExtensions(installedExtensions)
     }
 
     /// Wide enough for every pinned action, so Chrome doesn't overflow them into its menu.
@@ -250,19 +290,14 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         return true
     }
 
-    @discardableResult public func showExtensionsMenu(in tab: EngineTab) -> Bool {
-        (tab as? CEFPage)?.tab?.showExtensionsMenu() ?? false
-    }
-
     /// Read from the page's hidden toolbar (our Chromium build exposes badges to accessibility). A button is named after
-    /// its action's title, which usually starts with the extension's name; otherwise buttons follow the pin order.
+    /// its action's title, which usually starts with the extension's name; otherwise buttons follow Chrome's pin order.
     public func actionBadges(in tab: EngineTab) -> [String: String] {
         guard runtime.extensionToolbar, let buttons = (tab as? CEFPage)?.tab?.extensionActionBadges(), !buttons.isEmpty else { return [:] }
-        let pinned = installedExtensions.filter(\.isPinned)
         var badges: [String: String] = [:]
         for (index, button) in buttons.enumerated() where button.count == 2 && !button[1].isEmpty {
             let named = installedExtensions.first { !$0.name.isEmpty && button[0].hasPrefix($0.name) }
-            if let ext = named ?? (index < pinned.count ? pinned[index] : nil) { badges[ext.id] = button[1] }
+            if let id = named?.id ?? (index < toolbarOrder.count ? toolbarOrder[index] : nil) { badges[id] = button[1] }
         }
         return badges
     }

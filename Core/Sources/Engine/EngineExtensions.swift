@@ -6,7 +6,7 @@ nonisolated public struct BrowserExtension: Identifiable, Equatable, Sendable {
     public var name: String
     /// File URL of the toolbar icon, if any.
     public var icon: URL?
-    /// Pinned to the toolbar by the user (shown as its own button).
+    /// Shown in the sidebar (its own button), as the user chose.
     public var isPinned: Bool
     /// Installed from the Chrome Web Store (so it can be installed again from there).
     public var isFromWebStore = false
@@ -16,6 +16,8 @@ nonisolated public struct BrowserExtension: Identifiable, Equatable, Sendable {
     public var opensSidePanelOnClick = false
     /// The page it puts in place of the new tab page (`chrome_url_overrides.newtab`), relative to the extension.
     public var newTabPagePath: String?
+    /// Its options page (`options_ui.page` or `options_page`), relative to the extension.
+    public var optionsPath: String?
 
     public init(id: String, name: String, icon: URL? = nil, isPinned: Bool = false) {
         self.id = id
@@ -40,8 +42,8 @@ public protocol EngineExtensions: AnyObject {
     var onExtensionsChanged: (() -> Void)? { get set }
     /// Runs the extension's toolbar action for `tab`. Returns false when it cannot (e.g. no toolbar host).
     @discardableResult func runAction(of extensionID: String, in tab: EngineTab) -> Bool
-    /// Shows the engine's extensions menu (pin, options, site access, manage) for `tab`.
-    @discardableResult func showExtensionsMenu(in tab: EngineTab) -> Bool
+    /// Shows the extension in the sidebar or not (`BrowserExtension.isPinned`).
+    func setPinned(_ extensionID: String, _ pinned: Bool)
     /// The text extensions show on their action in `tab` (`action.setBadgeText`), by extension id.
     func actionBadges(in tab: EngineTab) -> [String: String]
 }

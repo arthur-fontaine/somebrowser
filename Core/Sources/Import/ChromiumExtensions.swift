@@ -26,6 +26,7 @@ nonisolated public enum ChromiumExtensions {
             ext.sidePanelPath = (manifest["side_panel"] as? [String: Any])?["default_path"] as? String
             ext.opensSidePanelOnClick = entry["open_side_panel_on_icon_click"] as? Bool ?? false
             ext.newTabPagePath = (manifest["chrome_url_overrides"] as? [String: Any])?["newtab"] as? String
+            ext.optionsPath = (manifest["options_ui"] as? [String: Any])?["page"] as? String ?? manifest["options_page"] as? String
             out.append(ext)
         }
         return out.sorted { a, b in
@@ -36,6 +37,27 @@ nonisolated public enum ChromiumExtensions {
             case (nil, nil): return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
             }
         }
+    }
+
+    /// The extensions pinned in Chrome's toolbar, in order (`Preferences` → `extensions.pinned_extensions`).
+    public static func pinned(profile: URL) -> [String] {
+        ((json(profile.appendingPathComponent("Preferences"))?["extensions"] as? [String: Any])?["pinned_extensions"] as? [String]) ?? []
+    }
+
+    /// Pins every installed extension in Chrome's toolbar (those pinned first, in their order), so each action has a
+    /// button of its own and Chrome's extensions menu is never needed. Only while Chrome isn't running on the profile.
+    public static func pinAll(profile: URL) {
+        let file = profile.appendingPathComponent("Preferences")
+        guard var prefs = json(file) else { return }
+        let current = pinned(profile: profile)
+        let all = read(profile: profile).map(\.id)
+        // Pins stay, even of extensions Chrome hasn't listed yet (unpacked ones are listed once it loads them).
+        let wanted = current + all.filter { !current.contains($0) }
+        guard wanted != current else { return }
+        var extensions = prefs["extensions"] as? [String: Any] ?? [:]
+        extensions["pinned_extensions"] = wanted
+        prefs["extensions"] = extensions
+        if let data = try? JSONSerialization.data(withJSONObject: prefs) { try? data.write(to: file, options: .atomic) }
     }
 
     /// Current Chrome: `disable_reasons` is a list (empty = enabled). Older profiles: `state` 1 = enabled.

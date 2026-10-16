@@ -71,24 +71,22 @@ struct ExtensionsTests {
         #expect(h.engine.ranActions.map(\.id) == ["ublock", "second", "ublock"])
         h.engine.simulateExtensions([notes])
         try h.run("extensions.cycle")
-        #expect(h.engine.extensionMenus.count == 1)
+        #expect(h.window.flags.contains(ExtensionsFeature.panelFlag))
     }
 
-    @Test func menuOpensOnTheSelectedPage() throws {
+    /// The extensions menu is the browser's own panel (Chrome's never shows); pins there are the sidebar's.
+    @Test func menuIsTheBrowsersPanel() throws {
         let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
-        let tab = h.openTab("https://a.example")
-        try h.run("extensions.menu")
-        #expect(h.engine.extensionMenus.count == 1)
-        #expect(h.engine.extensionMenus.first === h.fakeTab(tab))
-    }
-
-    /// Without an action host (e.g. `chromeToolbar: none`) the menu falls back to the management page.
-    @Test func menuFallsBackToManagementPage() throws {
-        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
-        h.engine.toolbarAvailable = false
+        h.engine.simulateExtensions([ublock, notes])
         _ = h.openTab("https://a.example")
         try h.run("extensions.menu")
-        #expect(h.selectedTab?.url?.absoluteString == "chrome://extensions/")
+        #expect(h.window.flags.contains(ExtensionsFeature.panelFlag))
+        #expect(h.runtime.ui.views(for: .overlay).count == 1)
+        try h.run("extensions.menu")
+        #expect(!h.window.flags.contains(ExtensionsFeature.panelFlag))
+        let feature = try #require(h.runtime.feature(ExtensionsFeature.self))
+        feature.engine?.setPinned(notes.id, true)
+        #expect(feature.model.pinned.map(\.id) == [ublock.id, notes.id])
     }
 
     var panel: BrowserExtension {
