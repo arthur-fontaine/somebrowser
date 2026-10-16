@@ -12,24 +12,26 @@ struct SidebarView: View {
             header
             if !window.isLocked {  // a locked private space shows nothing of its pages
                 SlotHost(.sidebarAddress, window: window)
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, Design.Grid.edge)
             }
             FavoritesGrid(window: window, model: model)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, Design.Grid.edge)
             SlotHost(.sidebarTop, window: window)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, Design.Grid.edge)
             SpacePager(window: window, model: model)
             footer
         }
-        .padding(.bottom, 6)
+        // The footer's bottom edge on the page card's.
+        .padding(.bottom, Design.windowInset)
         .background { WindowDragArea() }
         .overlay(alignment: .trailing) { SidebarResizeHandle(window: window) }
     }
 
+    /// The traffic lights' row: the shell centers them in it (the system's toolbar height).
     private var header: some View {
         GlassGroup(spacing: 6) {
             HStack(spacing: 6) {
-                Spacer(minLength: 70)  // traffic lights live here (full-size content view)
+                Spacer(minLength: 72)  // traffic lights live here (full-size content view)
                 SlotHost(.sidebarHeader, window: window)
                 SidebarIconButton(systemImage: "sidebar.left", help: "Toggle Sidebar (⌘S)") {
                     try? env.runtime.commands.run("sidebar.toggle", window: window)
@@ -37,8 +39,8 @@ struct SidebarView: View {
                 .glassControl(in: Circle())
             }
         }
-        .padding(.horizontal, 8)
-        .frame(height: 44)
+        .padding(.horizontal, Design.Grid.edge)
+        .frame(height: Design.Size.header)
     }
 
     private var footer: some View {
@@ -47,8 +49,8 @@ struct SidebarView: View {
                 SlotHost(.sidebarFooter, window: window)
             }
         }
-        .padding(.horizontal, 10)
-        .frame(height: 38)
+        .padding(.horizontal, Design.Grid.edge)
+        .frame(height: Design.Size.control)
     }
 }
 
@@ -93,7 +95,6 @@ struct SpaceTabs: View {
     let window: BrowserWindowState
     let model: SidebarModel
     let space: Space
-    @Namespace private var glass
 
     var body: some View {
         let store = env.runtime.tabs
@@ -101,12 +102,14 @@ struct SpaceTabs: View {
         if space.kind == .private && window.isLocked {
             return AnyView(LockedSpace(window: window))
         }
+        let hasPinned = !space.pinned.isEmpty || model.dragging != nil
         return AnyView(ScrollView(.vertical) {
-            GlassGroup(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
-                TabList(window: window, model: model, container: .section(space.id, .pinned))
-                SectionDivider(window: window)
-                NewTabRow(window: window)
+                if hasPinned {  // the pinned section (and its divider) only once there's something to keep
+                    TabList(window: window, model: model, container: .section(space.id, .pinned))
+                    SectionDivider(window: window)
+                }
+                NewTabRow(window: window, model: model)
                 TabList(window: window, model: model, container: .section(space.id, .today))
                 Color.clear.frame(height: 40)
                     .contentShape(Rectangle())
@@ -116,10 +119,10 @@ struct SpaceTabs: View {
                         return env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: .section(space.id, .today), store: store) }
                     }
             }
+            .backgroundPreferenceValue(SelectionLensAnchor.self) { anchor in
+                GeometryReader { geo in SelectionLens(rect: anchor.map { geo[$0] }) }
             }
-            .environment(\.selectionGlass, glass)
-            .animation(.spring(duration: 0.38, bounce: 0.18), value: window.selectedTabID)
-            .padding(.horizontal, 8)
+            .padding(.horizontal, Design.Grid.edge)
         }
         .scrollIndicators(.never))
     }
@@ -152,7 +155,7 @@ struct SectionDivider: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Rectangle().fill(.separator).frame(height: 1)
+            Rectangle().fill(Design.Fill.hairline).frame(height: 1)
             if hovering, let space = env.runtime.tabs.space(window.spaceID), !space.today.isEmpty {
                 Button {
                     withAnimation(.spring(duration: 0.4, bounce: 0.1)) {
@@ -167,15 +170,16 @@ struct SectionDivider: View {
             }
         }
         .frame(height: 18)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, Design.Grid.iconInset)
         .contentShape(Rectangle())
-        .onHover { h in withAnimation(.easeOut(duration: 0.15)) { hovering = h } }
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
     }
 }
 
 struct NewTabRow: View {
     @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
+    let model: SidebarModel
     @State private var hovering = false
 
     var body: some View {
@@ -186,14 +190,15 @@ struct NewTabRow: View {
                 env.runtime.openTab(nil, in: window)
             }
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: 16)
+            // On the rows' grid: icon column, then the title column.
+            HStack(spacing: Design.Grid.iconToText) {
+                Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: Design.Size.favicon)
                 Text("New Tab").font(.system(size: 13))
                 Spacer()
             }
-            .padding(.horizontal, 8)
-            .frame(height: 30)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(hovering ? Color.primary.opacity(0.06) : .clear))
+            .padding(.leading, Design.Grid.iconInset)
+            .frame(height: model.rowHeight)
+            .background(Design.itemShape.fill(hovering ? Design.Fill.hover : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -212,8 +217,8 @@ struct SidebarIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .medium))
-                .frame(width: 30, height: 30)
+                .font(.system(size: 15, weight: .medium))
+                .frame(width: Design.Size.control, height: Design.Size.control)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -276,12 +281,14 @@ struct SidebarPeekOverlay: View {
         if !window.isSidebarVisible, env.runtime.settings.bool("sidebar.peekOnEdgeHover") {
             HStack(spacing: 0) {
                 if window.isSidebarPeeking {
+                    let slab = RoundedRectangle(cornerRadius: Design.cardRadius, style: .continuous)
                     SidebarView(window: window, model: model)
+                        .environment(\.isOnGlass, true)
                         .frame(width: window.sidebarWidth)
-                        .glassSurface(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: .black.opacity(0.25), radius: 18, x: 4)
-                        .padding(6)
+                        .glassSurface(in: slab)
+                        .clipShape(slab)
+                        .shadow(color: .black.opacity(0.22), radius: 24, y: 10)
+                        .padding(Design.windowInset)
                         .transition(.move(edge: .leading).combined(with: .opacity))
                         .onHover { inside in
                             hideTask?.cancel()

@@ -91,39 +91,40 @@ struct AddressPill: View {
         let url = live?.url ?? tab?.url
         let developer = AddressFormatter.developerMode(url, store: runtime.siteSettings)
         let text = developer && !showFullURL ? url.map(AddressFormatter.developerDisplay) ?? "" : AddressFormatter.display(url, full: showFullURL)
-        HStack(spacing: 6) {
-            if runtime.commands.isHandled("site-controls.show") {
-                Button { try? runtime.commands.run("site-controls.show", window: window) } label: {
-                    Image(systemName: "slider.horizontal.3").font(.system(size: 11, weight: .semibold))
-                        .frame(width: 22, height: 22).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).foregroundStyle(.secondary).help("Site Controls")
+        let warning = live.flatMap { AddressFormatter.symbol(for: $0.security) }
+        // On the sidebar's grid: the leading symbol in the rows' icon column, the address on their title column.
+        HStack(spacing: Design.Grid.iconToText) {
+            Button { try? runtime.commands.run("site-controls.show", window: window) } label: {
+                Image(systemName: developer ? "hammer.fill" : warning ?? "slider.horizontal.3")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(warning != nil && !developer ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                    .frame(width: Design.Size.favicon, height: Design.Size.control)
+                    .contentShape(Rectangle())
             }
-            if developer {
-                Image(systemName: "hammer.fill").font(.system(size: 10)).foregroundStyle(.secondary).help("Developer mode (⌃D)")
-            } else if let symbol = live.flatMap({ AddressFormatter.symbol(for: $0.security) }) {
-                Image(systemName: symbol).font(.system(size: 10)).foregroundStyle(.orange)
-            }
+            .buttonStyle(.plain)
+            .disabled(!runtime.commands.isHandled("site-controls.show"))
+            .help(developer ? "Developer mode (⌃D)" : "Site Controls")
             Text(text.isEmpty ? "Search or enter address" : text)
-                .font(.system(size: 12.5, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(text.isEmpty ? .tertiary : .primary)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: showFullURL || developer ? .leading : .center)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if hovering, let url {
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(url.absoluteString, forType: .string)
                     if runtime.commands.isHandled("navigation.copy-url") { try? runtime.commands.run("navigation.copy-url", window: window) }
                 } label: {
-                    Image(systemName: "link").font(.system(size: 11, weight: .semibold)).frame(width: 22, height: 22)
+                    Image(systemName: "link").font(.system(size: 12, weight: .semibold)).frame(width: 24, height: 24)
                 }
                 .buttonStyle(.plain).foregroundStyle(.secondary).help("Copy URL (⌘⇧C)")
                 .transition(.opacity)
             }
         }
-        .padding(.horizontal, 8)
-        .frame(height: 36)
+        .padding(.leading, Design.Grid.iconInset)
+        .padding(.trailing, 6)
+        .frame(height: Design.Size.control)
         .glassControl(in: Capsule())
         .overlay(alignment: .bottom) {
             if let live, live.isLoading {
@@ -138,7 +139,7 @@ struct AddressPill: View {
             }
         }
         .contentShape(Rectangle())
-        .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hovering = h } }
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
         .onTapGesture {
             if runtime.commands.isHandled("command-bar.edit-url") { try? runtime.commands.run("command-bar.edit-url", window: window) }
         }

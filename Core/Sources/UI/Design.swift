@@ -20,6 +20,9 @@ public enum Design {
         max(minimum, outer - inset)
     }
 
+    /// Every list item's shape: rows, tiles, the selection lens, hover and drop targets.
+    public static let itemShape = RoundedRectangle(cornerRadius: Radius.item, style: .continuous)
+
     public enum Radius {
         /// Rows, tiles, the selection lens, hover and drop targets.
         public static let item: CGFloat = 10
@@ -37,13 +40,14 @@ public enum Design {
         public static let favicon: CGFloat = 16
     }
 
-    /// The sidebar's leading grid: shapes start at `edge`, icons fill `iconColumn`, text starts at `textColumn`.
+    /// The sidebar's leading grid: shapes start at `edge`; icons are centered on the red traffic light's x (26, where the
+    /// system puts it in a window with a toolbar), so lights, favicons and the address field's symbol make one column;
+    /// text starts at `textColumn`.
     public enum Grid {
         public static let edge: CGFloat = 8
         /// Inside a shape that starts at `edge`: where its icon starts.
-        public static let iconInset: CGFloat = 8
+        public static let iconInset: CGFloat = 10
         public static let iconToText: CGFloat = 8
-        /// The red traffic light's center, on the icon column.
         public static let iconCenter: CGFloat = edge + iconInset + Size.favicon / 2
         public static let textColumn: CGFloat = edge + iconInset + Size.favicon + iconToText
     }

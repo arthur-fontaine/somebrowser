@@ -69,27 +69,28 @@ struct TabRow: View {
     let model: SidebarModel
     let rowHeight: CGFloat
 
-    static let indent: CGFloat = 14
+    /// A child's icon sits under its parent's title.
+    static let indent = Design.Size.favicon + Design.Grid.iconToText
 
     var body: some View {
         let store = env.runtime.tabs
         let selected = window.selectedTabID == row.id
         let hovered = model.hovered == row.id
         let drop = model.dropTarget?.id == row.id ? model.dropTarget?.zone : nil
-        HStack(spacing: 6) {
-            disclosure
+        Group {
             if let tab = store.tab(row.id) {
-                TabRowContent(tab: tab, window: window, selected: selected, hovered: hovered, renaming: isRenaming)
+                TabRowContent(tab: tab, window: window, selected: selected, hovered: hovered, renaming: isRenaming, disclosure: disclosure)
             } else if let folder = store.folder(row.id) {
-                FolderRowContent(folder: folder, window: window, renaming: isRenaming)
+                FolderRowContent(folder: folder, window: window, renaming: isRenaming, disclosure: disclosure)
             }
         }
-        .padding(.leading, 6 + CGFloat(row.depth) * Self.indent)
-        .padding(.trailing, 4)
+        .padding(.leading, Design.Grid.iconInset + CGFloat(row.depth) * Self.indent)
+        .padding(.trailing, 6)
         .frame(height: rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(alignment: .leading) { guides }
-        .selectionLens(selected: selected, hovered: hovered, id: row.id)
+        .background(Design.itemShape.fill(hovered && !selected ? Design.Fill.hover : .clear))
+        .anchorPreference(key: SelectionLensAnchor.self, value: .bounds) { selected ? $0 : nil }
         .overlay { dropIndicator(drop) }
         .contentShape(Rectangle())
         // A single click selects at once: a double-click gesture placed before it would hold every click for the
@@ -106,34 +107,23 @@ struct TabRow: View {
 
     private var isRenaming: Bool { window.flags.contains("rename:\(row.id.uuidString)") }
 
-    @ViewBuilder
-    private var disclosure: some View {
-        if row.hasChildren {
-            Button {
-                withAnimation(.spring(duration: 0.3, bounce: 0.1)) { env.runtime.tabs.setCollapsed(row.id, !row.isCollapsed) }
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .bold))
-                    .rotationEffect(.degrees(row.isCollapsed ? 0 : 90))
-                    .frame(width: 12, height: 16)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.tertiary)
-        } else if row.depth > 0 || hasSiblingsWithChildren {
-            Color.clear.frame(width: 12)
+    /// A parent's chevron takes its icon's place while the row is hovered (or while collapsed, so hidden children show).
+    private var disclosure: Disclosure? {
+        guard row.hasChildren else { return nil }
+        let id = row.id
+        return Disclosure(isCollapsed: row.isCollapsed, isShown: model.hovered == id || row.isCollapsed) { [env] in
+            withAnimation(Design.Motion.layout) { env.runtime.tabs.setCollapsed(id, !row.isCollapsed) }
         }
     }
-
-    private var hasSiblingsWithChildren: Bool { false }
 
     @ViewBuilder
     private var guides: some View {
         if row.depth > 0, env.runtime.settings.bool("sidebar.treeGuides") {
-            HStack(spacing: 0) {
+            // Under each ancestor's icon.
+            ZStack(alignment: .leading) {
                 ForEach(0..<row.depth, id: \.self) { d in
                     Rectangle().fill(.quaternary).frame(width: 1)
-                        .padding(.leading, d == 0 ? 6 + 5.5 : Self.indent - 1)
+                        .offset(x: Design.Grid.iconInset + Design.Size.favicon / 2 - 0.5 + CGFloat(d) * Self.indent)
                 }
             }
             .padding(.vertical, -1)
@@ -143,7 +133,7 @@ struct TabRow: View {
     private func activate() {
         let runtime = env.runtime
         if runtime.tabs.folder(row.id) != nil {
-            withAnimation(.spring(duration: 0.3, bounce: 0.1)) { runtime.tabs.setCollapsed(row.id, !row.isCollapsed) }
+            withAnimation(Design.Motion.layout) { runtime.tabs.setCollapsed(row.id, !row.isCollapsed) }
             return
         }
         runtime.select(row.id, in: window)
@@ -154,7 +144,7 @@ struct TabRow: View {
     private func dropIndicator(_ zone: SidebarLogic.DropZone?) -> some View {
         switch zone {
         case .inside:
-            RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(.tint, lineWidth: 2)
+            Design.itemShape.strokeBorder(.tint, lineWidth: 2)
         case .before:
             VStack { Capsule().fill(.tint).frame(height: 2); Spacer() }.padding(.top, -2)
         case .after:
@@ -165,6 +155,30 @@ struct TabRow: View {
     }
 }
 
+/// A parent row's expand/collapse control, drawn in its icon's slot.
+struct Disclosure {
+    let isCollapsed: Bool
+    let isShown: Bool
+    let toggle: () -> Void
+}
+
+struct DisclosureButton: View {
+    let disclosure: Disclosure
+
+    var body: some View {
+        Button(action: disclosure.toggle) {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .bold))
+                .rotationEffect(.degrees(disclosure.isCollapsed ? 0 : 90))
+                .frame(width: Design.Size.favicon, height: Design.Size.favicon)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help(disclosure.isCollapsed ? "Show Children" : "Hide Children")
+    }
+}
+
 struct TabRowContent: View {
     @Environment(BrowserEnvironment.self) private var env
     let tab: BrowserTab
@@ -172,11 +186,16 @@ struct TabRowContent: View {
     let selected: Bool
     let hovered: Bool
     let renaming: Bool
+    var disclosure: Disclosure?
 
     var body: some View {
         let live = tab.live
-        HStack(spacing: 8) {
-            FaviconView(tab: tab).frame(width: 16, height: 16)
+        HStack(spacing: Design.Grid.iconToText) {
+            if let disclosure, disclosure.isShown {
+                DisclosureButton(disclosure: disclosure)
+            } else {
+                FaviconView(tab: tab).frame(width: Design.Size.favicon, height: Design.Size.favicon)
+            }
             if renaming {
                 RenameField(initial: tab.displayTitle) { name in
                     tab.customTitle = name.isEmpty ? nil : name
@@ -184,7 +203,7 @@ struct TabRowContent: View {
                 }
             } else {
                 Text(title(live))
-                    .font(.system(size: 13, weight: selected ? .medium : .regular))
+                    .font(.system(size: 13, weight: selected ? .semibold : .regular))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .foregroundStyle(tab.isLoaded || selected ? .primary : .secondary)
@@ -204,8 +223,8 @@ struct TabRowContent: View {
                 Button {
                     withAnimation(.spring(duration: 0.32, bounce: 0.12)) { env.runtime.sidebarHistory.close([tab.id], includingDescendants: false) }
                 } label: {
-                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 18, height: 18)
-                        .background(Circle().fill(Color.primary.opacity(hovered ? 0.06 : 0)))
+                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 20, height: 20)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -226,11 +245,16 @@ struct FolderRowContent: View {
     let folder: Folder
     let window: BrowserWindowState
     let renaming: Bool
+    var disclosure: Disclosure?
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: folder.isCollapsed ? "folder" : "folder.fill")
-                .font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 16)
+        HStack(spacing: Design.Grid.iconToText) {
+            if let disclosure, disclosure.isShown {
+                DisclosureButton(disclosure: disclosure)
+            } else {
+                Image(systemName: folder.isCollapsed ? "folder" : "folder.fill")
+                    .font(.system(size: 13)).foregroundStyle(.secondary).frame(width: Design.Size.favicon)
+            }
             if renaming {
                 RenameField(initial: folder.name) { name in
                     if !name.isEmpty { folder.name = name }
@@ -278,7 +302,7 @@ struct FaviconView: View {
                 placeholder
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Design.Radius.favicon, style: .continuous))
         .overlay {
             if live?.isLoading == true {
                 ProgressView().controlSize(.mini).scaleEffect(0.8)
@@ -372,37 +396,39 @@ struct RowDropDelegate: DropDelegate {
     }
 }
 
-/// The selected row's Liquid Glass lens, the row drawn inside it. Rows share one glass group and the lens keeps one
-/// identity, so when the selection moves the glass flows from row to row. A hovered row gets a faint fill.
-struct SelectionLens: ViewModifier {
+/// The selected row's frame, for the one lens drawn behind all rows.
+struct SelectionLensAnchor: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
+}
+
+/// One piece of Liquid Glass behind the rows, sliding to the selected one. Rows draw above it, so their titles never
+/// pass through the glass (a lens per row smeared both titles while it re-formed). Solid style, or on the floating
+/// sidebar's own glass: a wash.
+struct SelectionLens: View {
     @Environment(BrowserEnvironment.self) private var env
-    @Environment(\.selectionGlass) private var namespace
-    let selected: Bool
-    let hovered: Bool
-    let id: UUID
-    var cornerRadius: CGFloat = 10
+    @Environment(\.isOnGlass) private var isOnGlass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let rect: CGRect?
+    @State private var shown: CGRect?
 
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    var body: some View {
         let solid = env.runtime.settings.string(SurfaceStyle.settingKey) == SurfaceStyle.solid.rawValue
-        let clear = env.runtime.settings.string(SurfaceStyle.settingKey) == SurfaceStyle.clear.rawValue
-        let lens: Glass = selected && !solid ? (clear ? Glass.clear : .regular).interactive() : .identity
-        let hover = shape.fill(Color.primary.opacity(selected && solid ? 0.12 : hovered && !selected ? 0.06 : 0))
-        if let namespace {
-            content.background(hover).glassEffect(lens, in: shape).glassEffectID(selected ? "selection" : id.uuidString, in: namespace)
-        } else {
-            content.background(hover).glassEffect(lens, in: shape)
+        let frame = rect ?? shown ?? .zero
+        Group {
+            if solid || isOnGlass {
+                Design.itemShape.fill(Design.Fill.selection)
+            } else {
+                Color.clear.glassSurface(in: Design.itemShape)
+            }
         }
+        .frame(width: frame.width, height: frame.height)
+        .offset(x: frame.minX, y: frame.minY)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .opacity(rect == nil ? 0 : 1)
+        .allowsHitTesting(false)
+        .onChange(of: rect, initial: true) { if let rect { shown = rect } }
+        // A lens that wasn't showing appears where it is; one that was slides.
+        .animation(shown == nil ? nil : reduceMotion ? Design.Motion.reduced : Design.Motion.selection, value: rect)
     }
-}
-
-extension View {
-    func selectionLens(selected: Bool, hovered: Bool, id: UUID, cornerRadius: CGFloat = 10) -> some View {
-        modifier(SelectionLens(selected: selected, hovered: hovered, id: id, cornerRadius: cornerRadius))
-    }
-}
-
-extension EnvironmentValues {
-    /// The sidebar's selection glass namespace (rows morph the lens between them).
-    @Entry var selectionGlass: Namespace.ID?
 }

@@ -13,18 +13,15 @@ struct FavoritesGrid: View {
         let store = env.runtime.tabs
         let ids = store.favorites
         if !ids.isEmpty || model.dragging != nil {
-            GlassGroup(spacing: 0) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 52, maximum: 120), spacing: 6)], spacing: 6) {
-                    ForEach(ids, id: \.self) { id in
-                        if let tab = store.tab(id) { FavoriteTile(tab: tab, window: window) }
-                    }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 52, maximum: 120), spacing: 6)], spacing: 6) {
+                ForEach(ids, id: \.self) { id in
+                    if let tab = store.tab(id) { FavoriteTile(tab: tab, window: window) }
                 }
             }
-            .padding(ids.isEmpty ? 10 : 0)
-            .frame(minHeight: ids.isEmpty ? 40 : 0)
+            .frame(minHeight: ids.isEmpty ? Design.Size.tile : 0)
             .background {
                 if ids.isEmpty {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    Design.itemShape
                         .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
                         .foregroundStyle(targeted ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary))
                         .overlay(Text("Drop to add a favorite").font(.system(size: 11)).foregroundStyle(.tertiary))
@@ -50,9 +47,10 @@ struct FavoriteTile: View {
         let selected = window.selectedTabID == tab.id
         FaviconView(tab: tab)
             .frame(width: 18, height: 18)
-            .frame(maxWidth: .infinity, minHeight: 40)
-            // Each favorite is a tile of glass; the open one stands out with a brighter lens.
-            .glassControl(in: RoundedRectangle(cornerRadius: 12, style: .continuous), tint: selected ? .white.opacity(0.35) : nil)
+            .frame(maxWidth: .infinity, minHeight: Design.Size.tile)
+            // Tiles are washes, like rows; the open one gets the selection's lens.
+            .background { if !selected { Design.itemShape.fill(hovering ? Design.Fill.selection : Design.Fill.tile) } }
+            .modifier(TileLens(selected: selected))
             .overlay(alignment: .bottom) {
                 if tab.live?.isPlayingAudio == true {
                     Image(systemName: "music.note").font(.system(size: 8)).foregroundStyle(.secondary)
@@ -79,6 +77,24 @@ struct FavoriteTile: View {
                 }
                 Button("Close") { env.runtime.sidebarHistory.close([tab.id], includingDescendants: false) }
             }
+    }
+}
+
+/// The open favorite: the same glass as the selected row's lens (a wash in solid style or on glass).
+struct TileLens: ViewModifier {
+    @Environment(BrowserEnvironment.self) private var env
+    @Environment(\.isOnGlass) private var isOnGlass
+    let selected: Bool
+
+    func body(content: Content) -> some View {
+        let solid = env.runtime.settings.string(SurfaceStyle.settingKey) == SurfaceStyle.solid.rawValue
+        if !selected {
+            content
+        } else if solid || isOnGlass {
+            content.background(Design.itemShape.fill(Design.Fill.selection))
+        } else {
+            content.glassSurface(in: Design.itemShape)
+        }
     }
 }
 
