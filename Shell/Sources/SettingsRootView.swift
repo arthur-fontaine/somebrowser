@@ -86,9 +86,14 @@ struct SettingControl: View {
                         .frame(width: 90)
                 }
             case .string:
-                // Long values (keyword lists) wrap instead of running out of the row.
+                // The label above, the value across the row's width: long values (keyword lists) wrap, left-aligned.
+                Text(descriptor.title)
                 TextField(descriptor.title, text: Binding(get: { store.string(key) }, set: { store.set(key, .string($0)) }), axis: .vertical)
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13))
                     .lineLimit(1...4)
+                    .multilineTextAlignment(.leading)
             }
             if let help = descriptor.description {
                 Text(help).font(.caption).foregroundStyle(.secondary)

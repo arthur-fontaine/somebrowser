@@ -88,6 +88,8 @@ struct SettingSpec: Codable, Equatable {
     var `default`: JSONValue
     var description: String?
     var options: [String]?
+    /// How each option reads in Settings, in `options`' order.
+    var optionTitles: [String]?
     var section: String?
 }
 

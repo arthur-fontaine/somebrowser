@@ -192,6 +192,7 @@ enum Generator {
                 + "kind: .\(s.type), defaultValue: \(value.swiftSettingValue), "
                 + "description: \(s.description.map(swiftStringLiteral) ?? "nil"), "
                 + "options: [\((s.options ?? []).map(swiftStringLiteral).joined(separator: ", "))], "
+                + "optionTitles: [\((s.optionTitles ?? []).map(swiftStringLiteral).joined(separator: ", "))], "
                 + "section: \(s.section.map(swiftStringLiteral) ?? "nil"))"
         }
         func list(_ xs: [String]) -> String { "[" + xs.map(swiftStringLiteral).joined(separator: ", ") + "]" }
