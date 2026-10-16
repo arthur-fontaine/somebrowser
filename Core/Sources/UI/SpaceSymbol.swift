@@ -26,7 +26,7 @@ public struct SpaceSymbol: View {
     }
 }
 
-/// A brimmed hat over round glasses.
+/// A brimmed hat over round dark glasses.
 nonisolated struct IncognitoShape: Shape {
     func path(in r: CGRect) -> Path {
         let s = min(r.width, r.height)
@@ -42,10 +42,9 @@ nonisolated struct IncognitoShape: Shape {
         path.closeSubpath()
         path.addRoundedRect(in: CGRect(origin: p(0.06, 0.42), size: CGSize(width: 0.88 * s, height: 0.09 * s)),
                             cornerSize: CGSize(width: 0.045 * s, height: 0.045 * s))
-        // Glasses: two rings and the bridge.
+        // Glasses: two dark lenses (solid, so the glyph weighs what the person beside it does) and the bridge.
         for x in [0.30, 0.70] {
             path.addEllipse(in: CGRect(x: o.x + (x - 0.17) * s, y: o.y + 0.60 * s, width: 0.34 * s, height: 0.34 * s))
-            path.addEllipse(in: CGRect(x: o.x + (x - 0.11) * s, y: o.y + 0.66 * s, width: 0.22 * s, height: 0.22 * s))
         }
         path.addRect(CGRect(origin: p(0.47, 0.72), size: CGSize(width: 0.06 * s, height: 0.06 * s)))
         return path
