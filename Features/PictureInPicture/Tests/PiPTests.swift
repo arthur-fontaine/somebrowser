@@ -120,6 +120,19 @@ struct PiPSwipeTests {
         #expect(!catcher.isVisible)
         panel.orderOut(nil)
     }
+
+    /// The video's place on the page, in CSS pixels, on screen: what of it shows in the page's area.
+    @Test func theFlightStartsWhereTheVideoWas() {
+        let page = CGRect(x: 300, y: 100, width: 1000, height: 600)  // the page's area on screen (y up)
+        let viewport = CGSize(width: 1000, height: 600)
+        #expect(PiPGeometry.screenRect(ofPageRect: CGRect(x: 100, y: 50, width: 640, height: 360), viewport: viewport, shownIn: page)
+                == CGRect(x: 400, y: 290, width: 640, height: 360))
+        // Zoomed out pages report more CSS pixels than points; scrolled half out, half shows; scrolled out, nothing.
+        #expect(PiPGeometry.screenRect(ofPageRect: CGRect(x: 0, y: 0, width: 1000, height: 600), viewport: CGSize(width: 2000, height: 1200),
+                                       shownIn: page) == CGRect(x: 300, y: 400, width: 500, height: 300))
+        #expect(PiPGeometry.screenRect(ofPageRect: CGRect(x: 0, y: -180, width: 640, height: 360), viewport: viewport, shownIn: page)?.height == 180)
+        #expect(PiPGeometry.screenRect(ofPageRect: CGRect(x: 0, y: -400, width: 640, height: 360), viewport: viewport, shownIn: page) == nil)
+    }
 }
 
 @MainActor

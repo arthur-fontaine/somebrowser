@@ -64,7 +64,10 @@ public final class PictureInPictureFeature: BrowserFeature {
         guard let engineTab = tab.engineTab, let floating = context.engine as? EngineFloating,
               let content = floating.detachForFloating(engineTab) else { return }
         let isCall = tab.live?.isCapturingCamera == true || tab.live?.isCapturingMicrophone == true
-        let startFrame = context.shell?.nsWindow(for: window).map { w in w.convertToScreen(w.contentLayoutRect) }
+        // The page's area on screen (the video's place in it comes from the page).
+        let startFrame = context.shell?.nsWindow(for: window).map { w in
+            w.convertToScreen(window.contentFrame.isEmpty ? w.contentLayoutRect : window.contentFrame)
+        }
         session = PiPSession(feature: self, tabID: tab.id, engineTab: engineTab, content: content, isCall: isCall,
                              windowID: window.id, startFrame: startFrame,
                              width: CGFloat(max(240, context.settings.int("pip.width"))))
@@ -118,14 +121,19 @@ final class PiPSession {
             // The flight starts once the page shows only the video, in its shape: re-aimed midway, it stuttered. A page
             // slow to answer doesn't hold it up.
             var presented = false
+            var startFrame = startFrame
             let present = { [weak panel] in
                 guard !presented else { return }
                 presented = true
                 panel?.present(from: startFrame)
             }
             engineTab.evaluateJavaScript(PiPScripts.enter) { [weak self] result in
-                if case .success(let value) = result, let dims = value as? [Double], dims.count == 2, dims[1] > 0 {
-                    self?.panel.setAspect(CGFloat(dims[0] / dims[1]))
+                guard case .success(let value) = result, let d = value as? [Double], d.count == 8, d[1] > 0 else { return present() }
+                self?.panel.setAspect(CGFloat(d[0] / d[1]))
+                // It flies from where the video was on the page.
+                if let page = startFrame, let rect = PiPGeometry.screenRect(ofPageRect: CGRect(x: d[2], y: d[3], width: d[4], height: d[5]),
+                                                                          viewport: CGSize(width: d[6], height: d[7]), shownIn: page) {
+                    startFrame = rect
                 }
                 present()
             }
@@ -169,6 +177,18 @@ final class PiPSession {
     }
 }
 
+enum PiPGeometry {
+    /// A rect of the page (CSS pixels from the viewport's top-left) on screen, the viewport shown in `page` (screen
+    /// points, y up): what of it is visible, nil if nothing is.
+    static func screenRect(ofPageRect r: CGRect, viewport: CGSize, shownIn page: CGRect) -> CGRect? {
+        guard viewport.width > 0, viewport.height > 0 else { return nil }
+        let sx = page.width / viewport.width, sy = page.height / viewport.height
+        let rect = CGRect(x: page.minX + r.minX * sx, y: page.maxY - r.maxY * sy, width: r.width * sx, height: r.height * sy)
+        let visible = rect.intersection(page)
+        return visible.isNull || visible.width < 1 || visible.height < 1 ? nil : visible
+    }
+}
+
 enum PiPScripts {
     /// Video-only presentation: the largest playing video fills the page; everything else hides.
     static let enter = """
@@ -177,6 +197,7 @@ enum PiPScripts {
       const v = vids.filter(v => !v.paused).sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight)[0] || vids[0];
       if (!v) return null;
       window.__pipVideo = v;
+      const r = v.getBoundingClientRect();  // where it shows, before the page shows only it
       if (!document.getElementById('__pip_style')) {
         const s = document.createElement('style'); s.id = '__pip_style';
         s.textContent = `html.__pip, html.__pip body { overflow: hidden !important; background: #000 !important; }
@@ -189,7 +210,7 @@ enum PiPScripts {
       v.classList.add('__pip_target');
       if (v.controls) { v.dataset.pipControls = '1'; v.controls = false; }  // our own controls take over
       document.documentElement.classList.add('__pip');
-      return [v.videoWidth, v.videoHeight];
+      return [v.videoWidth, v.videoHeight, r.left, r.top, r.width, r.height, innerWidth, innerHeight];
     })()
     """
     static let exit = """

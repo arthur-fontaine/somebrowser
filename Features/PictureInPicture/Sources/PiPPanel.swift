@@ -68,10 +68,10 @@ final class PiPPanel: NSPanel {
         root.addSubview(controls)
         contentView = root
         if case .window(let w) = content {
-            // Engine-owned page window (CEF): it follows the panel and sits under the controls.
+            // Engine-owned page window (CEF): it follows the panel and sits under the controls. It stays where it is
+            // (the browser's content) until the panel flies.
             w.level = .floating
             w.collectionBehavior = collectionBehavior
-            w.setFrame(frame, display: true)
             addChildWindow(w, ordered: .below)
             w.orderFront(nil)
         }
@@ -98,14 +98,14 @@ final class PiPPanel: NSPanel {
 
     private var dismissed = false
 
-    /// Grows out of the browser window into the bottom-right corner (Radian).
+    /// Flies from `start` (the video where it was on the page) into the bottom-right corner; without one, rises there.
     func present(from start: CGRect?) {
         guard !dismissed else { return }  // closed before it flew (back to the tab at once)
         resting = .placed(PiPPhysics.cornerOrigin(size: targetSize, in: screenFrame))
         let target = PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame)
         if let start {
-            setFrame(start.insetBy(dx: start.width * 0.08, dy: start.height * 0.08), display: false)
-            alphaValue = 0.85
+            setFrame(start, display: false)
+            alphaValue = 1
         } else {
             setFrame(target.offsetBy(dx: 0, dy: -40), display: false)
             alphaValue = 0
