@@ -57,8 +57,7 @@ to check that the feature still works (`forkctl test <feature>`).
 
 ## 3. Chrome & layout
 - [x] ⌘S hide sidebar → almost fullscreen; edge-hover reveals sidebar overlay (A, H shelf)
-- [x] Toolbar that hides on scroll down / shows on scroll up or top-edge hover (R)
-- [x] URL field position: sidebar or toolbar (R)
+- [x] No top bar: everything lives in the sidebar (the toolbar feature was removed 2026-10-16)
 - [x] Toasts while sidebar hidden ("New tab created") (A)
 - [x] Rounded, inset web content in a thin themed frame (A)
 - [x] Window dragging from empty sidebar space (A)
@@ -76,7 +75,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Preview / Peek: links from pinned/favorites (or ⇧-click) open in an overlay (R, A)
 - [x] Mini window for external links (Little Arc) (A)
 - [x] Site controls popover: secure, camera, mic, sound, auto pop-out, site data size, permissions (R)
-- [x] Downloads: fly-to-toolbar animation + toast + panel (R) — [-] no AI renaming (U)
+- [x] Downloads: fly-to-sidebar animation + toast + panel (R) — [-] no AI renaming (U)
 - [x] Find in page, zoom, devtools, view source · print (native panel) · reader mode (Readability, ⌥⌘R) (A, H)
 - [x] History panel ⌘Y (A, H) · Copy URL / as Markdown (A)
 - [~] Import from Arc, Atlas, Chrome, Dia, Helium (+ Brave, Edge, Vivaldi): bookmarks → pinned folder, history,

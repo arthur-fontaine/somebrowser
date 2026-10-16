@@ -30,11 +30,8 @@ struct AddressBarTests {
         #expect(!AddressFormatter.developerMode(remote, store: h.runtime.siteSettings))
     }
 
-    @Test func pillFollowsPositionSetting() throws {
+    @Test func pillLivesInTheSidebar() throws {
         let h = try TestHarness(features: [AddressBarFeature.self], manifestDirectory: #filePath)
         #expect(h.runtime.ui.views(for: "sidebar.address").count == 1)
-        h.runtime.settings.set("address-bar.position", .string("toolbar"))
-        #expect(h.runtime.ui.views(for: "sidebar.address").isEmpty)
-        #expect(h.runtime.ui.views(for: "toolbar.center").count == 1)
     }
 }

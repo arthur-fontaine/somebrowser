@@ -16,8 +16,6 @@ public final class BrowserWindowState: Identifiable {
     /// Sidebar temporarily shown over the content while hidden (edge hover, Horse's "Shelf").
     public var isSidebarPeeking = false
     public var sidebarWidth: CGFloat = 260
-    /// Top toolbar shown (auto-hides on scroll when enabled).
-    public var isToolbarVisible = true
     public var isFullscreen = false
     public var isKeyWindow = false
     /// Arbitrary per-window flags features need (e.g. "command-bar.open"), observable.

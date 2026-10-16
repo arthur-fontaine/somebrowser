@@ -64,9 +64,6 @@ public final class NavigationFeature: BrowserFeature {
         context.ui.contribute("sidebar.header", id: "navigation.buttons", order: 0) { window in
             NavigationButtons(window: window, commands: commands)
         }
-        context.ui.contribute("toolbar.leading", id: "navigation.toolbar-buttons", order: 10) { window in
-            NavigationButtons(window: window, commands: commands)
-        }
     }
 
     func zoom(_ tab: EngineTab?, by direction: Int) {

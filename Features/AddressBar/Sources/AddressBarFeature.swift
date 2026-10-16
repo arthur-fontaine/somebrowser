@@ -8,8 +8,10 @@ public final class AddressBarFeature: BrowserFeature {
     public init(context: FeatureContext) { self.context = context }
 
     public func activate() {
-        place()
-        context.settings.observe("address-bar.position") { [weak self] _ in self?.place() }
+        let settings = context.settings
+        context.ui.contribute("sidebar.address", id: "address-bar.pill") { window in
+            AddressPill(window: window, showFullURL: settings.bool("address-bar.showFullURL"))
+        }
         context.commands.handle("address-bar.developer-mode", isEnabled: { [weak self] inv in self?.site(in: inv.window) != nil }) { [weak self] inv in
             self?.toggleDeveloperMode(in: inv.window)
         }
@@ -27,17 +29,6 @@ public final class AddressBarFeature: BrowserFeature {
         let on = !AddressFormatter.developerMode(url, store: context.siteSettings)
         context.siteSettings.set(AddressFormatter.developerKey, .bool(on), for: site)
         context.notify(on ? "Developer mode on for \(site)" : "Developer mode off for \(site)", systemImage: "hammer", window: window)
-    }
-
-    /// The pill lives in exactly one slot depending on the setting.
-    func place() {
-        let ui = context.ui
-        ui.remove(id: "address-bar.pill")
-        let slot: SlotID = context.settings.string("address-bar.position") == "toolbar" ? "toolbar.center" : "sidebar.address"
-        let settings = context.settings
-        ui.contribute(slot, id: "address-bar.pill") { window in
-            AddressPill(window: window, showFullURL: settings.bool("address-bar.showFullURL"))
-        }
     }
 }
 

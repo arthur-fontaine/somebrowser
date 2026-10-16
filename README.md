@@ -9,8 +9,8 @@ customized**, by you or by an agent.
   and its children are promoted; ⌘⇧T brings back the whole branch.
 - **Keyboard first** (Arc): ⌘T command bar for URLs, search, open tabs, history and every action;
   every command has a remappable shortcut.
-- **Almost full-screen** with ⌘S: the sidebar hides, the left edge reveals it, a slim toolbar follows
-  your scroll direction (Radian).
+- **Almost full-screen** with ⌘S: the sidebar hides and the left edge reveals it. No top bar: everything lives in
+  the sidebar.
 - **Private by default**: DuckDuckGo search, no Google services unless you pick them.
 
 See `TODO.md` for the full feature inventory and progress, `docs/` for research and decisions.
@@ -31,7 +31,7 @@ Requirements: macOS 26+, Xcode 26+ (Swift 6.2+).
 ```sh
 ./forkctl rename "Kestrel" --bundle-id dev.me.kestrel
 ./forkctl icon ~/Desktop/kestrel.png
-./forkctl feature disable toolbar
+./forkctl feature disable pip
 ./forkctl feature new reading-list --fork
 ```
 

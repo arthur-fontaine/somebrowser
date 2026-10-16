@@ -22,4 +22,4 @@ moves and closes go through Core's `SidebarHistory` (⌘Z undoes them).
 **Tests** — `./forkctl test sidebar`.
 
 **Remove it** — `./forkctl feature disable sidebar` and enable another feature that fills the
-`sidebar` (or `toolbar`) slot, e.g. a horizontal tab strip.
+`sidebar` slot, e.g. a horizontal tab strip.
