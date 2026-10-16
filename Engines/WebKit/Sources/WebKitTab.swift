@@ -289,33 +289,51 @@ extension WebKitTab: WKUIDelegate {
         }
     }
 
-    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async {
+    /// A page's dialog in the browser's own UI (the dialogs feature), else AppKit's alert.
+    private func pageDialog(_ kind: PageDialog.Kind, message: String, frame: WKFrameInfo?) async -> PageDialog.Answer {
+        let origin = frame.flatMap { URL(string: "\($0.securityOrigin.protocol)://\($0.securityOrigin.host)") } ?? webView.url
+        if let show = engine?.hooks.pageDialog {
+            return await withCheckedContinuation { done in
+                show(PageDialog(kind: kind, message: message, origin: origin, tab: self)) { done.resume(returning: $0) }
+            }
+        }
         let alert = NSAlert()
-        alert.messageText = frame.securityOrigin.host
+        alert.messageText = origin?.host() ?? ""
         alert.informativeText = message
-        if let w = webView.window { await alert.beginSheetModal(for: w) } else { alert.runModal() }
+        var field: NSTextField?
+        if case .prompt(let text) = kind {
+            field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+            field?.stringValue = text
+            alert.accessoryView = field
+        }
+        if kind != .alert { alert.addButton(withTitle: "OK"); alert.addButton(withTitle: "Cancel") }
+        let response = alert.runModal()
+        return PageDialog.Answer(accepted: response == .alertFirstButtonReturn || kind == .alert, text: field?.stringValue)
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async {
+        _ = await pageDialog(.alert, message: message, frame: frame)
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async -> Bool {
-        let alert = NSAlert()
-        alert.messageText = frame.securityOrigin.host
-        alert.informativeText = message
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Cancel")
-        let response = webView.window != nil ? await alert.beginSheetModal(for: webView.window!) : alert.runModal()
-        return response == .alertFirstButtonReturn
+        await pageDialog(.confirm, message: message, frame: frame).accepted
     }
 
     func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?,
                  initiatedByFrame frame: WKFrameInfo) async -> String? {
-        let alert = NSAlert()
-        alert.messageText = prompt
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        field.stringValue = defaultText ?? ""
-        alert.accessoryView = field
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
+        let answer = await pageDialog(.prompt(defaultText: defaultText ?? ""), message: prompt, frame: frame)
+        return answer.accepted ? answer.text ?? "" : nil
+    }
+
+    /// A site's sign-in (HTTP authentication) in the browser's own dialog; other challenges as WebKit decides.
+    func webView(_ webView: WKWebView, respondTo challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
+        let method = challenge.protectionSpace.authenticationMethod
+        guard [NSURLAuthenticationMethodHTTPBasic, NSURLAuthenticationMethodHTTPDigest, NSURLAuthenticationMethodDefault].contains(method),
+              engine?.hooks.pageDialog != nil, challenge.previousFailureCount < 3 else { return (.performDefaultHandling, nil) }
+        let space = challenge.protectionSpace
+        let answer = await pageDialog(.signIn(host: space.host, realm: space.realm ?? "", isProxy: space.isProxy()), message: "", frame: nil)
+        guard answer.accepted else { return (.cancelAuthenticationChallenge, nil) }
+        return (.useCredential, URLCredential(user: answer.text ?? "", password: answer.password ?? "", persistence: .forSession))
     }
 
     func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo) async -> [URL]? {

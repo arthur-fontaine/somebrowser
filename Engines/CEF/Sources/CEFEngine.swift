@@ -76,6 +76,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         // Our Chromium build (Engines/CEF/patches): the hidden toolbar's omnibox makes no WebUI popups (a renderer
         // each). Stock CEF ignores the switch.
         "disable-webui-omnibox": "",
+        // Sites' sign-ins go to CefRequestHandler::GetAuthCredentials (the browser's own dialog), not Chrome's prompt.
+        "disable-chrome-login-prompt": "",
         // Our Chromium (patch chromium/0004): no animation flying to Chrome's hidden downloads button.
         "disable-download-ui": "",
         "allow-browser-signin": "false",
@@ -149,6 +151,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         runtime.profilePreferences = Self.privacyPreferences
         // `chromeToolbar: "none"` (engine option) drops the hidden toolbar: no extension actions, slightly less memory.
         runtime.extensionToolbar = options["chromeToolbar"]?.stringValue != "none"
+        // Sites' sign-ins go to the browser's own dialog once a feature shows them (Chrome's login dialog otherwise).
+        hooks.observePageDialog { [weak self] in self?.runtime.handlesSignIn = self?.hooks.pageDialog != nil }
         let profile = profileDirectory.appendingPathComponent("Default", isDirectory: true)
         // A first launch restores nothing: the extensions' window is made at once (their welcome pages open then).
         let firstLaunch = !FileManager.default.fileExists(atPath: profile.appendingPathComponent("Preferences").path)

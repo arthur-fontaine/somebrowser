@@ -170,7 +170,8 @@ nonisolated public final class TestHTTPServer: @unchecked Sendable {
     public private(set) var port: UInt16 = 0
     private let queue = DispatchQueue(label: "test-http")
 
-    /// Answers a path from the raw request (headers included): extra response headers and the HTML body.
+    /// Answers a path from the raw request (headers included): extra response headers and the HTML body. A header
+    /// `Status: 401 Unauthorized` sets the status.
     public typealias Responder = @Sendable (_ request: String) -> (headers: [String], body: String)
 
     public init(pages: [String: String], responders: [String: Responder] = [:]) throws {
@@ -198,9 +199,10 @@ nonisolated public final class TestHTTPServer: @unchecked Sendable {
             let route = path.components(separatedBy: "?")[0]
             let answer = self.responders[route]?(request)
             let body = answer?.body ?? self.pages[route]
-            let status = body == nil ? "404 Not Found" : "200 OK"
+            let override = answer?.headers.first { $0.hasPrefix("Status: ") }.map { String($0.dropFirst(8)) }
+            let status = override ?? (body == nil ? "404 Not Found" : "200 OK")
             let payload = Data((body ?? "not found").utf8)
-            let extra = answer?.headers.map { $0 + "\r\n" }.joined() ?? ""
+            let extra = answer?.headers.filter { !$0.hasPrefix("Status: ") }.map { $0 + "\r\n" }.joined() ?? ""
             var head = "HTTP/1.1 \(status)\r\nContent-Type: text/html; charset=utf-8\r\n\(extra)Content-Length: \(payload.count)\r\nConnection: close\r\n\r\n"
             if path == "/favicon.ico" { head = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n" }
             c.send(content: Data(head.utf8) + (path == "/favicon.ico" ? Data() : payload), completion: .contentProcessed { _ in c.cancel() })

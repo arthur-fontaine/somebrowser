@@ -122,6 +122,45 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// A page's confirm and a site's sign-in are the browser's own dialogs (no Chrome or WebKit dialog window), and their
+    /// answers reach the page.
+    @Test func pageDialogsAreTheBrowsers() throws {
+        let server = try TestHTTPServer(pages: [
+            "/confirm": "<!doctype html><title>start</title><body><script>setTimeout(() => { document.title = confirm('Sure?') ? 'yes' : 'no'; }, 200);</script></body>",
+        ], responders: [
+            "/members": { request in
+                request.contains("Authorization: Basic bWU6cHc=")  // me:pw
+                    ? ([], "<!doctype html><title>Welcome me</title>")
+                    : (["Status: 401 Unauthorized", "WWW-Authenticate: Basic realm=\"Members\""], "<!doctype html><title>Denied</title>")
+            },
+        ])
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
+        func otherWindows() throws -> [String] {
+            (try app.call(["op": "views"])["windows"] as? [[String: Any]] ?? []).filter {
+                $0["visible"] as? Bool == true && !["ShellWindow", "CefNSWindow"].contains($0["class"] as? String ?? "")
+                    && !($0["frame"] as? String ?? "").contains("{1, 1}")
+            }.compactMap { "\($0["class"] ?? "") \($0["frame"] ?? "")" }
+        }
+        func answer(_ args: [String: String] = [:]) throws {
+            try app.waitUntil(timeout: 15) { try app.call(["op": "run", "command": "dialogs.accept", "args": args])["ok"] as? Bool == true }
+        }
+        try app.open(server.url("/confirm"))
+        try app.waitUntil(timeout: 15) { try app.call(["op": "run", "command": "dialogs.accept", "args": [:]])["ok"] as? Bool == false
+            && app.tabs().contains { $0.title == "start" } }
+        Thread.sleep(forTimeInterval: 0.6)
+        #expect(try otherWindows().isEmpty)
+        try answer()
+        try app.waitUntil(timeout: 10) { try app.eval("document.title") as? String == "yes" }
+
+        try app.navigate(server.url("/members"))
+        Thread.sleep(forTimeInterval: 0.6)
+        let shown = try otherWindows()
+        #expect(shown.isEmpty, "\(shown)")
+        try answer(["username": "me", "password": "pw"])
+        try app.waitUntil(timeout: 10) { try app.eval("document.title") as? String == "Welcome me" }
+        try app.quit()
+    }
+
     /// A click reaches the page: nothing of the window's own covers it (Chromium routes clicks by the views under the
     /// pointer, and CEF's overlay host view once took them all).
     @Test func clicksReachThePage() throws {

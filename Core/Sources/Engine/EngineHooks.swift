@@ -109,6 +109,20 @@ public final class EngineHooks {
     /// Shows the native permission prompt when no handler decided. Set by the permissions feature.
     public var permissionPrompt: ((PermissionRequest, @escaping (Bool) -> Void) -> Void)?
 
+    // MARK: Page dialogs
+
+    /// Shows a page's dialog (alert, confirm, prompt, leaving the page, a site's sign-in) in the browser's own UI and
+    /// answers once the user did. Set by the dialogs feature; engines fall back to their own dialogs without it.
+    public var pageDialog: ((PageDialog, @escaping (PageDialog.Answer) -> Void) -> Void)? {
+        didSet { pageDialogObservers.forEach { $0() } }
+    }
+    private var pageDialogObservers: [() -> Void] = []
+    /// Engines that must know beforehand whether the browser shows page dialogs itself.
+    public func observePageDialog(_ observer: @escaping () -> Void) {
+        pageDialogObservers.append(observer)
+        observer()
+    }
+
     // MARK: Downloads
 
     public private(set) var downloadObservers: [(DownloadEvent) -> Void] = []
@@ -268,6 +282,41 @@ public struct PermissionRequest {
 
     public init(kinds: [Kind], origin: URL, tab: EngineTab?) {
         self.kinds = kinds
+        self.origin = origin
+        self.tab = tab
+    }
+}
+
+/// A dialog a page asks for, shown over its tab.
+public struct PageDialog {
+    public enum Kind: Equatable {
+        case alert, confirm
+        case prompt(defaultText: String)
+        /// "Leave this page?" (`beforeunload`); `isReload` when the page is being reloaded.
+        case leavePage(isReload: Bool)
+        /// HTTP authentication for `host` (a proxy when `isProxy`), in `realm`.
+        case signIn(host: String, realm: String, isProxy: Bool)
+    }
+    public struct Answer: Equatable {
+        public var accepted: Bool
+        /// The prompt's text, or the sign-in's username.
+        public var text: String?
+        public var password: String?
+        public init(accepted: Bool, text: String? = nil, password: String? = nil) {
+            self.accepted = accepted
+            self.text = text
+            self.password = password
+        }
+    }
+    public var kind: Kind
+    public var message: String
+    /// The page's origin, as shown to the user.
+    public var origin: URL?
+    public var tab: EngineTab?
+
+    public init(kind: Kind, message: String, origin: URL?, tab: EngineTab?) {
+        self.kind = kind
+        self.message = message
         self.origin = origin
         self.tab = tab
     }

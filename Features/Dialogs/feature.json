@@ -1,0 +1,13 @@
+{
+  "id": "dialogs",
+  "name": "Page Dialogs",
+  "summary": "Pages' alerts, confirmations, prompts, \"leave this page?\" and sites' sign-ins in the browser's own dialog over their tab.",
+  "entry": "DialogsFeature",
+  "provides": ["page-dialogs"],
+  "requires": [],
+  "commands": [
+    { "id": "dialogs.accept", "title": "Accept Page Dialog", "palette": false },
+    { "id": "dialogs.cancel", "title": "Cancel Page Dialog", "palette": false }
+  ],
+  "settings": []
+}

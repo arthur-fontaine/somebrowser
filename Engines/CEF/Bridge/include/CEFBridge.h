@@ -52,6 +52,13 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 /// Kinds: camera, microphone, screenCapture, location, notifications, clipboard, midi.
 - (void)cefTab:(CEFTab *)tab requestsPermissions:(NSArray<NSString *> *)kinds origin:(NSString *)origin
          reply:(void (^)(BOOL granted))reply;
+/// A page's dialog (kind: alert, confirm, prompt, leave, reload), shown in the browser's own UI; NO to let Chrome show
+/// its own. `reply` answers on the main thread.
+- (BOOL)cefTab:(CEFTab *)tab dialog:(NSString *)kind message:(NSString *)message defaultText:(NSString *)defaultText
+        origin:(NSString *)origin reply:(void (^)(BOOL accepted, NSString *_Nullable text))reply;
+/// A site's (or proxy's) sign-in (HTTP authentication), in the browser's own UI. On the main thread.
+- (void)cefTab:(CEFTab *)tab signInFor:(NSString *)host realm:(NSString *)realm proxy:(BOOL)isProxy origin:(NSString *)origin
+         reply:(void (^)(NSString *_Nullable username, NSString *_Nullable password))reply;
 @end
 
 @protocol CEFRuntimeDelegate <NSObject>
@@ -73,6 +80,8 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @property (copy) NSArray<NSDictionary<NSString *, id> *> *userScripts;
 /// Host Chrome's toolbar invisibly in every page (extension actions, popups). Set before creating tabs.
 @property (nonatomic) BOOL extensionToolbar;
+/// The browser shows sites' sign-ins itself (set before pages load): Chrome's login dialog never shows.
+@property (atomic) BOOL handlesSignIn;
 /// Virtual width of that toolbar: room for the pinned actions before Chrome overflows them into its menu.
 @property (nonatomic) int extensionToolbarWidth;
 /// Extensions are installed (or loaded unpacked): keep a Chrome window for them while no page is open.

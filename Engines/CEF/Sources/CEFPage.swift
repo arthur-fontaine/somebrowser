@@ -307,6 +307,27 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
     }
 
+    func cefTab(_ tab: CEFTab, dialog kind: String, message: String, defaultText: String, origin: String,
+                reply: @escaping (Bool, String?) -> Void) -> Bool {
+        guard let show = engine?.hooks.pageDialog else { return false }
+        let dialogKind: PageDialog.Kind = switch kind {
+        case "confirm": .confirm
+        case "prompt": .prompt(defaultText: defaultText)
+        case "leave", "reload": .leavePage(isReload: kind == "reload")
+        default: .alert
+        }
+        show(PageDialog(kind: dialogKind, message: message, origin: URL(string: origin), tab: self)) { reply($0.accepted, $0.text) }
+        return true
+    }
+
+    func cefTab(_ tab: CEFTab, signInFor host: String, realm: String, proxy isProxy: Bool, origin: String,
+                reply: @escaping (String?, String?) -> Void) {
+        guard let show = engine?.hooks.pageDialog else { return reply(nil, nil) }
+        show(PageDialog(kind: .signIn(host: host, realm: realm, isProxy: isProxy), message: "", origin: URL(string: origin), tab: self)) {
+            $0.accepted ? reply($0.text ?? "", $0.password ?? "") : reply(nil, nil)
+        }
+    }
+
     func cefTab(_ tab: CEFTab, requestsPermissions kinds: [String], origin: String, reply: @escaping (Bool) -> Void) {
         guard let engine, let url = URL(string: origin) else { return reply(false) }
         let request = PermissionRequest(kinds: kinds.compactMap(PermissionRequest.Kind.init(rawValue:)), origin: url, tab: self)

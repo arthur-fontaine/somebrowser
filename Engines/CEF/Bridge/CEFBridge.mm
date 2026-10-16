@@ -15,6 +15,7 @@
 #include "include/cef_app.h"
 #include "include/cef_application_mac.h"
 #include "include/cef_client.h"
+#include "include/cef_jsdialog_handler.h"
 #include "include/cef_cookie.h"
 #include "include/cef_parser.h"
 #include "include/cef_color_ids.h"
@@ -258,9 +259,45 @@ class DevToolsClient : public CefClient {
 /// Per-tab client: routes every CEF callback to the ObjC tab (UI thread unless noted).
 class TabClient : public CefClient, public CefLifeSpanHandler, public CefDisplayHandler, public CefLoadHandler,
                   public CefRequestHandler, public CefKeyboardHandler, public CefFindHandler, public CefPermissionHandler,
-                  public CefDownloadHandler, public CefCommandHandler, public CefDevToolsMessageObserver {
+                  public CefDownloadHandler, public CefCommandHandler, public CefDevToolsMessageObserver,
+                  public CefJSDialogHandler {
 public:
     explicit TabClient(CEFTab *tab) : tab_(tab), filter_(new FilterHandler) {}
+
+    CefRefPtr<CefJSDialogHandler> GetJSDialogHandler() override { return this; }
+
+    // Page dialogs: the browser's own UI instead of Chrome's tab-modal dialogs.
+    bool OnJSDialog(CefRefPtr<CefBrowser> browser, const CefString &origin_url, JSDialogType type, const CefString &message_text,
+                    const CefString &default_prompt_text, CefRefPtr<CefJSDialogCallback> callback, bool &suppress_message) override {
+        NSString *kind = type == JSDIALOGTYPE_CONFIRM ? @"confirm" : type == JSDIALOGTYPE_PROMPT ? @"prompt" : @"alert";
+        return ShowDialog(kind, NS(message_text), NS(default_prompt_text), NS(origin_url), callback);
+    }
+    bool OnBeforeUnloadDialog(CefRefPtr<CefBrowser> browser, const CefString &message_text, bool is_reload,
+                              CefRefPtr<CefJSDialogCallback> callback) override {
+        return ShowDialog(is_reload ? @"reload" : @"leave", NS(message_text), @"", NS(browser->GetMainFrame()->GetURL()), callback);
+    }
+    bool ShowDialog(NSString *kind, NSString *message, NSString *defaultText, NSString *origin, CefRefPtr<CefJSDialogCallback> callback) {
+        CEFTab *tab = tab_;
+        if (!tab.delegate) return false;
+        return [tab.delegate cefTab:tab dialog:kind message:message defaultText:defaultText origin:origin
+                              reply:^(BOOL accepted, NSString *text) { callback->Continue(accepted, CS(text ?: @"")); }];
+    }
+
+    // A site's sign-in: asked on the IO thread, answered from the main thread.
+    bool GetAuthCredentials(CefRefPtr<CefBrowser> browser, const CefString &origin_url, bool isProxy, const CefString &host, int port,
+                            const CefString &realm, const CefString &scheme, CefRefPtr<CefAuthCallback> callback) override {
+        if (![CEFRuntime shared].handlesSignIn) return false;
+        __weak CEFTab *weakTab = tab_;
+        NSString *hostName = NS(host), *realmName = NS(realm), *origin = NS(origin_url);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            CEFTab *tab = weakTab;
+            if (!tab.delegate) { callback->Cancel(); return; }
+            [tab.delegate cefTab:tab signInFor:hostName realm:realmName proxy:isProxy origin:origin reply:^(NSString *user, NSString *password) {
+                if (user) callback->Continue(CS(user), CS(password ?: @"")); else callback->Cancel();
+            }];
+        });
+        return true;
+    }
 
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
     CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
