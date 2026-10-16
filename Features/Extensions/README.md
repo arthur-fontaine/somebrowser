@@ -19,7 +19,9 @@ Managing goes through Chrome's own extensions page, never shown: the engine open
 own (window ordered in off screen, transparent) and calls Chrome's management API there (`chrome.developerPrivate`,
 `chrome.management`), as that page does; replies come back through `__browser.post`. It costs one renderer (~150 MB
 resident, measured 2026-10-16) while open, from the first details asked for until a minute unused, and contacts nobody
-(net log). Chrome's removal confirmation is parented to that window and shown as the browser's dialog.
+(net log). Chrome's removal confirmation is parented to that window and shown as the browser's dialog. While that page
+is open, extensions see it as a `chrome://extensions` tab (`tabs.query`). A prompt from an extension installed moments
+ago (run through Chrome's menu before it's pinned) may show as Chrome's own.
 Engines without extensions (WebKit) get no buttons and the commands do nothing.
 
 **Commands**

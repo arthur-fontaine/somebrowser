@@ -24,7 +24,13 @@ final class ExtensionManagement: EngineTabDelegate {
     func call(_ body: String, reply: ((Any?) -> Void)? = nil) {
         let id = nextID
         nextID += 1
-        if let reply { replies[id] = reply }
+        if let reply {
+            replies[id] = reply
+            // The page may never answer (it didn't load, or crashed): the caller hears nothing back, not never.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                MainActor.assumeIsolated { self?.replies.removeValue(forKey: id)?(nil) }
+            }
+        }
         let script = """
             (() => { const reply = r => __browser.post('__management', { id: \(id), r: r === undefined ? null : r });
               const fail = e => reply({ error: String(e && e.message || e) });
@@ -61,7 +67,9 @@ final class ExtensionManagement: EngineTabDelegate {
         page = nil
         loaded = false
         waiting.removeAll()
+        let pending = replies.values
         replies.removeAll()  // a late answer finds nothing
+        for reply in pending { reply(nil) }
     }
 
     // MARK: EngineTabDelegate
