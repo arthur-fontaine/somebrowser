@@ -54,6 +54,20 @@ struct SidebarView: View {
     }
 }
 
+/// The sidebar in its column, sliding while it arrives or leaves (`SidebarModel.toggle`); under Reduce Motion it fades.
+struct DockedSidebar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let window: BrowserWindowState
+    let model: SidebarModel
+
+    var body: some View {
+        let slide = model.slide[window.id] ?? 0
+        SidebarView(window: window, model: model)
+            .offset(x: reduceMotion ? 0 : slide * window.sidebarWidth)
+            .opacity(reduceMotion ? 1 + slide : 1)
+    }
+}
+
 /// One space's tabs (pinned, divider, new tab, today). Horizontal two-finger swipes page between spaces.
 struct SpacePager: View {
     @Environment(BrowserEnvironment.self) private var env

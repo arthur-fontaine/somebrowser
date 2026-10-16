@@ -15,10 +15,12 @@ struct BrowserWindowView: View {
         ZStack(alignment: .topLeading) {
             background(ui)
             HStack(spacing: 0) {
-                if window.isSidebarVisible && !ui.views(for: .sidebar).isEmpty {
+                // The page is a window of its own under some engines: its frame changes once, never animated. The sidebar
+                // animates its own arrival inside this column.
+                let docked = (window.isSidebarVisible || window.isSidebarLeaving) && !ui.views(for: .sidebar).isEmpty
+                if docked {
                     SlotHost(.sidebar, window: window)
                         .frame(width: window.sidebarWidth)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
                 }
                 VStack(spacing: 0) {
                     SlotHost(.toolbar, window: window)
@@ -28,15 +30,14 @@ struct BrowserWindowView: View {
                     }
                 }
                 .padding([.top, .bottom, .trailing], Design.windowInset)
-                .padding(.leading, window.isSidebarVisible ? 0 : Design.windowInset)
+                .padding(.leading, docked ? 0 : Design.windowInset)
             }
             if overlaysInline { SlotHost(.overlay, window: window) }
         }
         .ignoresSafeArea()
         // SwiftUI would draw the sidebar inactive whenever the page (a window of its own under Chromium) has focus.
         .environment(\.controlActiveState, window.isKeyWindow ? .key : .inactive)
-        .animation(.spring(duration: 0.32, bounce: 0.12), value: window.isSidebarVisible)
-        .onChange(of: window.isSidebarVisible) { env.runtime.shell?.contentLayoutDidChange(in: window) }
+        .onChange(of: window.isSidebarVisible || window.isSidebarLeaving) { env.runtime.shell?.contentLayoutDidChange(in: window) }
     }
 
     @ViewBuilder

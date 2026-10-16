@@ -20,6 +20,8 @@ public final class BrowserWindowState: Identifiable {
 
     // Layout (features toggle these; the shell lays out accordingly).
     public var isSidebarVisible = true
+    /// The sidebar is hidden but still sliding out: its column stays until it has (the page then takes the room).
+    public var isSidebarLeaving = false
     /// Sidebar temporarily shown over the content while hidden (edge hover, Horse's "Shelf").
     public var isSidebarPeeking = false
     public var sidebarWidth: CGFloat = 260

@@ -26,7 +26,7 @@ public final class SidebarFeature: BrowserFeature {
     public func activate() {
         let model = self.model
         context.ui.contribute(.sidebar, id: "sidebar.main") { window in
-            SidebarView(window: window, model: model)
+            DockedSidebar(window: window, model: model)
         }
         context.ui.contribute(.overlay, id: "sidebar.peek", order: -10) { window in
             SidebarPeekOverlay(window: window, model: model)
@@ -35,7 +35,7 @@ public final class SidebarFeature: BrowserFeature {
         context.commands.handle("sidebar.toggle") { inv in
             guard let w = inv.window else { return }
             w.isSidebarPeeking = false
-            w.isSidebarVisible.toggle()
+            model.toggle(w)
         }
         context.commands.handle("sidebar.focus-mode") { inv in inv.window?.toggle(flag: SidebarModel.focusFlag) }
         context.commands.handle("sidebar.copy-branch-markdown", isEnabled: { $0.window?.selectedTabID != nil }) { [weak self] inv in
@@ -58,8 +58,49 @@ final class SidebarModel {
     var dragging: NodeID?
     /// Interactive two-finger swipe offset (points), per window.
     var swipeOffset: [UUID: CGFloat] = [:]
+    /// The docked sidebar sliding in or out, per window: −1 is out of its column, 0 in place.
+    var slide: [UUID: CGFloat] = [:]
+    @ObservationIgnored private var slideGeneration: [UUID: UUID] = [:]
 
     init(runtime: BrowserRuntime) { self.runtime = runtime }
+
+    /// Shows or hides the docked sidebar; the window's state changes at once, the slide follows. The page (a window of
+    /// its own under Chromium) changes size once, never animated: it makes room before the sidebar slides in, and takes
+    /// the room back once it has slid out (`isSidebarLeaving` keeps the column until then).
+    func toggle(_ w: BrowserWindowState) {
+        let motion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? Design.Motion.reduced : Design.Motion.layout
+        var still = Transaction()
+        still.disablesAnimations = true
+        let generation = UUID()
+        slideGeneration[w.id] = generation
+        if w.isSidebarVisible {
+            withTransaction(still) {
+                w.isSidebarVisible = false
+                w.isSidebarLeaving = true
+            }
+            withAnimation(motion) { slide[w.id] = -1 } completion: { [weak self] in
+                guard let self, self.slideGeneration[w.id] == generation else { return }
+                withTransaction(still) {
+                    w.isSidebarLeaving = false
+                    self.slide[w.id] = nil
+                }
+            }
+        } else {
+            let leaving = w.isSidebarLeaving
+            withTransaction(still) {
+                if !leaving { slide[w.id] = -1 }
+                w.isSidebarLeaving = false
+                w.isSidebarVisible = true
+            }
+            // Next turn, once the sidebar has been laid out out of view (or from wherever it was leaving).
+            DispatchQueue.main.async { [weak self] in
+                withAnimation(motion) { self?.slide[w.id] = 0 } completion: {
+                    guard let self, self.slideGeneration[w.id] == generation else { return }
+                    self.slide[w.id] = nil
+                }
+            }
+        }
+    }
 
     var settings: SettingsStore { runtime.settings }
     var rowHeight: CGFloat { CGFloat(max(24, min(48, settings.int("sidebar.rowHeight")))) }
