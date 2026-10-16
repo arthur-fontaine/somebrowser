@@ -493,7 +493,8 @@ public:
     bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request,
                         bool user_gesture, bool is_redirect) override {
         if (!frame->IsMain() || !tab_.delegate) return false;
-        BOOL allowed = [tab_.delegate cefTab:tab_ shouldNavigateTo:NS(request->GetURL()) userGesture:user_gesture isRedirect:is_redirect];
+        BOOL form = request->GetMethod().ToString() != "GET" || (request->GetTransitionType() & TT_SOURCE_MASK) == TT_FORM_SUBMIT;
+        BOOL allowed = [tab_.delegate cefTab:tab_ shouldNavigateTo:NS(request->GetURL()) userGesture:user_gesture isRedirect:is_redirect form:form];
         if (allowed) {
             NSString *url = NS(request->GetURL());
             SetDocumentStartScript(browser, url, [tab_.delegate cefTab:tab_ documentStartScriptFor:url]);

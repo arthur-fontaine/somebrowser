@@ -260,13 +260,18 @@ public struct NavigationAction {
     public var userGesture: Bool
     /// Modifier keys at click time (⌘, ⇧, ⌥).
     public var modifiers: NSEventModifierFlagsBox
+    /// A form sent (a POST, a search, an upload): its data goes with this navigation only, so it can't be redone
+    /// elsewhere (in a new tab, by URL).
+    public var isFormSubmission: Bool
 
-    public init(url: URL, sourceTab: EngineTab?, isMainFrame: Bool = true, userGesture: Bool = false, modifiers: NSEventModifierFlagsBox = .init()) {
+    public init(url: URL, sourceTab: EngineTab?, isMainFrame: Bool = true, userGesture: Bool = false, modifiers: NSEventModifierFlagsBox = .init(),
+                isFormSubmission: Bool = false) {
         self.url = url
         self.sourceTab = sourceTab
         self.isMainFrame = isMainFrame
         self.userGesture = userGesture
         self.modifiers = modifiers
+        self.isFormSubmission = isFormSubmission
     }
 }
 

@@ -104,6 +104,26 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// A form posted to another site (Google Lens's upload from google.com) arrives with its data, in its tab: Link
+    /// Tree opens links to other sites as child tabs, which would load the URL without the form's data.
+    @Test func formsPostToOtherSitesInPlace() throws {
+        let server = try TestHTTPServer(pages: [:], responders: [
+            "/upload": { request in ([], "<!doctype html><title>\(request.contains("picture=cat") ? "Received" : "Empty")</title>") },
+        ])
+        let page = """
+            <!doctype html><title>Form</title><form method=post action="http://localhost:\(server.port)/upload">
+            <input type=hidden name=picture value=cat><button style="position:fixed;left:0;top:0;width:200px;height:80px">Send</button></form>
+            """
+        let pages = try TestHTTPServer(pages: ["/form": page])
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
+        try app.open(pages.url("/form"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Form" }
+        try app.click(x: 60, y: 30)
+        try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.title == "Received" || $0.title == "Empty" } }
+        #expect(try app.tabs().map(\.title) == ["Received"])
+        try app.quit()
+    }
+
     /// A hovered (here focused) link shows in the browser's own box (Link Tree), not in Chrome's status bubble at the
     /// page's corner too.
     @Test func hoveredLinksShowNoChromeBubble() throws {

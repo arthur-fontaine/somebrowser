@@ -37,7 +37,8 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 /// Main-frame navigation decision (UI thread). Return NO to cancel.
 /// The page sees this shortcut first (the browser gets it in `handleKeyEquivalent` only if the page doesn't use it).
 - (BOOL)cefTab:(CEFTab *)tab prefersPageForKey:(NSEvent *)event;
-- (BOOL)cefTab:(CEFTab *)tab shouldNavigateTo:(NSString *)url userGesture:(BOOL)gesture isRedirect:(BOOL)redirect;
+/// `form`: a form sent (a POST, or a form's GET): its data goes with this navigation only.
+- (BOOL)cefTab:(CEFTab *)tab shouldNavigateTo:(NSString *)url userGesture:(BOOL)gesture isRedirect:(BOOL)redirect form:(BOOL)form;
 /// Script to run in the main-frame document about to load at `url`, before the page's own scripts.
 - (nullable NSString *)cefTab:(CEFTab *)tab documentStartScriptFor:(NSString *)url;
 /// The page opened `newTab` (popup, target=_blank, ⌘-click, context menu "Open in New Tab").

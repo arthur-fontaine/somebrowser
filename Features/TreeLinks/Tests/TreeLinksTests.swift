@@ -19,6 +19,16 @@ struct TreeLinksTests {
         #expect(click(a, "https://other.example/", h) == .openInNewTab(URL(string: "https://other.example/")!))
     }
 
+    /// A form sent to another site (Google Lens's image upload) stays in its tab: a new tab would load the URL without
+    /// the form's data.
+    @Test func formsStayInPlace() throws {
+        let h = try harness()
+        let a = h.openTab("https://www.google.example/")
+        let upload = NavigationAction(url: URL(string: "https://lens.google.example/upload")!, sourceTab: a.engineTab, userGesture: true,
+                                      isFormSubmission: true)
+        #expect(h.engine.hooks.decide(upload) == .allow)
+    }
+
     @Test func scriptsAnchorsAndNonWebLinksStayInPlace() throws {
         let h = try harness()
         let a = h.openTab("https://docs.example/page")

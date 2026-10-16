@@ -226,7 +226,7 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         URL(string: url).flatMap { engine?.hooks.documentStartScript(for: $0) }
     }
 
-    func cefTab(_ tab: CEFTab, shouldNavigateTo url: String, userGesture gesture: Bool, isRedirect redirect: Bool) -> Bool {
+    func cefTab(_ tab: CEFTab, shouldNavigateTo url: String, userGesture gesture: Bool, isRedirect redirect: Bool, form: Bool) -> Bool {
         guard !redirect, let engine, let u = URL(string: url) else { return true }
         // Chrome's new-tab page (an extension's `tabs.create({url: "chrome://newtab"})`) would contact Google: the
         // page shows the browser's own new tab instead (blank, or an extension's override).
@@ -240,7 +240,8 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         if flags.contains(.command) { mods.insert(.command) }
         if flags.contains(.shift) { mods.insert(.shift) }
         if flags.contains(.option) { mods.insert(.option) }
-        switch engine.hooks.decide(NavigationAction(url: u, sourceTab: self, isMainFrame: true, userGesture: gesture, modifiers: mods)) {
+        switch engine.hooks.decide(NavigationAction(url: u, sourceTab: self, isMainFrame: true, userGesture: gesture, modifiers: mods,
+                                                    isFormSubmission: form)) {
         case .allow:
             // A site known to need protected media plays in WebKit: this tab becomes a WebKit page there.
             if engine.protectedMedia.needsWebKit(u) {

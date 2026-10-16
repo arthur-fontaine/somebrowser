@@ -206,8 +206,11 @@ extension WebKitTab: WKNavigationDelegate {
             return (.cancel, preferences)
         }
         if isMain {
+            let form = action.navigationType == .formSubmitted || action.navigationType == .formResubmitted
+                || (action.request.httpMethod ?? "GET") != "GET"
             let policy = engine.hooks.decide(NavigationAction(url: url, sourceTab: self, isMainFrame: true,
-                                                              userGesture: action.navigationType == .linkActivated, modifiers: mods))
+                                                              userGesture: action.navigationType == .linkActivated || form,
+                                                              modifiers: mods, isFormSubmission: form))
             switch policy {
             case .allow: break
             case .cancel, .handled: return (.cancel, preferences)
