@@ -74,6 +74,60 @@ extension ProtectedMediaTests {
     }
 }
 
+/// Set from the test server's queue, read from the test.
+final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isSet = false
+    var value: Bool { lock.withLock { isSet } }
+    func set() { lock.withLock { isSet = true } }
+}
+
+extension ProtectedMediaTests {
+    /// The move isn't seen: while the WebKit page loads (the server takes 2 s to answer WebKit), the Chromium page stays
+    /// on screen, never a blank or half-loaded WebKit view; then the WebKit page takes its place.
+    @Test func movingToWebKitIsNotSeen() throws {
+        let player = "<!doctype html><title>Player</title><script>"
+            + "navigator.requestMediaKeySystemAccess('com.widevine.alpha', [{ initDataTypes: ['cenc'], "
+            + "videoCapabilities: [{ contentType: 'video/mp4; codecs=\"avc1.42E01E\"' }] }]).then(() => {}, () => {});</script>"
+        let webKitAsked = Flag()
+        let server = try TestHTTPServer(pages: [:], responders: [
+            "/player": { request in
+                if request.contains("Version/") && !request.contains("Chrome/") {  // WebKit's request (Safari's user agent)
+                    webKitAsked.set()
+                    Thread.sleep(forTimeInterval: 2)
+                }
+                return ([], player)
+            },
+        ])
+        let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-drm-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: data) }
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path])
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+
+        // What the window shows: Chromium's page window, or a web view of WebKit's in the window itself.
+        func shown() throws -> (chromium: Bool, webKit: Bool) {
+            let v = try app.call(["op": "views"])
+            let windows = v["windows"] as? [[String: Any]] ?? []
+            let chromium = windows.contains { $0["class"] as? String == "CefNSWindow" && $0["visible"] as? Bool == true && ($0["parent"] as? Int ?? 0) != 0 }
+            let webKit = (v["views"] as? [[String: Any]] ?? []).contains { $0["class"] as? String == "WKWebView" && $0["hidden"] as? Bool == false }
+            return (chromium, webKit)
+        }
+        try app.open(server.url("/player"))
+        // The page asks for DRM in Chromium: its tab then loads in WebKit, which the server answers in 2 s. (Not
+        // watched through the tab's title or `eval`: both come from the WebKit page once it has loaded.)
+        try app.waitUntil(timeout: 10) { webKitAsked.value }
+        let deadline = Date().addingTimeInterval(1.2)
+        while Date() < deadline {
+            let s = try shown()
+            #expect(s.chromium && !s.webKit, "while WebKit loads, the Chromium page stays: \(s)")
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        try app.waitUntil(timeout: 10) { let s = try shown(); return s.webKit && !s.chromium }
+        #expect(try app.eval("document.title") as? String == "Player")
+        try app.quit()
+    }
+}
+
 /// Netflix's way of playing, end to end without Netflix: MediaSource segments (fMP4, cbcs) with the modern EME API
 /// (`com.apple.fps`), licensed by EZDRM's public FairPlay demo (Shaka's "Big Buck Bunny (FairPlay)"). The page asks for
 /// FairPlay in Chromium, moves to WebKit, and plays. Reaches the internet: opt-in with BROWSER_E2E_NETWORK=1.
