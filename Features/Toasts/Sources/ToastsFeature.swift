@@ -32,7 +32,7 @@ final class ToastModel {
 
     func show(_ request: ToastRequested) {
         let toast = Toast(request: request)
-        withAnimation(.spring(duration: 0.35, bounce: 0.25)) {
+        withAnimation(Design.Motion.toast) {
             toasts.append(toast)
             if toasts.count > Self.maxVisible { toasts.removeFirst() }
         }
@@ -44,7 +44,7 @@ final class ToastModel {
     }
 
     func dismiss(_ id: UUID) {
-        withAnimation(.spring(duration: 0.3, bounce: 0.1)) { toasts.removeAll { $0.id == id } }
+        withAnimation(.easeOut(duration: 0.2)) { toasts.removeAll { $0.id == id } }
     }
 
     func visible(in window: BrowserWindowState) -> [Toast] {
@@ -52,11 +52,13 @@ final class ToastModel {
     }
 }
 
+/// Toasts float over the page, centered on it, just above its bottom edge.
 struct ToastStack: View {
     let window: BrowserWindowState
     let model: ToastModel
 
     var body: some View {
+        let content = window.contentFrame
         VStack(spacing: 8) {
             Spacer()
             ForEach(model.visible(in: window)) { toast in
@@ -68,15 +70,19 @@ struct ToastStack: View {
                             .buttonStyle(.borderless).font(.system(size: 13, weight: .semibold))
                     }
                 }
-                .padding(.horizontal, 14)
-                .frame(height: 36)
+                .padding(.horizontal, 16)
+                .frame(height: Design.Size.control)
+                .background(Design.Fill.glassScrim, in: Capsule())
                 .glassSurface(in: Capsule())
-                .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
-                .transition(.move(edge: .bottom).combined(with: .scale(scale: 0.9)).combined(with: .opacity))
+                .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
+                .transition(.asymmetric(insertion: .offset(y: 12).combined(with: .scale(scale: 0.96)).combined(with: .opacity),
+                                        removal: .opacity.combined(with: .scale(scale: 0.98))))
             }
         }
-        .padding(.bottom, 24)
-        .frame(maxWidth: .infinity)
+        .padding(.bottom, 20)
+        .frame(width: content.width, height: content.height)
+        .offset(x: content.minX, y: content.minY)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .allowsHitTesting(!model.visible(in: window).isEmpty)
     }
 }
