@@ -52,9 +52,11 @@ struct SidebarView: View {
         GlassGroup(spacing: 6) {
             FooterLayout {
                 HStack(spacing: Design.Space.block) { SlotHost(.sidebarFooter, window: window) }
-                SlotHost(.sidebarFooterCenter, window: window)
+                // Each in a stack, so the layout always gets its three parts, empty or not.
+                HStack(spacing: 0) { SlotHost(.sidebarFooterCenter, window: window) }
                 HStack(spacing: Design.Space.block) { SlotHost(.sidebarFooterTrailing, window: window) }
             }
+            .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, Design.Grid.edge)
         .frame(height: Design.Size.control)
@@ -65,7 +67,7 @@ struct SidebarView: View {
 /// aside only if it would come within 8 pt of the buttons.
 struct FooterLayout: Layout {
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        CGSize(width: proposal.width ?? 0, height: Design.Size.control)
+        CGSize(width: proposal.replacingUnspecifiedDimensions().width, height: Design.Size.control)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
