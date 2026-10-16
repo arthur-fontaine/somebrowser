@@ -80,14 +80,16 @@ struct ExtensionAPITests {
         try s.finish()
     }
 
-    /// `tabs.create` opens the page as a tab of the window (Chrome makes it in a window of its own, which the browser
-    /// adopts: the id returned to the extension doesn't last; see the Extensions README), and `tabs.remove` closes it.
+    /// `tabs.create` opens the page as a tab of the window (with our Chromium's `chromium/0005`, as a child of the page
+    /// in front, its id lasting; otherwise Chrome makes it in a window of its own, which the browser adopts by URL), and
+    /// `tabs.remove` closes it.
     @Test func extensionsOpenAndCloseTabs() throws {
         guard let s = try launch() else { return }
         try s.openProbePage()
         _ = try s.probe("tabs")
         try s.app.waitUntil(timeout: 15) { try s.app.tabs().contains { $0.title == "Two" } }
-        _ = try s.app.run("tabs.select-2")  // back to the probe page
+        let probePage = try #require(try s.app.tabs().firstIndex { $0.title == "One" })
+        _ = try s.app.run("tabs.select-\(probePage + 1)")  // back to the probe page
         #expect(try s.probe("remove") == "\"removed 1\"")
         try s.app.waitUntil(timeout: 15) { try !s.app.tabs().contains { $0.title == "Two" } }
         #expect(try s.app.tabs().map(\.title) == ["One"])

@@ -1,6 +1,6 @@
 # 0005 — Claude in Chrome: what works today, and the patches for the rest
 
-Date: 2026-10-16 · Status: patches 1 and 2 written (`chromium/0005`, `cef/0002`), not built yet; patch 3 proposed
+Date: 2026-10-16 · Status: patches 1 and 2 built and checked (`chromium/0005`, `cef/0002`, 2026-10-16: E2E `extensionTabsKeepTheirIds` passes); patch 3 proposed
 
 ## Context
 
@@ -81,7 +81,7 @@ which Claude's tabs start on, would contact Google: the CEF page shows the brows
 
 - Until our build has patches 1 and 2, Claude can act on tabs the user opened, and they land in the Claude space; a
   session that opens its own tab fails at its first step ("No tab with id").
-- Unverified until built: whether grouping the one tab of a `TYPE_POPUP` page's tab strip works (its group model
-  exists; no tab strip view draws it).
+- Built 2026-10-16: grouping the one tab of a page's tab strip works (`tabs.group`, `tabGroups.update`,
+  `tabs.query({groupId})`), and a tab opened by an extension opens as a child of the page in front.
 - The patches change how every extension's `tabs.create` behaves here, for the better (ids that last, the TODO's
   open item): they're tested with the extension suite (ExtensionAPITests), not only Claude's.

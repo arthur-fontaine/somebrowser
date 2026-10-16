@@ -75,7 +75,7 @@ Chrome's window chrome (tab strip, side panel, omnibox), which decides what diff
   shortcuts switch and close tabs).
 - *Not working:* `downloads.download` from a service worker or popup (CEF cancels downloads tied to none of its pages;
   `libcef/browser/download_manager_delegate_impl.cc`), `omnibox` keywords (the command bar replaces Chrome's omnibox and
-  CEF can't hand it input), badges on the sidebar buttons. The first needs our CEF (`cef/0001`); keeping `tabs.create` ids, `chromium/0005` + `cef/0002` (ADR-0005, not built yet).
+  CEF can't hand it input), badges on the sidebar buttons. The first needs our CEF (`cef/0001`); keeping `tabs.create` ids, `chromium/0005` + `cef/0002` (ADR-0005).
 - *Not checked:* `contextMenus` items (they go into Chrome's own context menu; not automated).
 
 **Checked with real Web Store extensions** (2026-10-15, Chromium engine, loaded unpacked from the store's packages):
