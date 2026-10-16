@@ -129,7 +129,7 @@ struct SplitPane: View {
                 .clipShape(RoundedRectangle(cornerRadius: Design.cardRadius, style: .continuous))
                 .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.leading, 6)
+                .padding(.leading, Design.windowInset)
         }
     }
 }

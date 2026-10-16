@@ -103,7 +103,7 @@ struct SidePanelPane: View {
                     .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
             }
             .frame(width: 360)
-            .padding(.leading, 6)
+            .padding(.leading, Design.windowInset)
             .transition(.move(edge: .trailing).combined(with: .opacity))
         }
     }

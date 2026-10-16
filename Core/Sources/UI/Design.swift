@@ -8,12 +8,14 @@ import SwiftUI
 /// - Everything list-like (rows, tiles, the selection lens, hover and drop targets) is `Radius.item`.
 /// - A container's inner shapes are concentric with it: `concentric(outer, inset:)`.
 public enum Design {
-    /// The page card (and the floating sidebar) sit this far inside the window's edges.
-    public static let windowInset: CGFloat = 6
+    /// The one outer margin: the page card (and the floating sidebar) sit this far inside the window's edges, the
+    /// header's controls this far below its top, the footer this far above its bottom, the card this far from the
+    /// sidebar's shapes.
+    public static let windowInset: CGFloat = 8
     /// A window's corner on macOS 26 and 27, measured (a titled window without a toolbar).
     public static let windowRadius: CGFloat = 16
     /// The page card: concentric with the window it sits in.
-    public static let cardRadius = concentric(windowRadius, inset: windowInset)
+    public static let cardRadius = concentric(windowRadius, inset: windowInset, minimum: 4)
 
     /// The radius of a shape `inset` inside one of radius `outer`, so the two curves stay parallel.
     public static func concentric(_ outer: CGFloat, inset: CGFloat, minimum: CGFloat = Radius.item) -> CGFloat {

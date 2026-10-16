@@ -8,18 +8,21 @@ struct SidebarView: View {
     let model: SidebarModel
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 0) {
+            // Its controls end 8 pt above the address field, the outer margin.
             header
-            if !window.isLocked {  // a locked private space shows nothing of its pages
-                SlotHost(.sidebarAddress, window: window)
+            VStack(spacing: 6) {
+                if !window.isLocked {  // a locked private space shows nothing of its pages
+                    SlotHost(.sidebarAddress, window: window)
+                        .padding(.horizontal, Design.Grid.edge)
+                }
+                FavoritesGrid(window: window, model: model)
                     .padding(.horizontal, Design.Grid.edge)
+                SlotHost(.sidebarTop, window: window)
+                    .padding(.horizontal, Design.Grid.edge)
+                SpacePager(window: window, model: model)
+                footer
             }
-            FavoritesGrid(window: window, model: model)
-                .padding(.horizontal, Design.Grid.edge)
-            SlotHost(.sidebarTop, window: window)
-                .padding(.horizontal, Design.Grid.edge)
-            SpacePager(window: window, model: model)
-            footer
         }
         // The footer's bottom edge on the page card's.
         .padding(.bottom, Design.windowInset)
