@@ -81,6 +81,27 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// A download is the browser's own (the Downloads feature): Chrome's download bubble doesn't pop up beside it.
+    @Test func downloadsShowNoChromeBubble() throws {
+        let server = try TestHTTPServer(pages: [:], responders: [
+            "/file": { _ in (["Content-Disposition: attachment; filename=\"file.bin\""], String(repeating: "x", count: 100_000)) },
+        ])
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
+        try app.open(server.url("/file"))
+        var bubbles: [String] = []
+        for _ in 0..<25 {
+            let windows = try app.call(["op": "views"])["windows"] as? [[String: Any]] ?? []
+            // Chrome's bubble: a views widget of its own, 320 points wide, shown.
+            bubbles += windows.filter { $0["class"] as? String == "NativeWidgetMacNSWindow" && $0["visible"] as? Bool == true
+                && ($0["frame"] as? String ?? "").contains("{320,") }.compactMap { $0["frame"] as? String }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        let downloads = app.directory.appendingPathComponent("data/Downloads/file.bin")
+        try app.waitUntil(timeout: 10) { FileManager.default.fileExists(atPath: downloads.path) }
+        #expect(bubbles.isEmpty)
+        try app.quit()
+    }
+
     /// A click reaches the page: nothing of the window's own covers it (Chromium routes clicks by the views under the
     /// pointer, and CEF's overlay host view once took them all).
     @Test func clicksReachThePage() throws {

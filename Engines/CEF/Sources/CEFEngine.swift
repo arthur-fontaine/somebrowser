@@ -115,6 +115,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         "default_search_provider.enabled": false,
         "search.suggest_enabled": false,
         "alternate_error_pages.enabled": false,
+        // Downloads are the browser's own UI (the Downloads feature): Chrome's bubble doesn't pop up when one ends.
+        "download_bubble.partial_view_enabled": false,
     ]
 
     public func bootstrap(profileDirectory: URL) throws {
