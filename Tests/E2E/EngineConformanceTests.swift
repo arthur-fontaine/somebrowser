@@ -472,6 +472,32 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// While Settings has the keyboard, the browser's shortcuts stay off: ⌘← doesn't take the page back, ⌘W closes
+    /// Settings, not the tab. Back in the browser, ⌘← is Back again.
+    @Test func settingsKeepsItsKeys() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        try app.navigate(server.url("/three"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Three" }
+        let keyWindow = { try app.call(["op": "views"])["keyWindow"] as? String ?? "" }
+        let back = { try app.key("\u{F702}", modifiers: ["cmd"], keyCode: 123, inPage: false) }
+
+        // Key windows exist only while the app is frontmost (a test run left in the background can't pass).
+        try app.key(",", modifiers: ["cmd"], keyCode: 43, inPage: false)
+        try app.waitUntil(timeout: 5) { try keyWindow().hasPrefix("SettingsWindow") }
+        try back()
+        Thread.sleep(forTimeInterval: 1)
+        #expect(try app.eval("document.title") as? String == "Three")
+        try app.key("w", modifiers: ["cmd"], keyCode: 13, inPage: false)
+        try app.waitUntil(timeout: 5) { try !keyWindow().hasPrefix("SettingsWindow") }
+        #expect(try app.tabs().count == 1)
+
+        try back()
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        try app.quit()
+    }
+
     @Test func sessionSurvivesRelaunch() throws {
         let server = try TestHTTPServer(pages: Self.pages)
         let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-session-\(UUID().uuidString.prefix(6))")

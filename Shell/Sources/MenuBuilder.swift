@@ -102,6 +102,8 @@ final class MenuBuilder: NSObject, NSMenuItemValidation {
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         guard let id = item.representedObject as? String else { return true }
+        // Off while Settings has the keyboard: its keys are its own (⌘← in a field), never the browser's.
+        if shell?.settingsHasKeyboard == true { return false }
         return runtime.commands.canRun(id)
     }
 

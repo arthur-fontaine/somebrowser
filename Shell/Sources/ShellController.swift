@@ -11,7 +11,7 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
     private var pendingURLs: [URL] = []
     private var savedWindows: [SessionSnapshot.WindowRecord] = []
     private var menuBuilder: MenuBuilder?
-    private var settingsWindow: NSWindow?
+    private var settingsWindow: SettingsWindow?
     private var automation: AutomationServer?
 
     init(runtime: BrowserRuntime) {
@@ -141,7 +141,7 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
 
     func showSettings(paneID: String?) {
         if settingsWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 540),
+            let w = SettingsWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 540),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
             w.title = "\(Brand.name) Settings"
@@ -153,5 +153,20 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
             settingsWindow = w
         }
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Settings has the keyboard: the browser's shortcuts don't reach the browser behind it.
+    var settingsHasKeyboard: Bool { settingsWindow.map { $0.isKeyWindow } ?? false }
+}
+
+/// The Settings window. The browser's commands are off while it has the keyboard (`MenuBuilder`), so ⌘W, which is
+/// "Close Tab", closes it as in any other app.
+final class SettingsWindow: NSWindow {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command, event.charactersIgnoringModifiers == "w" {
+            performClose(nil)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 }
