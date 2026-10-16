@@ -149,14 +149,15 @@ enum CEFBundler {
 
         let helperBinary = products.appendingPathComponent("BrowserHelper")
         for (suffix, idSuffix) in helperSuffixes {
-            let name = "\(p.brand.name) Helper\(suffix)"
+            // Chromium finds its helpers by the main executable's name ("<executable> Helper (GPU)…").
+            let name = "\(p.brand.executableName) Helper\(suffix)"
             let helper = app.appendingPathComponent("Contents/Frameworks/\(name).app/Contents")
             try fm.createDirectory(at: helper.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
             try fm.copyItem(at: helperBinary, to: helper.appendingPathComponent("MacOS/\(name)"))
             let plist: [String: Any] = [
                 "CFBundleExecutable": name,
                 "CFBundleIdentifier": "\(p.brand.bundleId).helper\(idSuffix)",
-                "CFBundleName": name,
+                "CFBundleName": "\(p.brand.name) Helper\(suffix)",
                 "CFBundlePackageType": "APPL",
                 "LSUIElement": "1",
                 "LSMinimumSystemVersion": "26.0",
