@@ -25,6 +25,9 @@ public final class ArchiveFeature: BrowserFeature {
         let runtime = context.runtime
         context.ui.contribute("sidebar.top", id: "archive.row", order: 0) { window in ArchiveRow(window: window, store: store) }
         context.ui.contribute(.overlay, id: "archive.panel", order: 70) { window in ArchivePanel(window: window, store: store, runtime: runtime) }
+        context.ui.contribute("start-page.extras", id: "archive.recent", order: 2) { [weak self] window in
+            RecentlyArchived(window: window, store: store, runtime: runtime) { self?.restore($0, in: window) }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { _ = self?.archiveIdleTabs(now: Date()) }
         }
@@ -210,6 +213,29 @@ struct ArchivePanel: View {
                 .overlayKeyboardFocus("archive", in: window)
                 .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
+            }
+        }
+    }
+}
+
+/// The start page's latest archived tabs (Arc archives idle ones), a click away from coming back.
+struct RecentlyArchived: View {
+    let window: BrowserWindowState
+    let store: ArchiveStore
+    let runtime: BrowserRuntime
+    let restore: (ArchivedTab) -> Void
+
+    var body: some View {
+        let items = store.items.filter { $0.url != nil }.sorted { $0.archivedAt > $1.archivedAt }.prefix(5)
+        if !items.isEmpty, !window.isPrivate {
+            PageSection("Recently Archived") {
+                VStack(spacing: 2) {
+                    ForEach(items) { item in
+                        PageRow(icon: runtime.favicons.image(for: item.url), title: item.title,
+                                detail: item.archivedAt.formatted(.relative(presentation: .named))) { restore(item) }
+                    }
+                }
+                .padding(.horizontal, -10)  // the rows' text on the column's edge, their wash past it
             }
         }
     }

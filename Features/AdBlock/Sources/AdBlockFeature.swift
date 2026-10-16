@@ -10,6 +10,7 @@ public final class AdBlockFeature: BrowserFeature {
     let shield = Shield()
     let model = AdBlockModel()
     var store: FilterListStore
+    lazy var week = BlockedWeek(url: context.dataDirectory.appendingPathComponent("blocked-days.json"))
     private var updating = false
     /// Cosmetic exceptions of each tab's page (generic hiding must honor them).
     private var exceptions: [ObjectIdentifier: [String]] = [:]
@@ -52,12 +53,24 @@ public final class AdBlockFeature: BrowserFeature {
                       blocked: { self?.shield.blockedCount(for: $0) ?? 0 }, toggle: { self?.toggleSite(in: window) })
         }
 
+        context.ui.contribute("start-page.extras", id: "adblock.privacy", order: 3) { [weak self] window in
+            if let self, !window.isPrivate { PrivacySummary(blocked: self.blockedThisWeek()) }
+        }
+
         // Cached engines load off the main thread; lists are fetched only once the user browses.
         let store = self.store, rules = usesContentRules
         Task.detached(priority: .utility) { [weak self] in
             guard let engines = store.loadCached(contentRules: rules) else { return }
             await self?.install(engines)
         }
+    }
+
+    public func deactivate() { _ = blockedThisWeek() }
+
+    /// Requests blocked over the last seven days (kept per day on disk).
+    func blockedThisWeek() -> Int {
+        week.add(shield.takeUnlogged(), on: Date())
+        return week.total(days: 7, until: Date())
     }
 
     // MARK: Settings & state
@@ -164,6 +177,8 @@ nonisolated final class Shield: @unchecked Sendable {
     private(set) var disabledSites: Set<String> = []
     private var creatorSites: Set<String> = []
     private var blocked: [String: Int] = [:]
+    /// Blocked since `takeUnlogged()` last ran (for the week's count).
+    private var unlogged = 0
 
     var hasEngines: Bool { lock.withLock { ads != nil } }
 
@@ -199,10 +214,10 @@ nonisolated final class Shield: @unchecked Sendable {
             switch engine.check(url: request.url.absoluteString, source: page.absoluteString, type: type) {
             case .allow: continue
             case .block:
-                lock.withLock { blocked[Self.site(page), default: 0] += 1 }
+                lock.withLock { blocked[Self.site(page), default: 0] += 1; unlogged += 1 }
                 return .block
             case .respond(let mimeType, let body):
-                lock.withLock { blocked[Self.site(page), default: 0] += 1 }
+                lock.withLock { blocked[Self.site(page), default: 0] += 1; unlogged += 1 }
                 return .respond(mimeType: mimeType, body: body)
             case .rewrite(let url): return .redirect(url)
             }
@@ -229,6 +244,8 @@ nonisolated final class Shield: @unchecked Sendable {
     }
 
     func blockedCount(for site: String) -> Int { lock.withLock { blocked[site] ?? 0 } }
+
+    func takeUnlogged() -> Int { lock.withLock { defer { unlogged = 0 }; return unlogged } }
 
     /// WebKit rule list, with sites the user turned off excepted.
     func contentRules(exceptingSites sites: Set<String>) -> String? {
@@ -273,6 +290,54 @@ struct ShieldRow: View {
             }
             .padding(.horizontal, 8)
             .frame(height: 36)
+        }
+    }
+}
+
+/// Blocked requests per day, so the start page can say how many in the last week.
+final class BlockedWeek {
+    private let url: URL
+    private var days: [String: Int]
+
+    init(url: URL) {
+        self.url = url
+        days = (try? JSONDecoder().decode([String: Int].self, from: Data(contentsOf: url))) ?? [:]
+    }
+
+    static func day(_ date: Date) -> String { date.formatted(.iso8601.year().month().day()) }
+
+    func add(_ count: Int, on date: Date) {
+        guard count > 0 else { return }
+        days[Self.day(date), default: 0] += count
+        let recent = Set((0..<7).map { Self.day(date.addingTimeInterval(-Double($0) * 86_400)) })
+        days = days.filter { recent.contains($0.key) }
+        try? JSONEncoder().encode(days).write(to: url, options: .atomic)
+    }
+
+    func total(days count: Int, until date: Date) -> Int {
+        (0..<count).reduce(0) { $0 + (days[Self.day(date.addingTimeInterval(-Double($1) * 86_400))] ?? 0) }
+    }
+}
+
+/// The start page's privacy line, as Safari's Privacy Report puts it.
+struct PrivacySummary: View {
+    let blocked: Int
+
+    var body: some View {
+        if blocked > 0 {
+            PageSection("Privacy") {
+                HStack(spacing: 12) {
+                    Image(systemName: "shield.lefthalf.filled").font(.system(size: 22)).foregroundStyle(.secondary).frame(width: 30)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(blocked.formatted()) trackers and ads blocked").font(.system(size: 13, weight: .semibold))
+                        Text("In the last seven days").font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .frame(height: 60)
+                .background(Design.Fill.hover, in: RoundedRectangle(cornerRadius: Design.Radius.tile, style: .continuous))
+            }
         }
     }
 }

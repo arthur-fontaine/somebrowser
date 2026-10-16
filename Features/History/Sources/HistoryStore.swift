@@ -123,6 +123,24 @@ final class HistoryStore: HistoryService {
         })
     }
 
+    /// The sites visited most (by visits to all their pages), each with its most visited page.
+    func frequentSites(limit: Int, excluding hosts: Set<String> = []) -> [HistoryEntry] {
+        let pages = rows(prepare("SELECT url, title, last_visit, visit_count FROM pages ORDER BY visit_count DESC LIMIT 400") { _ in })
+        var bySite: [String: (top: HistoryEntry, visits: Int)] = [:]
+        for page in pages {
+            guard let site = Self.site(page.url), !hosts.contains(site) else { continue }
+            if let known = bySite[site] { bySite[site] = (known.top, known.visits + page.visitCount) } else { bySite[site] = (page, page.visitCount) }
+        }
+        return bySite.values.sorted { $0.visits > $1.visits }.prefix(limit).map(\.top)
+    }
+
+    /// A page's site: its host without `www.`.
+    static func site(_ url: URL) -> String? {
+        guard ["http", "https"].contains(url.scheme), var host = url.host()?.lowercased() else { return nil }
+        if host.hasPrefix("www.") { host.removeFirst(4) }
+        return host
+    }
+
     func remove(url: URL) {
         let stmt = prepare("DELETE FROM pages WHERE url = ?1") { s in sqlite3_bind_text(s, 1, url.absoluteString, -1, transient) }
         sqlite3_step(stmt)

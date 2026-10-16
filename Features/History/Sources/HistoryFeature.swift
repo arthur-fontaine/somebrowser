@@ -34,6 +34,9 @@ public final class HistoryFeature: BrowserFeature {
         context.ui.contribute(.overlay, id: "history.panel", order: 70) { window in
             HistoryPanelOverlay(window: window, store: store, runtime: runtime)
         }
+        context.ui.contribute("start-page.extras", id: "history.frequent", order: 1) { window in
+            FrequentSites(window: window, store: store, runtime: runtime)
+        }
         // Retention runs off the launch path.
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
             guard let self else { return }
@@ -52,8 +55,7 @@ final class HistoryOmnibox: OmniboxProvider {
         return feature.store.search(query, limit: 5).enumerated().map { i, e in
             OmniboxItem(id: "history:\(e.url.absoluteString)", title: e.title.isEmpty ? e.url.absoluteString : e.title,
                         subtitle: e.url.host(), icon: .favicon(e.url), kind: "History", score: 0.7 - Double(i) * 0.02) { w in
-                if let tab = runtime.selectedTab(in: w), tab.url == nil, !tab.isLoaded { runtime.navigate(tab, to: e.url) }
-                else { runtime.openTab(e.url, in: w) }
+                runtime.open(e.url, fillingBlankTabIn: w)
             }
         }
     }
@@ -118,5 +120,29 @@ struct HistoryPanelOverlay: View {
             map[key, default: []].append(e)
         }
         return order.map { ($0, map[$0]!) }
+    }
+}
+
+/// The start page's "Frequently Visited": the sites visited most, favorites aside (they have their own section).
+struct FrequentSites: View {
+    let window: BrowserWindowState
+    let store: HistoryStore
+    let runtime: BrowserRuntime
+
+    var body: some View {
+        let favorites = Set(runtime.tabs.favorites.compactMap { runtime.tabs.tab($0).flatMap { ($0.pinnedURL ?? $0.url).flatMap(HistoryStore.site) } })
+        let sites = window.isPrivate ? [] : store.frequentSites(limit: 14, excluding: favorites)
+        if !sites.isEmpty {
+            PageSection("Frequently Visited") {
+                LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 14) {
+                    ForEach(sites, id: \.url) { page in
+                        SiteTile(icon: runtime.favicons.image(for: page.url), title: HistoryStore.site(page.url) ?? page.title,
+                                 help: page.title.isEmpty ? page.url.absoluteString : page.title) {
+                            runtime.open(page.url, fillingBlankTabIn: window)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
