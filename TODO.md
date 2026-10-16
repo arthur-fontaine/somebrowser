@@ -155,9 +155,9 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] `tabs.create` with no live page ("No current window"): a page-less anchor window while extensions are installed
       and no page is open; install welcome pages open on a first launch (E2E `welcomePagesOpenWithNoPageOpen`)
 - [x] `downloads.download` from service workers and popups (patch `cef/0001`; E2E `badgesAndWorkerDownloadsWithOurChromium`)
-- [ ] `tabs.create`/`windows.create` ids that last, one Chrome window per browser window: Chrome makes such tabs in a stock
-      window (`ChromeBrowserDelegate::SetAsDelegate`), which CEF can't move into one of its own views windows; a deep CEF
-      patch
+- [~] `tabs.create`/`windows.create` ids that last: patches `chromium/0005` + `cef/0002` (written, not built) open such a
+      tab as a browser of ours the way a page's popups open, instead of a stock window (ADR-0005; E2E
+      `extensionTabsKeepTheirIds` with `BROWSER_E2E_CEF_PATCHES=0005`)
 - [-] `omnibox` keywords: the command bar replaces Chrome's omnibox; CEF can't hand it input
 - [x] Checked: `window.focus()` in a background tab (app in front or not) leaves no page window detached from the browser
       window; the one seen came from DevTools being adopted as a tab (fixed)
@@ -173,7 +173,8 @@ to check that the feature still works (`forkctl test <feature>`).
 - [ ] Chrome's extension install and permission prompts, and `chrome://extensions` (site access, removal): need
       Chromium patches (management through the browser's own panel)
 - [~] Claude in Chrome: native messaging hosts mirrored, Claude space from the extension's page marks; Claude's own
-      tabs and groups need the CEF/Chromium patches of ADR-0005 (not written or built yet)
+      tabs: ADR-0005 patches 1–2 written, not built; groups across windows (patch 3) for multi-tab sessions not written.
+      Chrome's new-tab page, which Claude's tabs start on, shows the browser's own (E2E `chromesNewTabPageIsTheBrowsers`)
 
 ## 9. Performance (U)
 - [x] Lazy feature activation (heavy work deferred) · [-] paint shell before CEF init: measured 2026-10-15, warm launch

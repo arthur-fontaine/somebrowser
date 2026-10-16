@@ -149,6 +149,10 @@ public final class EngineHooks {
     /// The engine opened a page on its own (e.g. an extension called `chrome.tabs.create`). The runtime opens it as a tab.
     public var onEngineOpenedURL: ((URL) -> Void)?
 
+    /// Same, when the engine already made the page (it keeps its identity: an extension's tab id lasts). The runtime
+    /// adopts it as a tab.
+    public var onEngineOpenedPage: ((EngineTab, URL?, OpenDisposition) -> Void)?
+
     /// The page a new tab shows (an extension's override), nil for the browser's blank new tab. Engines show it for
     /// their own new-tab page.
     public var newTabPage: (() -> URL?)?

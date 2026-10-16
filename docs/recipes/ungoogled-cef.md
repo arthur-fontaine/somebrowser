@@ -19,7 +19,12 @@ an idle browser contacts no one, whichever build runs.
   | `chromium/0002` | `--disable-webui-omnibox`: no hidden AI-mode omnibox popup (one renderer per tab) |
   | `chromium/0003` | `--widevine-only-components`: the component updater registers only Widevine |
   | `chromium/0004` | `--disable-download-ui`: no animation flying to Chrome's (hidden) downloads button; not built yet |
+  | `chromium/0005` + `cef/0002` | `--views-hosted-new-tabs`: a new tab from a page (an extension's `tabs.create`, `windows.create`) opens as a browser of ours the way the page's popups do, so its id lasts, and pages are `normal` windows to extensions (ADR-0005); not built yet |
   | `cef/0001` | `downloads.download` from an extension's service worker or popup goes to the client instead of being canceled |
+
+  Ours are applied to a fresh checkout before CEF's own patches (CEF's `patcher.py` runs at build time and stops on any
+  patch that fails), so each is written against upstream Chromium and checked both ways: it applies, and CEF's patches
+  still apply after it.
 
 Measured 2026-10-16, one page open, fresh profile:
 
@@ -75,7 +80,7 @@ First build on an M1 Pro (8 cores, 16 GB): checkout about 7 minutes (shallow), b
    With `--fork`, a fork pins its own build in `Fork/Engines/CEF/vendor.json`. For a local try before publishing, a
    `file://` URL in `Fork/Engines/CEF/vendor.json` works. Then run `./forkctl vendor cef`, `./forkctl build` and
    `./forkctl test --e2e`
-   (with `BROWSER_E2E_CEF_PATCHES=0004` once a build has that patch, its E2E check runs too).
+   (with `BROWSER_E2E_CEF_PATCHES=0004,0005` once a build has those patches, their E2E checks run too).
 
 ## Gotchas met
 

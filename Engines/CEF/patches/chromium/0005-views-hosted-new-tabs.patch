@@ -1,0 +1,181 @@
+diff --git a/chrome/browser/extensions/api/tabs/tabs_api.cc b/chrome/browser/extensions/api/tabs/tabs_api.cc
+index 8599fed..7b12044 100644
+--- a/chrome/browser/extensions/api/tabs/tabs_api.cc
++++ b/chrome/browser/extensions/api/tabs/tabs_api.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/extensions/api/tabs/tabs_api.h"
+ 
++#include "base/command_line.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/notimplemented.h"
+@@ -1130,6 +1131,55 @@ ExtensionFunction::ResponseAction WindowsCreateFunction::Run() {
+     }
+   }
+ 
++#if BUILDFLAG(ENABLE_CEF) && !BUILDFLAG(IS_ANDROID)
++  // Where an embedder hosts pages one per browser in its own views and opens
++  // their new tabs as browsers of its own (--views-hosted-new-tabs, see
++  // OpensInNewViewsHostedBrowser in browser_navigator.cc), a normal window's
++  // URLs open from one of those pages, each in a new browser. The response
++  // describes the first.
++  if (window_type == BrowserWindowInterface::TYPE_NORMAL &&
++      extension_id.empty() && !isolated_web_app_url_info_.has_value() &&
++      !urls_.empty() && !(create_data_ && create_data_->tab_id) &&
++      base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "views-hosted-new-tabs")) {
++    BrowserWindowInterface* page = nullptr;
++    ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
++        [&](BrowserWindowInterface* browser) {
++          if (browser->GetProfile() == window_profile &&
++              browser->GetType() == BrowserWindowInterface::TYPE_POPUP &&
++              browser->cef_delegate() &&
++              browser->cef_delegate()->IsViewsHosted()) {
++            page = browser;
++            return false;  // Stop iterating.
++          }
++          return true;  // Continue iterating.
++        });
++    if (page) {
++      const bool focused = !create_data_ || !create_data_->focused ||
++                           *create_data_->focused;
++      BrowserWindowInterface* first_window = nullptr;
++      for (const GURL& url : urls_) {
++        NavigateParams navigate_params(page, url, ui::PAGE_TRANSITION_LINK);
++        navigate_params.disposition =
++            focused && !first_window
++                ? WindowOpenDisposition::NEW_FOREGROUND_TAB
++                : WindowOpenDisposition::NEW_BACKGROUND_TAB;
++        Navigate(&navigate_params);
++        if (!first_window && navigate_params.navigated_or_inserted_contents) {
++          first_window = navigate_params.browser;
++        }
++      }
++      if (!first_window) {
++        return RespondNow(Error(ExtensionTabUtil::kBrowserWindowNotAllowed));
++      }
++      return RespondNow(
++          WithArguments(ExtensionTabUtil::CreateWindowValueForExtension(
++              *first_window, extension(), WindowController::kPopulateTabs,
++              source_context_type())));
++    }
++  }
++#endif
++
+   // Create a new BrowserWindow if possible.
+   if (GetBrowserWindowCreationStatusForProfile(*window_profile) !=
+       BrowserWindowInterface::CreationStatus::kOk) {
+diff --git a/chrome/browser/extensions/browser_extension_window_controller.cc b/chrome/browser/extensions/browser_extension_window_controller.cc
+index b48c045..070b34c 100644
+--- a/chrome/browser/extensions/browser_extension_window_controller.cc
++++ b/chrome/browser/extensions/browser_extension_window_controller.cc
+@@ -8,6 +8,7 @@
+ #include <string>
+ 
+ #include "base/check_deref.h"
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/notimplemented.h"
+ #include "base/strings/stringprintf.h"
+@@ -76,6 +77,18 @@ constexpr char kShowStateValueLockedFullscreen[] = "locked-fullscreen";
+ #endif
+ 
+ api::tabs::WindowType GetTabsWindowType(const BrowserWindowInterface* browser) {
++#if BUILDFLAG(ENABLE_CEF)
++  // A page an embedder hosts in its own views, one per browser, is a tab of the
++  // embedder's normal windows once their new tabs open as such browsers too
++  // (--views-hosted-new-tabs, see OpensInNewViewsHostedBrowser in
++  // browser_navigator.cc).
++  if (browser->GetType() == BrowserWindowInterface::TYPE_POPUP &&
++      browser->cef_delegate() && browser->cef_delegate()->IsViewsHosted() &&
++      base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "views-hosted-new-tabs")) {
++    return api::tabs::WindowType::kNormal;
++  }
++#endif
+   switch (browser->GetType()) {
+     case BrowserWindowInterface::TYPE_APP:
+       return api::tabs::WindowType::kApp;
+diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
+index b95a279..31a9e58 100644
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -11,6 +11,7 @@
+ #include <string_view>
+ #include <utility>
+ 
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/notimplemented.h"
+@@ -139,6 +140,56 @@ bool WindowCanOpenTabs(const NavigateParams& params) {
+          params.browser->tab_strip_model()->empty();
+ }
+ 
++#if BUILDFLAG(ENABLE_CEF)
++// With --views-hosted-new-tabs, a new tab or window for a page an embedder
++// hosts in its own views, one page per browser (CEF), opens as a new browser
++// of the embedder's, the way the page's popups do, instead of a tab of a stock
++// window: the tab keeps its WebContents, so extensions' tab ids last.
++bool OpensInNewViewsHostedBrowser(const NavigateParams& params) {
++  BrowserWindowInterface* const browser = params.browser;
++  if (!browser || browser->GetType() != BrowserWindowInterface::TYPE_POPUP ||
++      !browser->cef_delegate() || !browser->cef_delegate()->IsViewsHosted() ||
++      !params.source_contents || params.contents_to_insert ||
++      params.switch_to_singleton_tab || WindowCanOpenTabs(params)) {
++    return false;
++  }
++  if (params.disposition != WindowOpenDisposition::NEW_FOREGROUND_TAB &&
++      params.disposition != WindowOpenDisposition::NEW_BACKGROUND_TAB &&
++      params.disposition != WindowOpenDisposition::NEW_WINDOW) {
++    return false;
++  }
++  return base::CommandLine::ForCurrentProcess()->HasSwitch(
++      "views-hosted-new-tabs");
++}
++
++base::WeakPtr<content::NavigationHandle> OpenInNewViewsHostedBrowser(
++    NavigateParams* params) {
++  Profile* const profile = params->browser->GetProfile();
++  WebContents::CreateParams create_params(
++      profile, tab_util::GetSiteInstanceForNewTab(profile, params->url));
++  create_params.initially_hidden =
++      params->disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB;
++  std::unique_ptr<WebContents> new_contents =
++      WebContents::Create(create_params);
++  WebContents* const contents = new_contents.get();
++  BrowserWindowInterface* const browser =
++      params->browser->cef_delegate()->OpenInNewBrowser(
++          params->source_contents, params->url, params->disposition,
++          params->user_gesture, new_contents);
++  if (!browser) {
++    // The embedder cancelled it, as it may cancel a popup.
++    return nullptr;
++  }
++  params->browser = browser;
++  params->navigated_or_inserted_contents = contents;
++  if (HandleNonNavigationAboutURL(params->url, contents->GetBrowserContext())) {
++    return nullptr;
++  }
++  return contents->GetController().LoadURLWithParams(
++      LoadURLParamsFromNavigateParams(contents, params));
++}
++#endif  // BUILDFLAG(ENABLE_CEF)
++
+ // Finds an existing Browser compatible with |profile|, making a new one if no
+ // such Browser is located.
+ BrowserWindowInterface* GetOrCreateBrowser(
+@@ -766,6 +817,12 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+         params->source_contents, contents_to_navigate_or_insert);
+   }
+ 
++#if BUILDFLAG(ENABLE_CEF)
++  if (OpensInNewViewsHostedBrowser(*params)) {
++    return OpenInNewViewsHostedBrowser(params);
++  }
++#endif
++
+   int singleton_index = -1;
+ 
+   std::unique_ptr<web_app::NavigationCapturingProcess> app_navigation =

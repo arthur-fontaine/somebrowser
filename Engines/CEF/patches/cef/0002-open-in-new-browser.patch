@@ -1,0 +1,119 @@
+diff --git a/libcef/browser/chrome/browser_delegate.h b/libcef/browser/chrome/browser_delegate.h
+index e65325e..ce025cc 100644
+--- a/libcef/browser/chrome/browser_delegate.h
++++ b/libcef/browser/chrome/browser_delegate.h
+@@ -112,6 +112,21 @@ class BrowserDelegate {
+       const GURL& target_url,
+       content::WebContents* new_contents) = 0;
+ 
++  // Open |target_url| in a new Views-hosted browser instead of a new tab of a
++  // default Browser, the way a renderer-created popup of |source_contents|
++  // opens (CefLifeSpanHandler::OnBeforePopup, then
++  // CefBrowserViewDelegate::OnPopupBrowserViewCreated). On success takes
++  // |new_contents| (not navigated yet) and returns its new Browser. Returns
++  // nullptr and leaves |new_contents| if the client cancels the popup.
++  virtual BrowserWindowInterface* OpenInNewBrowser(
++      content::WebContents* source_contents,
++      const GURL& target_url,
++      WindowOpenDisposition disposition,
++      bool user_gesture,
++      std::unique_ptr<content::WebContents>& new_contents) {
++    return nullptr;
++  }
++
+   // Add or remove ownership of the WebContents.
+   virtual void SetAsDelegate(content::WebContents* web_contents,
+                              bool set_delegate) = 0;
+diff --git a/libcef/browser/chrome/chrome_browser_delegate.cc b/libcef/browser/chrome/chrome_browser_delegate.cc
+index 3c4eead..45eea32 100644
+--- a/libcef/browser/chrome/chrome_browser_delegate.cc
++++ b/libcef/browser/chrome/chrome_browser_delegate.cc
+@@ -21,11 +21,15 @@
+ #include "cef/libcef/browser/views/window_impl.h"
+ #include "cef/libcef/common/app_manager.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/sessions/session_tab_helper_factory.h"
+ #include "chrome/browser/ui/browser.h"
+ #include "chrome/browser/ui/browser_tabstrip.h"
+ #include "chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h"
+ #include "chrome/browser/ui/window_feature_controller/window_feature_controller.h"
+ #include "content/public/browser/global_routing_id.h"
++#include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/render_process_host.h"
++#include "content/public/common/referrer.h"
+ #include "third_party/blink/public/mojom/page/draggable_region.mojom.h"
+ 
+ ChromeBrowserDelegate::ChromeBrowserDelegate(
+@@ -498,6 +502,55 @@ void ChromeBrowserDelegate::OnPopupWebContentsCreated(
+                             /*is_devtools_popup=*/false, opener);
+ }
+ 
++BrowserWindowInterface* ChromeBrowserDelegate::OpenInNewBrowser(
++    content::WebContents* source_contents,
++    const GURL& target_url,
++    WindowOpenDisposition disposition,
++    bool user_gesture,
++    std::unique_ptr<content::WebContents>& new_contents) {
++  DCHECK(new_contents);
++  auto opener = ChromeBrowserHostImpl::GetBrowserForContents(source_contents);
++  if (!opener || !opener->is_views_hosted()) {
++    return nullptr;
++  }
++
++  // The steps of a renderer-created popup, with the source page's main frame
++  // as the opener.
++  content::RenderFrameHost* opener_frame =
++      source_contents->GetPrimaryMainFrame();
++
++  // 1. CefLifeSpanHandler::OnBeforePopup.
++  bool no_javascript_access = false;
++  if (!CefBrowserInfoManager::GetInstance()->CanCreateWindow(
++          opener_frame, target_url, content::Referrer(),
++          /*frame_name=*/std::string(), disposition,
++          blink::mojom::WindowFeatures(), user_gesture,
++          /*opener_suppressed=*/true, &no_javascript_access)) {
++    return nullptr;
++  }
++
++  // CanCreateWindow files the pending popup under the URL as filtered for the
++  // opener's process.
++  GURL popup_url = target_url;
++  opener_frame->GetProcess()->FilterURL(/*empty_allowed=*/false, &popup_url);
++
++  // 2. The browser host and its Views BrowserView
++  // (CefBrowserViewDelegate::OnPopupBrowserViewCreated). SessionTabHelper must
++  // exist before CEF initializes the popup browser host.
++  content::WebContents* contents = new_contents.get();
++  CreateSessionServiceTabHelper(contents);
++  OnPopupWebContentsCreated(source_contents, opener_frame->GetGlobalId(),
++                            /*frame_name=*/std::string(), popup_url, contents);
++
++  // 3. The new Browser, which takes the WebContents.
++  new_contents = AddWebContents(std::move(new_contents));
++  if (new_contents) {
++    return nullptr;
++  }
++  auto browser_host = ChromeBrowserHostImpl::GetBrowserForContents(contents);
++  return browser_host ? browser_host->browser() : nullptr;
++}
++
+ // static
+ CefRefPtr<ChromeBrowserHostImpl> ChromeBrowserDelegate::CreateBrowserHost(
+     Browser* browser,
+diff --git a/libcef/browser/chrome/chrome_browser_delegate.h b/libcef/browser/chrome/chrome_browser_delegate.h
+index 639ecc8..8d3bc8b 100644
+--- a/libcef/browser/chrome/chrome_browser_delegate.h
++++ b/libcef/browser/chrome/chrome_browser_delegate.h
+@@ -67,6 +67,12 @@ class ChromeBrowserDelegate : public cef::BrowserDelegate {
+       const std::string& frame_name,
+       const GURL& target_url,
+       content::WebContents* new_contents) override;
++  BrowserWindowInterface* OpenInNewBrowser(
++      content::WebContents* source_contents,
++      const GURL& target_url,
++      WindowOpenDisposition disposition,
++      bool user_gesture,
++      std::unique_ptr<content::WebContents>& new_contents) override;
+   void SetAsDelegate(content::WebContents* web_contents,
+                      bool set_delegate) override;
+   bool ShowStatusBubble(bool show_by_default) override;

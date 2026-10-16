@@ -70,6 +70,16 @@ public final class BrowserRuntime {
             guard let self, let window = self.keyWindow else { return }
             self.openTab(url, in: window)
         }
+        engine.hooks.onEngineOpenedPage = { [weak self] page, url, disposition in
+            // Engines open these from the normal profile.
+            guard let self, let window = [self.keyWindow].compactMap({ $0 }).first(where: { !$0.isPrivate })
+                    ?? self.windows.first(where: { !$0.isPrivate }) else { page.close(); return }
+            let tab = BrowserTab(url: url, isPrivate: false)
+            self.insert(tab, placement: .automatic, window: window)
+            self.attach(page, to: tab)
+            self.events.publish(TabOpened(tabID: tab.id, openerID: nil, disposition: disposition))
+            if disposition != .backgroundTab { self.select(tab.id, in: window) }
+        }
         engine.hooks.newTabPage = { [weak self] in
             guard let self, let window = self.keyWindow else { return nil }
             return self.capabilities.newTabPage?.newTabPage(in: window)

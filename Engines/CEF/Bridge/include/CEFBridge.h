@@ -77,6 +77,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
               total:(int64_t)total complete:(BOOL)complete canceled:(BOOL)canceled;
 /// Chrome opened a page on its own (extension `chrome.tabs.create`, …). The runtime should open it as a tab.
 - (void)cefChromeOpenedURL:(NSString *)url;
+/// Same, with the page already made for the browser (an extension's tab from the page-less anchor, with our Chromium:
+/// `chromium/0005`). The runtime should adopt it as a tab.
+- (void)cefChromeOpenedTab:(CEFTab *)tab url:(nullable NSString *)url disposition:(CEFDisposition)disposition;
 @end
 
 @interface CEFRuntime : NSObject

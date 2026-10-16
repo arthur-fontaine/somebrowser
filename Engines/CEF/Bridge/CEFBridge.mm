@@ -169,6 +169,7 @@ static void PageWindowsFollowTheirBrowserWindow() {
 - (CefRefPtr<CefDictionaryValue>)extraInfo;
 - (nullable NSString *)filter:(const std::string &)url firstParty:(const std::string &)fp type:(const char *)type;
 - (void)chromeOpened:(NSString *)url;
+- (void)chromeOpenedTab:(CEFTab *)tab;
 - (NSString *)downloadPathFor:(NSString *)name url:(NSString *)url;
 - (void)download:(CefRefPtr<CefDownloadItem>)item callback:(CefRefPtr<CefDownloadItemCallback>)callback;
 @end
@@ -716,7 +717,8 @@ public:
         CEFTab *popup = tc ? tc->TakePendingPopup() : nil;
         if (!popup) return false;
         [popup attachBrowserView:popupView];
-        [opener.delegate cefTab:opener didOpen:popup url:popup.pendingURL disposition:popup.pendingDisposition userGesture:popup.pendingGesture];
+        if (opener.isAnchor) [[CEFRuntime shared] chromeOpenedTab:popup];
+        else [opener.delegate cefTab:opener didOpen:popup url:popup.pendingURL disposition:popup.pendingDisposition userGesture:popup.pendingGesture];
         return true;
     }
 
@@ -1412,6 +1414,7 @@ private:
 }
 
 - (void)chromeOpened:(NSString *)url { [self.delegate cefChromeOpenedURL:url]; }
+- (void)chromeOpenedTab:(CEFTab *)tab { [self.delegate cefChromeOpenedTab:tab url:tab.pendingURL disposition:tab.pendingDisposition]; }
 
 - (NSString *)downloadPathFor:(NSString *)name url:(NSString *)url {
     return [self.delegate cefDownloadPathForSuggestedName:name url:url];

@@ -1,6 +1,6 @@
 # 0005 — Claude in Chrome: what works today, and the patches for the rest
 
-Date: 2026-10-16 · Status: proposed (the patches below aren't written or built yet)
+Date: 2026-10-16 · Status: patches 1 and 2 written (`chromium/0005`, `cef/0002`), not built yet; patch 3 proposed
 
 ## Context
 
@@ -36,32 +36,48 @@ its own tab. So:
 
 ## The patches
 
-1. **Chrome's new tabs keep their ids (CEF).** CEF already hosts popups a page opens directly in a views browser of
-   ours (`OnPopupWebContentsCreated` → `CreateBrowserHostForPopup` → `OnPopupBrowserViewCreated`), keeping their
-   WebContents and so their tab id. A tab Chrome makes without an opener goes through
-   `ChromeBrowserDelegate::SetAsDelegate` into a stock Browser instead. Patch: when that stock Browser would be made
-   for a new tab (extension `tabs.create`, `windows.create`, `IDC_NEW_TAB`) and a views-hosted CEF browser exists,
-   route the WebContents through the popup path with that browser as opener (`popup_with_views_hosted_opener`). The
-   app then adopts it in `OnPopupBrowserViewCreated`, as it does page popups, and the id lasts. The anchor window
-   (`CEFRuntime updateAnchor`) is the opener while no page is open.
-2. **Page windows are `normal` windows (CEF).** Create the Browser of a views-hosted Chrome-style page with
-   `TYPE_NORMAL` when its toolbar is `CEF_CTT_NORMAL` (ours always is), so `windows.getLastFocused({windowTypes:
-   ["normal"]})` finds the window in front, and `tabs.create({windowId})` lands in it (then patch 1 makes it a tab of
-   ours).
-3. **Groups across page windows (Chromium).** One window per tab means a group can't hold several tabs. Patch
+Both written ones hang on one switch, `--views-hosted-new-tabs` (the CEF engine passes it; without our build it does
+nothing).
+
+1. **Chrome's new tabs keep their ids** (`chromium/0005`, `cef/0002`, written). CEF already hosts popups a page opens
+   directly in a views browser of ours (`CanCreateWindow` → `OnBeforePopup`, `OnPopupWebContentsCreated` →
+   `OnPopupBrowserViewCreated`, `AddWebContents` → a Browser for that view), keeping their WebContents and so their tab
+   id. A new tab for one of our pages (`tabs.create` into its window, Chrome's new-tab commands) instead went through
+   `chrome::Navigate` into a stock tabbed Browser, since a page's Browser holds one tab. `chrome::Navigate` now hands
+   such a tab, before any stock Browser exists, to a new `cef::BrowserDelegate::OpenInNewBrowser`, which runs those
+   same popup steps with the page's main frame as opener, then loads the URL. `windows.create({type: "normal"})` opens
+   its URLs that way from the frontmost page and answers with the first new window. The app adopts the tab as it does
+   a page's popups; from the page-less anchor (`CEFRuntime updateAnchor`), it adopts it as a tab of its own
+   (`onEngineOpenedPage`).
+2. **Pages are `normal` windows to extensions** (`chromium/0005`, written). CEF makes a views-hosted page's Browser
+   `TYPE_POPUP` on purpose (`TYPE_NORMAL` would bring back Chrome's tab strip and toolbar features), so only the
+   extension API's view changes: `GetTabsWindowType` reports such a Browser as `normal`. `windows.getLastFocused(
+   {windowTypes: ["normal"]})` then finds the page in front, and `tabs.create({windowId})` lands in it (patch 1 makes
+   it a tab of ours). A page's Browser has a tab group model already (only app windows don't), so
+   `tabs.group({createProperties: {windowId}})` groups its one tab: a session's first tab works end to end.
+3. **Groups across page windows (Chromium, proposed).** One window per tab means a group can't hold several tabs. Patch
    `TabsGroupFunction`/`TabGroupsUpdateFunction`/`tabs.query({groupId})` behind a switch (`--groups-across-windows`)
    so a group is a set of tab ids the browser keeps (not a tab strip span): grouping never moves tabs, `groupId` on
    each tab reports it, and `tabGroups.onCreated/onUpdated/onRemoved` fire as usual. The app reads the groups (CEF
    API `CefBrowserHost::GetTabGroupId`, new) and puts a Claude group's tabs in the Claude space directly, without
    waiting for the page marks.
 
-Order: 1 and 2 make Claude Code work end to end with a single tab per session; 3 makes multi-tab sessions work.
-Each needs a build (about 3 hours on the build Mac) and the E2E check `claudeCodeDrivesTheBrowser` (a fixture
-extension doing what Claude's does: `windows.getLastFocused`, `tabs.create`, `tabs.group`, `tabs.update` by id).
+Order: 1 and 2 make Claude Code work end to end with a single tab per session; 3 makes multi-tab sessions work (a
+second tab Claude opens lands in a window of its own, and Claude groups a new tab only when it's in the group's
+window). A smaller 3 to try first: the same `TabGroupId` in each page's own tab strip (`AddToGroupForRestore`) instead
+of moving tabs, visuals copied to every window, and `tabGroups.onCreated`/`onRemoved` fired once per id.
+
+Checks: the E2E test `extensionTabsKeepTheirIds` runs Claude's session steps through the probe extension
+(`windows.getLastFocused`, `tabs.create`, `tabs.get` a second later, `tabs.group`, `tabGroups.update`, `tabs.query
+({groupId})`, and the `windows.create` fallback) with `BROWSER_E2E_CEF_PATCHES` listing 0005. Chrome's new-tab page,
+which Claude's tabs start on, would contact Google: the CEF page shows the browser's own new tab instead (E2E
+`chromesNewTabPageIsTheBrowsers`, runs today).
 
 ## Consequences
 
-- Until the patches, Claude can act on tabs the user opened, and they land in the Claude space; a session that opens
-  its own tab fails at its first step ("No tab with id").
+- Until our build has patches 1 and 2, Claude can act on tabs the user opened, and they land in the Claude space; a
+  session that opens its own tab fails at its first step ("No tab with id").
+- Unverified until built: whether grouping the one tab of a `TYPE_POPUP` page's tab strip works (its group model
+  exists; no tab strip view draws it).
 - The patches change how every extension's `tabs.create` behaves here, for the better (ids that last, the TODO's
   open item): they're tested with the extension suite (ExtensionAPITests), not only Claude's.

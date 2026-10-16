@@ -94,6 +94,20 @@ struct ExtensionAPITests {
         try s.finish()
     }
 
+    /// Our Chromium with `chromium/0005` and `cef/0002` (`--views-hosted-new-tabs`): an extension's new tab is the
+    /// browser's from the start, so its id lasts, and pages are normal windows that hold a tab group: what Claude in
+    /// Chrome does for a session (ADR-0005). Runs when BROWSER_E2E_CEF_PATCHES lists 0005.
+    @Test func extensionTabsKeepTheirIds() throws {
+        guard ProcessInfo.processInfo.environment["BROWSER_E2E_CEF_PATCHES"]?.contains("0005") == true, let s = try launch() else { return }
+        try s.openProbePage()
+        #expect(try s.probe("claude") == "\"ok\"")
+        try s.app.waitUntil(timeout: 15) { try s.app.tabs().contains { $0.title == "Two" } }
+        #expect(try s.probe("window") == "\"ok\"")
+        try s.app.waitUntil(timeout: 15) { try s.app.tabs().contains { $0.title == "Three" } }
+        #expect(try s.app.tabs().first?.title == "One")  // both opened in the background
+        try s.finish()
+    }
+
     /// With no page open (a first launch), an extension's welcome page still opens as a tab: `tabs.create` needs a
     /// Chrome window to start from, and each page here is one ("No current window" before). With every tab closed
     /// again, the browser still quits cleanly (only that page-less window left).

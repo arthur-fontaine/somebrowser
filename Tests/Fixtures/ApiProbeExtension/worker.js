@@ -10,6 +10,29 @@ const probes = {
     }
     return { created: created.id, status, urls: (await chrome.tabs.query({})).map(t => t.url) };
   },
+  // What Claude in Chrome does for a session (docs/decisions/0005): a background tab in the last focused normal
+  // window, grouped in its own window, the group renamed. The ids must last.
+  async claude(sender) {
+    try {
+      const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+      const tab = await chrome.tabs.create({ windowId: win.id, url: new URL('/two', sender.tab.url).href, active: false });
+      await wait(1000);
+      const again = await chrome.tabs.get(tab.id);
+      const group = await chrome.tabs.group({ tabIds: [tab.id], createProperties: { windowId: again.windowId } });
+      await chrome.tabGroups.update(group, { title: 'Claude', color: 'orange' });
+      const members = (await chrome.tabs.query({ groupId: group })).map(t => t.id);
+      return members.length === 1 && members[0] === tab.id ? 'ok' : 'members ' + JSON.stringify(members);
+    } catch (e) { return err(e); }
+  },
+  // Its fallback when no window is normal: a new window, whose tab must last too.
+  async window(sender) {
+    try {
+      const created = await chrome.windows.create({ url: new URL('/three', sender.tab.url).href, type: 'normal', focused: false });
+      await wait(1000);
+      const tab = await chrome.tabs.get(created.tabs[0].id);
+      return tab.windowId === created.id ? 'ok' : 'moved to ' + tab.windowId;
+    } catch (e) { return err(e); }
+  },
   async remove() {
     const tabs = (await chrome.tabs.query({})).filter(t => new URL(t.url).pathname === '/two');
     try { await chrome.tabs.remove(tabs.map(t => t.id)); return 'removed ' + tabs.length; } catch (e) { return err(e); }

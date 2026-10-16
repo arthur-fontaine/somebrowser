@@ -83,6 +83,9 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         "silent-debugger-extension-api": "",
         // Our Chromium (patch chromium/0004): no animation flying to Chrome's hidden downloads button.
         "disable-download-ui": "",
+        // Our Chromium (patches chromium/0005, cef/0002): an extension's new tab is ours from the start (its id lasts) and
+        // our pages are normal windows to extensions (ADR-0005).
+        "views-hosted-new-tabs": "",
         "allow-browser-signin": "false",
         // Chromium's own Google endpoints (account checks, AI-mode eligibility, Optimization Guide's component,
         // which ignores disable-component-update) point at a closed local port. Pages on Google sites and
@@ -397,6 +400,13 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
 
     public func cefChromeOpenedURL(_ url: String) {
         if Self.adoptsChromeOpenedURL(url), let u = URL(string: url) { hooks.onEngineOpenedURL?(u) }
+    }
+
+    public func cefChromeOpenedTab(_ tab: CEFTab, url: String?, disposition: CEFDisposition) {
+        let page = CEFPage(engine: self)
+        page.attach(tab)
+        let u = url.flatMap(URL.init(string:)).flatMap { Self.isChromeNewTabPage($0) ? nil : $0 }
+        hooks.onEngineOpenedPage?(page, u, disposition == .backgroundTab ? .backgroundTab : .foregroundTab)
     }
 
     /// Chrome opens its new-tab page when it wants a tabbed window for its own UI (e.g. the "extension
