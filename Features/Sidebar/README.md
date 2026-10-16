@@ -17,8 +17,12 @@ Hiding it (⌘S) gives an almost full-screen page; the left window edge reveals 
 - Everything is on one grid (`Design.Grid` in Core): shapes start 8 pt in, icons are centered on the red traffic
   light (x 26), titles start at x 42; a child's icon sits under its parent's title.
 - Showing or hiding (`SidebarModel.toggle`) changes the window's state at once; the docked sidebar then slides in its
-  own column while the page (a child window under Chromium) changes size once: before the slide when showing, after
-  it when hiding (`isSidebarLeaving` keeps the column meanwhile). Switching spaces slides the same way.
+  own column while the page (a child window under Chromium) changes size once: before the slide when showing, 50 ms
+  before its end when hiding (`isSidebarLeaving` keeps the column meanwhile). The slide runs in Core Animation on the
+  sidebar's own hosting view (`SidebarSlideHost`), so it keeps moving while Chromium's resize holds the main thread.
+  The traffic lights wait for it to land (`isSidebarArriving`). Switching spaces slides too.
+- Spacing follows `Design.Space` (2 between rows, 8 between blocks, 12 around the divider); the footer
+  (`FooterLayout`) keeps the space switcher on the sidebar's axis between its leading and trailing buttons.
 - `SwipeCatcher` turns two-finger horizontal scrolls into an interactive space pager with a spring.
 
 **Slots it hosts** — `sidebar.header`, `sidebar.address`, `sidebar.top`, `sidebar.footer`: other
