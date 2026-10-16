@@ -220,8 +220,16 @@ extension WebKitTab: WKNavigationDelegate {
         return (.allow, preferences)
     }
 
+    /// What WebKit can't show downloads, and so does a main-frame response the site sends as an attachment (as Safari and
+    /// Chrome do; WebKit would show it).
     func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse) async -> WKNavigationResponsePolicy {
-        response.canShowMIMEType ? .allow : .download
+        guard response.canShowMIMEType else { return .download }
+        let disposition = (response.response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Disposition") ?? ""
+        return response.isForMainFrame && Self.isAttachment(disposition) ? .download : .allow
+    }
+
+    nonisolated static func isAttachment(_ contentDisposition: String) -> Bool {
+        contentDisposition.split(separator: ";").first?.trimmingCharacters(in: .whitespaces).lowercased() == "attachment"
     }
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
