@@ -20,6 +20,7 @@ an idle browser contacts no one, whichever build runs.
   | `chromium/0003` | `--widevine-only-components`: the component updater registers only Widevine |
   | `chromium/0005` + `cef/0002` | `--views-hosted-new-tabs`: a new tab from a page (an extension's `tabs.create`, `windows.create`) opens as a browser of ours the way the page's popups do, so its id lasts, and pages are `normal` windows to extensions (ADR-0005) |
   | `chromium/0006` | With the same switch, a tab group spans pages (`tabs.group` joins each tab in its own page instead of moving it), and Chrome's saved tab groups are off (ADR-0005) |
+  | `chromium/0007` | `--enable-features=RootScrollbarAvoidsCorners:inset/<DIP>`: the page's own scrollbars keep clear of the card's rounded corners (their track inset at both ends), as AppKit's scrollers do in a rounded window |
   | `cef/0001` | `downloads.download` from an extension's service worker or popup goes to the client instead of being canceled |
 
   Ours are applied to a fresh checkout before CEF's own patches (CEF's `patcher.py` runs at build time and stops on any

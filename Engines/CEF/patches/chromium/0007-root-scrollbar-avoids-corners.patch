@@ -1,0 +1,61 @@
+diff --git a/third_party/blink/renderer/core/scroll/scrollbar_theme_mac.cc b/third_party/blink/renderer/core/scroll/scrollbar_theme_mac.cc
+index 079315eed9..18a499a399 100644
+--- a/third_party/blink/renderer/core/scroll/scrollbar_theme_mac.cc
++++ b/third_party/blink/renderer/core/scroll/scrollbar_theme_mac.cc
+@@ -27,10 +27,14 @@
+ 
+ #include <variant>
+ 
++#include "base/feature_list.h"
++#include "base/metrics/field_trial_params.h"
+ #include "skia/ext/skia_utils_mac.h"
+ #include "third_party/blink/public/common/input/web_mouse_event.h"
+ #include "third_party/blink/public/platform/mac/web_scrollbar_theme.h"
+ #include "third_party/blink/public/platform/web_theme_engine.h"
++#include "third_party/blink/renderer/core/frame/local_frame.h"
++#include "third_party/blink/renderer/core/layout/layout_box.h"
+ #include "third_party/blink/renderer/core/paint/paint_info.h"
+ #include "third_party/blink/renderer/core/scroll/mac_scrollbar_animator.h"
+ #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
+@@ -44,6 +48,18 @@
+ 
+ namespace blink {
+ 
++namespace {
++
++// For embedders that round the page's corners: the page's own (root) scrollbars
++// keep their thumbs clear of them, their tracks inset by `inset` DIPs at both
++// ends, as AppKit insets a scroller from a window's rounded corners.
++// --enable-features=RootScrollbarAvoidsCorners:inset/8
++BASE_FEATURE(kRootScrollbarAvoidsCorners, base::FEATURE_DISABLED_BY_DEFAULT);
++const base::FeatureParam<int> kRootScrollbarCornerInset{
++    &kRootScrollbarAvoidsCorners, "inset", 8};
++
++}  // namespace
++
+ static float s_initial_button_delay = 0.5f;
+ static float s_autoscroll_button_delay = 0.05f;
+ static bool s_jump_on_track_click = false;
+@@ -353,7 +369,21 @@ gfx::Rect ScrollbarThemeMac::ForwardButtonRect(
+ }
+ 
+ gfx::Rect ScrollbarThemeMac::TrackRect(const Scrollbar& scrollbar) const {
+-  return scrollbar.FrameRect();
++  gfx::Rect rect = scrollbar.FrameRect();
++  // The page's own scroller: the outermost main frame's layout view.
++  const LayoutBox* box = scrollbar.GetLayoutBox();
++  if (!box || !box->IsLayoutView() || !box->GetFrame() ||
++      !box->GetFrame()->IsOutermostMainFrame() ||
++      !base::FeatureList::IsEnabled(kRootScrollbarAvoidsCorners)) {
++    return rect;
++  }
++  const int inset = kRootScrollbarCornerInset.Get() * scrollbar.ScaleFromDIP();
++  if (scrollbar.Orientation() == kVerticalScrollbar) {
++    rect.Inset(gfx::Insets::TLBR(inset, 0, inset, 0));
++  } else {
++    rect.Inset(gfx::Insets::TLBR(0, inset, 0, inset));
++  }
++  return rect;
+ }
+ 
+ int ScrollbarThemeMac::MinimumThumbLength(const Scrollbar& scrollbar) const {
