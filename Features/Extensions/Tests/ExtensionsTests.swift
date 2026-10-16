@@ -162,7 +162,7 @@ struct ExtensionsTests {
         try h.run("extensions.store")
         #expect(h.selectedTab?.url == ExtensionsFeature.storeURL)
         let tabs = h.runtime.tabs.allTabs.count
-        try h.run("extensions.manage")
+        try h.run("extensions.menu")
         #expect(h.window.flags.contains(ExtensionsFeature.panelFlag))
         #expect(h.runtime.tabs.allTabs.count == tabs)
     }

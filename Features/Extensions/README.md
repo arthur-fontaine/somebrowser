@@ -26,7 +26,6 @@ Engines without extensions (WebKit) get no buttons and the commands do nothing.
 - `extensions.menu` — Extensions… (cmd+shift+e): the browser's Extensions panel
 - `extensions.run` — runs one extension's action (argument `id`; automation and other features)
 - `extensions.cycle` — Next Pinned Extension (⌘E, Arc): each press runs the next pinned one
-- `extensions.manage` — Manage Extensions: the Extensions panel
 - `extensions.set-enabled`, `extensions.site-access` (`ON_CLICK`, `ON_SPECIFIC_SITES`, `ON_ALL_SITES`),
   `extensions.allow-private`, `extensions.remove` — the panel's details (arguments `id`, then `enabled`, `access` or
   `allowed`; automation)

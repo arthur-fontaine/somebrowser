@@ -32,7 +32,6 @@ public final class ExtensionsFeature: BrowserFeature {
         context.commands.handle("extensions.run") { [weak self] inv in
             if let id = inv.arguments["id"] { self?.run(id, in: inv.window) }
         }
-        context.commands.handle("extensions.manage") { [weak self] inv in self?.showMenu(in: inv.window) }
         // Managing one (arguments: `id`, and `enabled`, `access` or `allowed`): the panel's details, also for automation.
         context.commands.handle("extensions.set-enabled") { [weak self] inv in
             guard let id = inv.arguments["id"] else { return }

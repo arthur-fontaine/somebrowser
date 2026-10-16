@@ -5,10 +5,9 @@
   "entry": "ExtensionsFeature",
   "provides": ["new-tab-page"],
   "commands": [
-    { "id": "extensions.menu", "title": "Extensions…", "shortcut": "cmd+shift+e", "menu": "Tools", "group": "extensions", "order": 1, "keywords": ["add-ons", "plugins"] },
+    { "id": "extensions.menu", "title": "Extensions…", "shortcut": "cmd+shift+e", "menu": "Tools", "group": "extensions", "order": 1, "keywords": ["add-ons", "plugins", "manage"] },
     { "id": "extensions.run", "title": "Run Extension", "palette": false },
     { "id": "extensions.cycle", "title": "Next Pinned Extension", "shortcut": "cmd+e", "menu": "Tools", "group": "extensions", "order": 2, "keywords": ["popup", "cycle"] },
-    { "id": "extensions.manage", "title": "Manage Extensions", "menu": "Tools", "group": "extensions", "order": 2 },
     { "id": "extensions.set-enabled", "title": "Turn Extension On or Off", "palette": false },
     { "id": "extensions.site-access", "title": "Extension Site Access", "palette": false },
     { "id": "extensions.allow-private", "title": "Allow Extension in Private Windows", "palette": false },

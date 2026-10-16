@@ -143,7 +143,7 @@ to check that the feature still works (`forkctl test <feature>`).
       `badgesAndWorkerDownloadsWithOurChromium`
 - [x] Drop the hidden omnibox's AI-mode popup renderer: `--disable-webui-omnibox` (patch `chromium/0002`). One page:
       2 renderers instead of 3, helpers 433 MB instead of 583 MB (measured 2026-10-16)
-- [x] `chrome://extensions` management reachable (Tools menu, command bar: `extensions.manage`)
+- [x] Extension management reachable (Tools menu, command bar: the Extensions panel, `extensions.menu`)
 - [x] API compatibility probe (E2E `ExtensionAPITests`, matrix in the Extensions README): scripting, offscreen, web auth
       flow, tabs, commands, DevTools panels pass; notifications show (Chromium popups)
 - [x] Side panels: hosted in a pane beside the content (Chrome draws them in window chrome pages here don't have)
