@@ -44,38 +44,55 @@ struct CommandBarOverlay: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let window: BrowserWindowState
     let model: CommandBarModel
+    @State private var opacity: Double = 0
+    @State private var scale = Design.Motion.panelEnterScale
 
     var body: some View {
+        let shown = window.flags.contains(CommandBarModel.flag) && model.session(window) != nil
         let content = window.contentFrame
+        // Always mounted, hidden: opening only changes opacity and scale. Building the glass and the field on each
+        // open stalled the first frames of the arrival.
         ZStack(alignment: .topLeading) {
-            if window.flags.contains(CommandBarModel.flag), model.session(window) != nil {
-                Color.black.opacity(0.1)
-                    .contentShape(Rectangle())
-                    .onTapGesture { model.close(window) }
-                    .transition(.opacity.animation(reduceMotion ? Design.Motion.reduced : Design.Motion.panelFade))
-                // Over the page, not the window: centered on the card, a sixth of the way down.
-                CommandBarPanel(window: window, model: model)
-                    .overlayKeyboardFocus("command-bar", in: window)
-                    .frame(width: min(CommandBarPanel.width, max(320, content.width - 48)))
-                    .frame(width: content.width)
-                    .offset(x: content.minX, y: content.minY + max(48, content.height * 0.16))
-                    .transition(reduceMotion ? .opacity.animation(Design.Motion.reduced) : Self.spotlight)
-            }
+            Color.black.opacity(0.1 * opacity)
+                .contentShape(Rectangle())
+                .allowsHitTesting(shown)
+                .onTapGesture { model.close(window) }
+            // Over the page, not the window: centered on the card, a sixth of the way down.
+            CommandBarPanel(window: window, model: model, isShown: shown)
+                .overlayKeyboardFocus("command-bar", in: window, isEnabled: shown)
+                .frame(width: min(CommandBarPanel.width, max(320, content.width - 48)))
+                .scaleEffect(reduceMotion ? 1 : scale, anchor: .top)
+                .opacity(opacity)
+                .allowsHitTesting(shown)
+                .frame(width: content.width)
+                .offset(x: content.minX, y: content.minY + max(48, content.height * 0.16))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .ignoresSafeArea()
+        .onChange(of: shown) { present(shown) }
     }
 
     /// Spotlight's: fades in over 0.14 s while settling from 96% (top edge held); leaves in 0.12 s, shrinking to 98%.
-    static let spotlight = AnyTransition.asymmetric(
-        insertion: .opacity.animation(Design.Motion.panelFade)
-            .combined(with: .scale(scale: Design.Motion.panelEnterScale, anchor: .top).animation(Design.Motion.panelSettle)),
-        removal: .opacity.combined(with: .scale(scale: Design.Motion.panelExitScale, anchor: .top)).animation(Design.Motion.panelExit))
+    private func present(_ shown: Bool) {
+        if shown {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { scale = Design.Motion.panelEnterScale }
+            withAnimation(reduceMotion ? Design.Motion.reduced : Design.Motion.panelFade) { opacity = 1 }
+            withAnimation(Design.Motion.panelSettle) { scale = 1 }
+        } else {
+            withAnimation(reduceMotion ? Design.Motion.reduced : Design.Motion.panelExit) {
+                opacity = 0
+                scale = Design.Motion.panelExitScale
+            }
+        }
+    }
 }
 
 struct CommandBarPanel: View {
     let window: BrowserWindowState
     let model: CommandBarModel
+    let isShown: Bool
     @FocusState private var focused: Bool
 
     static let width: CGFloat = 640
@@ -127,7 +144,8 @@ struct CommandBarPanel: View {
         .background(Design.Fill.glassScrim, in: shape)
         .glassSurface(in: shape)
         .shadow(color: .black.opacity(0.22), radius: 24, y: 10)
-        .onAppear { focused = true }
+        // Focused once it's on screen (the overlay window becomes key on the same turn), unfocused when hidden.
+        .onChange(of: isShown, initial: true) { DispatchQueue.main.async { focused = isShown } }
         .task(id: session?.query) {
             guard let q = session?.query, let search = model.search else { return }
             try? await Task.sleep(for: .milliseconds(120))
