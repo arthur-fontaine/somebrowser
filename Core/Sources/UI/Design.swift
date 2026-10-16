@@ -26,6 +26,8 @@ public enum Design {
     public enum Radius {
         /// Rows, tiles, the selection lens, hover and drop targets.
         public static let item: CGFloat = 10
+        /// A site's tile on a page (the start page's grids), roomier than a row.
+        public static let tile: CGFloat = 12
         /// Floating panels (downloads, site controls, permissions, dialogs).
         public static let panel: CGFloat = 20
         public static let favicon: CGFloat = 4

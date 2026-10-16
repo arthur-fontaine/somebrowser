@@ -222,6 +222,15 @@ public final class BrowserRuntime {
         window.isLocked ? nil : window.selectedTabID.flatMap { tabs.tab($0) }
     }
 
+    /// Loads `url` in the window's selected tab if it's a blank one (a new tab's start page), else in a new tab.
+    public func open(_ url: URL, fillingBlankTabIn window: BrowserWindowState) {
+        if let tab = selectedTab(in: window), tab.url == nil, !tab.isLoaded {
+            navigate(tab, to: url)
+        } else {
+            openTab(url, in: window)
+        }
+    }
+
     /// Creates a tab (and its live page when `url` is given) and optionally selects it.
     @discardableResult
     public func openTab(_ url: URL?, in window: BrowserWindowState, placement: NewTabPlacement = .automatic, select shouldSelect: Bool = true) -> BrowserTab {
