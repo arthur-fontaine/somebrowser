@@ -1,6 +1,7 @@
 # Start Page
 
-**Purpose** — Blank tabs show a column of sections, as Safari's start page does: a search field, your favorites, then
+**Purpose** — Blank tabs show a column of sections, as Safari's start page does: a search field (only with the command
+bar's palette style: inline, addresses are typed in the sidebar's field, as in Safari), your favorites, then
 what other features contribute to the `start-page.extras` slot (History's frequently visited sites, Archive's recently
 archived tabs, AdBlock's privacy line, Safari's favorites).
 

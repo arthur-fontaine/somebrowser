@@ -50,7 +50,7 @@ struct StartPage: View {
         GeometryReader { geo in
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: Design.Space.section) {
-                    field
+                    if hasOwnField { field }
                     if runtime.settings.bool("start-page.showFavorites") { favorites }
                     if isFirstRun { getStarted }
                     SlotHost("start-page.extras", window: window)
@@ -89,6 +89,12 @@ struct StartPage: View {
         .padding(.trailing, Design.Space.capsuleTrailing)
         .frame(height: 44)
         .background(Design.Fill.hover, in: Capsule())
+    }
+
+    /// Addresses are typed in the sidebar's field (the command bar's inline style, as in Safari), so the page has no
+    /// field of its own then; with the palette, or no command bar, it keeps one.
+    private var hasOwnField: Bool {
+        !runtime.commands.isHandled("command-bar.open") || runtime.settings.string("command-bar.style") == "palette"
     }
 
     /// Before there's any history.
