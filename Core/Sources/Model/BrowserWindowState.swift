@@ -35,6 +35,11 @@ public final class BrowserWindowState: Identifiable {
     public var titlebarRequests: Set<String> = []
     /// Web content area in window coordinates (top-left origin), kept by the shell for overlays.
     public var contentFrame: CGRect = .zero
+    /// The address field in window coordinates (top-left origin), kept by the field so an editor can grow from it; zero
+    /// when none shows (the sidebar hidden).
+    public var addressFieldFrame: CGRect = .zero
+    /// The address is being edited where its field is: the field hides under the editor.
+    public var isEditingAddress = false
     /// Overlays with text input currently on screen. When the engine hosts pages in child windows, the shell
     /// gives keyboard focus to the overlay window while this is non-empty (use `.overlayKeyboardFocus(_:in:)`).
     public var overlayFocusRequests: Set<String> = []

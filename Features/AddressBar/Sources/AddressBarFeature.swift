@@ -85,6 +85,8 @@ struct AddressPill: View {
 
     /// Controls other features put in the field's trailing end, right to left by descending order.
     static let trailingSlot: SlotID = "address-bar.trailing"
+    /// What this field last published (the docked and the floating sidebar each have one).
+    @State private var published: CGRect = .zero
 
     var body: some View {
         let runtime = env.runtime
@@ -119,6 +121,14 @@ struct AddressPill: View {
         .padding(.trailing, Design.AddressField.trailingInset)
         .frame(height: Design.Size.control)
         .glassControl(in: Capsule())
+        // Edited in place by an editor drawn over it (the command bar's inline style), which grows from this frame.
+        .opacity(window.isEditingAddress ? 0 : 1)
+        .animation(.easeOut(duration: 0.12), value: window.isEditingAddress)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+            published = frame
+            if window.addressFieldFrame != frame { window.addressFieldFrame = frame }
+        }
+        .onDisappear { if window.addressFieldFrame == published { window.addressFieldFrame = .zero } }
         .overlay(alignment: .bottom) {
             if let live, live.isLoading {
                 GeometryReader { g in

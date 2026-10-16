@@ -436,7 +436,8 @@ struct SidebarPeekOverlay: View {
     @State private var hideTask: Task<Void, Never>?
 
     var body: some View {
-        if !window.isSidebarVisible, env.runtime.settings.bool("sidebar.peekOnEdgeHover") {
+        // Also when something asked for it (editing the address with the sidebar hidden), edge hover or not.
+        if !window.isSidebarVisible, env.runtime.settings.bool("sidebar.peekOnEdgeHover") || window.isSidebarPeeking {
             HStack(spacing: 0) {
                 if window.isSidebarPeeking {
                     let slab = RoundedRectangle(cornerRadius: Design.cardRadius, style: .continuous)
