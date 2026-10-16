@@ -54,6 +54,9 @@ enum Bundler {
             "NSLocationUsageDescription": "Websites you allow can use your location.",
             "NSBluetoothAlwaysUsageDescription": "Websites you allow can use Bluetooth devices.",
             "NSAppleEventsUsageDescription": "Used to read your Safari favorites and tabs when Safari sync is on.",
+            // A browser: web content (WebKit tabs) may load any site, plain http included, and a certificate the user
+            // chose to accept (Visit Anyway). The browser's own requests still go through App Transport Security.
+            "NSAppTransportSecurity": ["NSAllowsArbitraryLoadsInWebContent": true],
             "CFBundleURLTypes": [
                 ["CFBundleURLName": "Web site URL", "CFBundleURLSchemes": ["http", "https"]],
                 ["CFBundleURLName": "\(b.name) URL", "CFBundleURLSchemes": [b.urlScheme]],
