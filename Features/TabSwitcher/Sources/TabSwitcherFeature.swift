@@ -127,7 +127,7 @@ struct SwitcherOverlay: View {
                 }
             }
             .padding(14)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .glassSurface(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(color: .black.opacity(0.3), radius: 30, y: 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .transition(.scale(scale: 0.96).combined(with: .opacity))

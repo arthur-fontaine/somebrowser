@@ -50,7 +50,7 @@ struct AppleSignInSheet: View {
 
     func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content()
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .glassSurface(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
             .transition(.scale(scale: 0.94).combined(with: .opacity))
     }

@@ -125,8 +125,7 @@ struct SiteControlsPopover: View {
         }
         .font(.system(size: 13))
         .frame(width: 300)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.1)))
+        .glassSurface(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
         .task(id: site) { dataSize = await (env.runtime.engine as? EngineSiteData)?.dataSize(for: site) }
     }

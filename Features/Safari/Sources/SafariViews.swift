@@ -123,7 +123,7 @@ struct CloudTabsPanel: View {
                 .padding(20)
                 .frame(width: 560, height: 460)
                 .overlayKeyboardFocus("safari.cloud-tabs", in: window)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
             }
         }

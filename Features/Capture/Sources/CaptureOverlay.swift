@@ -36,7 +36,7 @@ struct CaptureOverlay: View {
                 VStack {
                     Text("Drag to capture · Return for the whole page · Esc to cancel")
                         .font(.callout).padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(.regularMaterial, in: Capsule())
+                        .glassSurface(in: Capsule())
                         .padding(.top, 12)
                     Spacer()
                 }

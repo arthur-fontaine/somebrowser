@@ -88,7 +88,7 @@ struct FindBar: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 36)
-                .background(.regularMaterial, in: Capsule())
+                .glassSurface(in: Capsule())
                 .shadow(color: .black.opacity(0.18), radius: 10, y: 3)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .trailing)

@@ -70,8 +70,7 @@ struct ToastStack: View {
                 }
                 .padding(.horizontal, 14)
                 .frame(height: 36)
-                .background(.regularMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(.white.opacity(0.1)))
+                .glassSurface(in: Capsule())
                 .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
                 .transition(.move(edge: .bottom).combined(with: .scale(scale: 0.9)).combined(with: .opacity))
             }

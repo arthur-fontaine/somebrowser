@@ -86,7 +86,7 @@ struct LinkHoverBox: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .glassSurface(in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .shadow(color: .black.opacity(0.15), radius: 4, y: 1)
                     .frame(maxWidth: 420, alignment: .leading)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))

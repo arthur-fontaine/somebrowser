@@ -34,7 +34,7 @@ struct SecurityCorePanel: View {
                 .padding(20)
                 .frame(width: 640, height: 520)
                 .overlayKeyboardFocus("security-core", in: window)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
                 .transition(.scale(scale: 0.96).combined(with: .opacity))
             }

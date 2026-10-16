@@ -86,7 +86,7 @@ struct BoostEditor: View {
                 .padding(20)
                 .frame(width: 600)
                 .overlayKeyboardFocus("boosts.editor", in: window)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
                 .transition(.scale(scale: 0.96).combined(with: .opacity))
             }

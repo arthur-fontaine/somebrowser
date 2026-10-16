@@ -193,7 +193,7 @@ struct DownloadsPanel: View {
                 }
                 .padding(14)
                 .frame(width: 320)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .glassSurface(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .shadow(color: .black.opacity(0.25), radius: 18, y: 6)
                 .padding(.leading, 10)
                 .padding(.bottom, 44)

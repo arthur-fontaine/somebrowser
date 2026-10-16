@@ -99,8 +99,7 @@ struct CommandBarPanel: View {
             }
         }
         .frame(width: 640)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.12)))
+        .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .shadow(color: .black.opacity(0.28), radius: 30, y: 12)
         .onAppear { focused = true }
         .task(id: session?.query) {

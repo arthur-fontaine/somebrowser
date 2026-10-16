@@ -268,7 +268,7 @@ struct SidebarPeekOverlay: View {
                 if window.isSidebarPeeking {
                     SidebarView(window: window, model: model)
                         .frame(width: window.sidebarWidth)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .glassSurface(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .shadow(color: .black.opacity(0.25), radius: 18, x: 4)
                         .padding(6)

@@ -19,7 +19,7 @@ struct PasswordsMenu: View {
             }
             .padding(5)
             .frame(width: max(260, min(field.rect.width, 360)), alignment: .leading)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .glassSurface(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.separator.opacity(0.5)))
             .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
             .offset(x: field.rect.minX, y: field.rect.maxY + 4)
@@ -101,7 +101,7 @@ struct PairingCard: View {
                 }
                 .padding(24)
                 .frame(width: 320)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .shadow(color: .black.opacity(0.25), radius: 30, y: 12)
                 .modifier(Shake(trigger: wrong))
             }
