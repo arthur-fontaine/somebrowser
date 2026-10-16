@@ -49,11 +49,13 @@ struct StartPage: View {
     var body: some View {
         GeometryReader { geo in
             ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: Design.Space.section) {
                     field
                     if runtime.settings.bool("start-page.showFavorites") { favorites }
-                    getStarted
+                    if isFirstRun { getStarted }
                     SlotHost("start-page.extras", window: window)
+                    // Suggestions (connecting Safari…) go in Get Started on a first run, last on the page after.
+                    if !isFirstRun { suggestions }
                 }
                 .frame(width: min(Self.columnWidth, geo.size.width - 64))
                 .padding(.top, min(96, geo.size.height * 0.12))
@@ -67,39 +69,43 @@ struct StartPage: View {
     }
 
     private var field: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: PageGrid.iconToText) {
             Image(systemName: "magnifyingglass").font(.system(size: 15, weight: .medium)).foregroundStyle(.secondary)
+                .frame(width: PageGrid.iconWidth)
             TextField("Search or type a URL", text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 17))
                 .focused($focused)
                 .onSubmit { StartPageFeature.submit(text, window: window, runtime: runtime); text = "" }
         }
-        .padding(.horizontal, 16)
+        .padding(.leading, PageGrid.leading)
+        .padding(.trailing, Design.Space.capsuleTrailing)
         .frame(height: 44)
         .background(Design.Fill.hover, in: Capsule())
     }
 
-    /// Before there's any history: the first things to do.
-    @ViewBuilder
+    /// Before there's any history.
+    private var isFirstRun: Bool { !window.isPrivate && runtime.capabilities.history?.recent(limit: 1).isEmpty != false }
+
+    private var suggestions: some View {
+        VStack(spacing: Design.Space.block) { SlotHost("start-page.suggestions", window: window) }
+    }
+
+    /// The first things to do: import, make it the default, then what features suggest.
     private var getStarted: some View {
-        let fresh = !window.isPrivate && runtime.capabilities.history?.recent(limit: 1).isEmpty != false
-        let canImport = runtime.commands.isHandled("import.open")
-        let canBeDefault = runtime.commands.canRun("start-page.make-default")
-        if fresh, canImport || canBeDefault {
-            PageSection("Get Started") {
-                VStack(spacing: 8) {
-                    if canImport {
-                        PageCard(symbol: "square.and.arrow.down", title: "Import from Safari or Chrome…") {
-                            try? runtime.commands.run("import.open", window: window)
-                        }
-                    }
-                    if canBeDefault {
-                        PageCard(symbol: "globe", title: "Make \(Brand.name) your default browser") {
-                            try? runtime.commands.run("start-page.make-default", window: window)
-                        }
+        PageSection("Get Started") {
+            VStack(spacing: Design.Space.block) {
+                if runtime.commands.isHandled("import.open") {
+                    PageCard(symbol: "square.and.arrow.down", title: "Import from Safari or Chrome…") {
+                        try? runtime.commands.run("import.open", window: window)
                     }
                 }
+                if runtime.commands.canRun("start-page.make-default") {
+                    PageCard(symbol: "globe", title: "Make \(Brand.name) your default browser") {
+                        try? runtime.commands.run("start-page.make-default", window: window)
+                    }
+                }
+                SlotHost("start-page.suggestions", window: window)
             }
         }
     }

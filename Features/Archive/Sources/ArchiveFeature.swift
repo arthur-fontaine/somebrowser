@@ -208,13 +208,12 @@ struct RecentlyArchived: View {
         let items = store.items.filter { $0.url != nil }.sorted { $0.archivedAt > $1.archivedAt }.prefix(5)
         if !items.isEmpty, !window.isPrivate {
             PageSection("Recently Archived") {
-                VStack(spacing: 2) {
+                VStack(spacing: Design.Space.row) {
                     ForEach(items) { item in
                         PageRow(icon: runtime.favicons.image(for: item.url), title: item.title,
                                 detail: item.archivedAt.formatted(.relative(presentation: .named))) { restore(item) }
                     }
                 }
-                .padding(.horizontal, -10)  // the rows' text on the column's edge, their wash past it
             }
         }
     }

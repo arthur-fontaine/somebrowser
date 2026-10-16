@@ -2,7 +2,7 @@ import AppKit
 import BrowserCore
 import SwiftUI
 
-/// Start page: Safari Favorites (live) and the iPhone's tabs, or the button that connects Safari.
+/// Start page: Safari Favorites (live) and the iPhone's tabs; connecting Safari is a start-page suggestion.
 struct SafariStartSection: View {
     @Environment(BrowserEnvironment.self) private var env
     let model: SafariModel
@@ -10,20 +10,11 @@ struct SafariStartSection: View {
     let open: (URL, Bool) -> Void
     let openInNewWindow: (URL) -> Void
     let delete: (SafariBookmark) -> Void
-    let connect: () -> Void
 
     var body: some View {
         switch model.hasAccess {
         case .some(false):
-            Button(action: connect) {
-                Label("Sync with Safari on your iPhone", systemImage: "safari")
-                    .font(.system(size: 13))
-                    .padding(.horizontal, 14)
-                    .frame(height: 32)
-                    .background(Design.Fill.hover, in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            EmptyView()  // the connect card is a start-page suggestion
         case .some(true):
             if !model.favorites.isEmpty || !model.devices.isEmpty || !model.tabGroups.isEmpty {
                 PageSection("Safari") {

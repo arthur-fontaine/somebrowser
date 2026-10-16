@@ -42,6 +42,9 @@ struct FaviconStoreTests {
     @Test func blankTabsAndSitesAreNamedAlike() {
         #expect(BrowserTab(url: nil).displayTitle == "Start Page")
         #expect(SiteTile.name(for: URL(string: "https://www.github.com/x")) == "github.com")
+        #expect(SiteTile.name(for: URL(string: "https://developer.apple.com/")) == "apple.com")
+        #expect(SiteTile.name(for: URL(string: "https://news.bbc.co.uk/")) == "bbc.co.uk")
+        #expect(SiteTile.name(for: URL(string: "http://127.0.0.1:8000/")) == "127.0.0.1")
         #expect(SiteTile.name(for: nil) == nil)
     }
 

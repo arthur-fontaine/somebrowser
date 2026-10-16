@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+/// The inner grid of a page's field, cards and rows: an icon column 20 wide centered 24 pt in, text 48 pt in.
+public enum PageGrid {
+    public static let iconWidth: CGFloat = 20
+    public static let leading: CGFloat = 24 - iconWidth / 2
+    public static let iconToText: CGFloat = 48 - leading - iconWidth
+}
+
 /// A section of a page the browser draws itself (the start page): a header over its content, left-aligned on the
 /// page's column. Features contribute sections to `start-page.extras` with it, so they all read alike.
 public struct PageSection<Content: View>: View {
@@ -13,8 +20,8 @@ public struct PageSection<Content: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.system(size: 15, weight: .semibold))
+        VStack(alignment: .leading, spacing: Design.Space.block) {
+            Text(title).font(.system(size: 15, weight: .semibold)).frame(height: 20)
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -32,13 +39,17 @@ public struct SiteTile: View {
     public static let size: CGFloat = 64
     /// Columns at the tile's width, so the first tile starts on the column's edge; names overhang their tile.
     public static let columns = [GridItem(.adaptive(minimum: size, maximum: size), spacing: 24, alignment: .top)]
-    static let labelWidth: CGFloat = 80
+    static let labelWidth = size + Design.Space.tileGutter
 
-    /// A site's name on a tile: the host without `www.`.
+    /// A site's name on a tile: its domain without subdomains (apple.com for developer.apple.com, bbc.co.uk). For
+    /// display only: a country's second level (co, com, org…) is kept, without the full public suffix list.
     public static func name(for url: URL?) -> String? {
-        guard var host = url?.host() else { return nil }
-        if host.hasPrefix("www.") { host.removeFirst(4) }
-        return host
+        guard let host = url?.host()?.lowercased(), !host.isEmpty else { return nil }
+        let labels = host.split(separator: ".")
+        guard labels.count > 2, !labels.allSatisfy({ $0.allSatisfy(\.isNumber) }) else { return host }
+        let secondLevel: Set<Substring> = ["co", "com", "org", "net", "gov", "ac", "edu", "ne", "or", "go"]
+        let keep = labels.last!.count == 2 && secondLevel.contains(labels[labels.count - 2]) ? 3 : 2
+        return labels.suffix(keep).joined(separator: ".")
     }
 
     public init(icon: NSImage?, title: String, help: String? = nil, action: @escaping () -> Void) {
@@ -91,13 +102,14 @@ public struct PageRow: View {
 
     public var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                SiteIcon(icon).frame(width: Design.Size.favicon, height: Design.Size.favicon)
+            HStack(spacing: PageGrid.iconToText) {
+                SiteIcon(icon).frame(width: Design.Size.favicon, height: Design.Size.favicon).frame(width: PageGrid.iconWidth)
                 Text(title).font(.system(size: 13)).lineLimit(1).truncationMode(.tail)
                 Spacer(minLength: 12)
                 if let detail { Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1) }
             }
-            .padding(.horizontal, 10)
+            .padding(.leading, PageGrid.leading)
+            .padding(.trailing, Design.Space.capsuleTrailing)
             .frame(height: 32)
             .background(hovering ? Design.Fill.hover : .clear, in: Design.itemShape)
             .contentShape(Rectangle())
@@ -123,8 +135,8 @@ public struct PageCard: View {
     }
 
     public var body: some View {
-        let card = HStack(spacing: 12) {
-            Image(systemName: symbol).font(.system(size: detail == nil ? 17 : 22)).foregroundStyle(.secondary).frame(width: 30)
+        let card = HStack(spacing: PageGrid.iconToText) {
+            Image(systemName: symbol).font(.system(size: 17)).foregroundStyle(.secondary).frame(width: PageGrid.iconWidth)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13, weight: .semibold))
                 if let detail { Text(detail).font(.system(size: 12)).foregroundStyle(.secondary) }
@@ -132,7 +144,8 @@ public struct PageCard: View {
             Spacer()
             if action != nil { Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary) }
         }
-        .padding(.horizontal, 14)
+        .padding(.leading, PageGrid.leading)
+        .padding(.trailing, Design.Space.capsuleTrailing)
         .frame(height: detail == nil ? 44 : 60)
         .background(hovering ? Design.Fill.selection : Design.Fill.hover,
                     in: RoundedRectangle(cornerRadius: Design.Radius.tile, style: .continuous))

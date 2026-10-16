@@ -63,14 +63,18 @@ public final class SafariFeature: BrowserFeature {
         context.capabilities.contribute(OmniboxProvider.self, SafariHistoryOmnibox(model: model, runtime: context.runtime))
 
         let model = self.model
+        context.ui.contribute("start-page.suggestions", id: "safari.connect", order: 10) { [weak self] window in
+            if model.hasAccess == false {
+                PageCard(symbol: "safari", title: "Sync with Safari on your iPhone") { self?.connect() }
+            }
+        }
         context.ui.contribute("start-page.extras", id: "safari.start", order: 10) { [weak self] window in
             SafariStartSection(model: model, window: window,
                                open: { url, newTab in self?.open(url, in: window, newTab: newTab) },
                                openInNewWindow: { url in
                                    self?.context.shell?.openWindow(spaceID: window.spaceID, isPrivate: window.isPrivate, initialURL: url)
                                },
-                               delete: { self?.removeFavorite($0) },
-                               connect: { self?.connect() })
+                               delete: { self?.removeFavorite($0) })
         }
         context.ui.contribute(.overlay, id: "safari.cloud-tabs", order: 75) { [weak self] window in
             CloudTabsPanel(model: model, window: window, open: { self?.open($0, in: window, newTab: true) })

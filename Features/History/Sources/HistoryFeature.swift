@@ -139,7 +139,7 @@ struct FrequentSites: View {
             PageSection("Frequently Visited") {
                 LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 16) {
                     ForEach(sites, id: \.url) { page in
-                        SiteTile(icon: runtime.favicons.image(for: page.url), title: HistoryStore.site(page.url) ?? page.title,
+                        SiteTile(icon: runtime.favicons.image(for: page.url), title: SiteTile.name(for: page.url) ?? page.title,
                                  help: page.title.isEmpty ? page.url.absoluteString : page.title) {
                             runtime.open(page.url, fillingBlankTabIn: window)
                         }
