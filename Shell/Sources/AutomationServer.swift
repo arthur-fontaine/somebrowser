@@ -304,7 +304,7 @@ final class AutomationServer {
             let windows: [[String: Any]] = NSApp.orderedWindows.map { w in
                 ["number": w.windowNumber, "class": String(describing: type(of: w)), "frame": NSStringFromRect(w.frame),
                  "parent": w.parent?.windowNumber ?? 0, "visible": w.isVisible, "level": w.level.rawValue, "alpha": w.alphaValue,
-                 "ignoresMouse": w.ignoresMouseEvents]
+                 "ignoresMouse": w.ignoresMouseEvents, "styleMask": w.styleMask.rawValue]
             }
             reply(["ok": true, "views": dump(root, 0), "children": ns.childWindows?.map { NSStringFromRect($0.frame) } ?? [],
                    "windows": windows, "keyWindow": key.map { "\(type(of: $0))#\($0.identifier?.rawValue ?? "")" } ?? NSNull()])
