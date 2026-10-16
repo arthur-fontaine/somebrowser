@@ -159,7 +159,7 @@ static void PageWindowsFollowTheirBrowserWindow() {
 @end
 
 @interface CEFRuntime ()
-- (CefRefPtr<CefRequestContext>)privateContext;
+- (CefRefPtr<CefRequestContext>)privateContextFor:(CEFTab *)tab;
 - (void)registerTab:(CEFTab *)tab;
 - (void)unregisterTab:(CEFTab *)tab;
 - (void)updateAnchor;
@@ -738,7 +738,7 @@ public:
 - (void)createBrowserWithURL:(NSString *)url {
     CefBrowserSettings settings;
     settings.background_color = CefColorSetARGB(255, 255, 255, 255);
-    CefRefPtr<CefRequestContext> context = _isPrivate ? [[CEFRuntime shared] privateContext] : nullptr;
+    CefRefPtr<CefRequestContext> context = _isPrivate ? [[CEFRuntime shared] privateContextFor:self] : nullptr;
     CefRefPtr<CefBrowserView> view = CefBrowserView::CreateBrowserView(_client, CS(url ?: @""), settings,
                                                                        [[CEFRuntime shared] extraInfo], context, _viewDelegate);
     [self attachBrowserView:view];
@@ -1221,7 +1221,12 @@ private:
 
 /// Private windows: an off-the-record profile (memory only; Chrome style makes one for a context without a cache path),
 /// shared by private tabs until the last one closes.
-- (CefRefPtr<CefRequestContext>)privateContext {
+/// A private tab opened while every other private tab is closing (Chrome closes browsers asynchronously) starts a new
+/// session: the one closing must not leak into it.
+- (CefRefPtr<CefRequestContext>)privateContextFor:(CEFTab *)tab {
+    BOOL others = NO;
+    for (CEFTab *t in _retained) if (t != tab && t.isPrivate && !t.isClosing) { others = YES; break; }
+    if (!others) _privateContext = nullptr;
     if (!_privateContext) {
         CefRequestContextSettings settings;
         _privateContext = CefRequestContext::CreateContext(settings, nullptr);
