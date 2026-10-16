@@ -41,13 +41,17 @@ public struct GlassGroup<Content: View>: View {
 
 struct GlassSurface<S: Shape>: ViewModifier {
     @Environment(BrowserEnvironment.self) private var env: BrowserEnvironment?
+    @Environment(\.isOnGlass) private var isOnGlass
     let shape: S
     let interactive: Bool
     let tint: Color?
 
     func body(content: Content) -> some View {
         let style = env.flatMap { SurfaceStyle(rawValue: $0.runtime.settings.string(SurfaceStyle.settingKey)) } ?? .glass
-        if style == .solid {
+        if isOnGlass {
+            // Glass can't sample glass: on the floating sidebar, a control is a wash.
+            content.background(tint.map { AnyShapeStyle($0.opacity(0.25)) } ?? AnyShapeStyle(Design.Fill.onGlass), in: shape)
+        } else if style == .solid {
             content.background(tint.map { AnyShapeStyle($0.opacity(0.25)) } ?? AnyShapeStyle(Color(nsColor: .controlBackgroundColor)), in: shape)
         } else {
             content.glassEffect(glass(style), in: shape)

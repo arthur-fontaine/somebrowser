@@ -126,7 +126,7 @@ struct SplitPane: View {
     var body: some View {
         if let id = model.secondary[window.id], let page = runtime.tabs.tab(id)?.engineTab {
             SplitPaneContent(engineTab: page, runtime: runtime)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Design.cardRadius, style: .continuous))
                 .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.leading, 6)
@@ -148,7 +148,7 @@ struct SplitPaneContent: NSViewRepresentable {
     func makeNSView(context: Context) -> Container {
         let v = Container()
         v.wantsLayer = true
-        v.layer?.cornerRadius = 10
+        v.layer?.cornerRadius = Design.cardRadius
         v.layer?.masksToBounds = true
         DispatchQueue.main.async {
             let viewport = runtime.engine.makeViewport(in: v)

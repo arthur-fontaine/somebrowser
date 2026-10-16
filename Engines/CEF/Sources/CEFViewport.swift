@@ -6,7 +6,7 @@ import BrowserCore
 final class CEFViewport: EngineViewport {
     private weak var container: NSView?
     private(set) var presentedTab: EngineTab?
-    static let cornerRadius: CGFloat = 10
+    static let cornerRadius = Design.cardRadius
 
     /// Pages from the protected-media engine (WebKit) show through its own viewport in the same container.
     private let makeAlternate: (NSView) -> EngineViewport?

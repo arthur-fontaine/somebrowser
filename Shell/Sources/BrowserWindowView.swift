@@ -10,9 +10,6 @@ struct BrowserWindowView: View {
     /// Engines with page child windows get overlays from `OverlayLayer` in a separate window.
     var overlaysInline = true
 
-    static let contentInset: CGFloat = 6
-    static let contentCornerRadius: CGFloat = 10
-
     var body: some View {
         let ui = env.runtime.ui
         ZStack(alignment: .topLeading) {
@@ -30,8 +27,8 @@ struct BrowserWindowView: View {
                         SlotHost(.contentTrailing, window: window)
                     }
                 }
-                .padding([.top, .bottom, .trailing], Self.contentInset)
-                .padding(.leading, window.isSidebarVisible ? 0 : Self.contentInset)
+                .padding([.top, .bottom, .trailing], Design.windowInset)
+                .padding(.leading, window.isSidebarVisible ? 0 : Design.windowInset)
             }
             if overlaysInline { SlotHost(.overlay, window: window) }
         }
@@ -64,7 +61,7 @@ struct BrowserWindowView: View {
             }
             if overlaysInline { SlotHost(.contentOverlay, window: window) }
         }
-        .clipShape(RoundedRectangle(cornerRadius: Self.contentCornerRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Design.cardRadius, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
     }
 }
@@ -121,7 +118,7 @@ final class ContentContainerView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.cornerRadius = BrowserWindowView.contentCornerRadius
+        layer?.cornerRadius = Design.cardRadius
         layer?.cornerCurve = .continuous
         layer?.masksToBounds = true
         layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor

@@ -32,7 +32,7 @@ struct OverlayLayer: View {
             Color.clear.allowsHitTesting(false)
             ZStack { SlotHost(.contentOverlay, window: window) }
                 .frame(width: window.contentFrame.width, height: window.contentFrame.height)
-                .clipShape(RoundedRectangle(cornerRadius: BrowserWindowView.contentCornerRadius, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Design.cardRadius, style: .continuous))
                 .offset(x: window.contentFrame.minX, y: window.contentFrame.minY)
             SlotHost(.overlay, window: window)
         }
