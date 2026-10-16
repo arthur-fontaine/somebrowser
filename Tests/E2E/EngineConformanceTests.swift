@@ -60,6 +60,27 @@ struct EngineConformanceTests {
     }
 
     /// Simulated responses keep the URL's origin (Sign in with Apple hands back appleid.apple.com's page).
+    /// Clicking a tab in the sidebar selects it at once: a double-click gesture on the row once held every click for the
+    /// double-click interval (~0.5 s) before selecting.
+    @Test func sidebarClicksSelectAtOnce() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/one"))
+        try app.open(server.url("/two"))
+        try app.waitUntil(timeout: 15) { Set(try app.tabs().map(\.title)).isSuperset(of: ["One", "Two"]) }
+        func selectedTitle() throws -> String? {
+            let s = try app.state()
+            let id = (s["windows"] as? [[String: Any]])?.first?["selected"] as? String
+            let tabs = (s["spaces"] as? [[String: Any]] ?? []).flatMap { ($0["pinned"] as? [[String: Any]] ?? []) + ($0["today"] as? [[String: Any]] ?? []) }
+            return tabs.first { $0["id"] as? String == id }?["title"] as? String
+        }
+        let target = try selectedTitle() == "One" ? "Two" : "One"
+        let start = Date()
+        #expect(try app.call(["op": "clickTitle", "title": target])["ok"] as? Bool == true)
+        try app.waitUntil(timeout: 3) { try selectedTitle() == target }
+        #expect(Date().timeIntervalSince(start) < 0.25)
+        try app.quit()
+    }
+
     /// A click reaches the page: nothing of the window's own covers it (Chromium routes clicks by the views under the
     /// pointer, and CEF's overlay host view once took them all).
     @Test func clicksReachThePage() throws {

@@ -97,8 +97,10 @@ struct TabRow: View {
         }
         .overlay { dropIndicator(drop) }
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { window.flags.insert("rename:\(row.id.uuidString)") }
+        // A single click selects at once: a double-click gesture placed before it would hold every click for the
+        // double-click interval (up to half a second) to rule out a second one.
         .onTapGesture { activate() }
+        .simultaneousGesture(TapGesture(count: 2).onEnded { window.flags.insert("rename:\(row.id.uuidString)") })
         .contextMenu { RowMenu(id: row.id, window: window) }
         .onDrag {
             model.dragging = row.id
