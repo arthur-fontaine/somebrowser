@@ -71,6 +71,12 @@ second tab Claude opens lands in a window of its own, and Claude groups a new ta
 window). A smaller 3 to try first: the same `TabGroupId` in each page's own tab strip (`AddToGroupForRestore`) instead
 of moving tabs, visuals copied to every window, and `tabGroups.onCreated`/`onRemoved` fired once per id.
 
+Finding (2026-10-16, extension 1.0.100): where the extension opens a follow-up tab itself, it groups it only when
+`tabs.create` answers with the opener's window id (`d.windowId === e.windowId`). Here every page is a window of its own,
+so even with patch 3 that tab would stay out of the group. Multi-tab sessions need extensions to see one window per
+browser window (every page of a browser window reporting the same window id, the tab strip spanning those pages),
+which patch 3 alone doesn't give; that larger change is the next step, not patch 3 by itself.
+
 Checks: the E2E test `extensionTabsKeepTheirIds` runs Claude's session steps through the probe extension
 (`windows.getLastFocused`, `tabs.create`, `tabs.get` a second later, `tabs.group`, `tabGroups.update`, `tabs.query
 ({groupId})`, and the `windows.create` fallback) with `BROWSER_E2E_CEF_PATCHES` listing 0005. Chrome's new-tab page,
