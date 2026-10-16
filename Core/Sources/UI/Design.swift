@@ -61,6 +61,8 @@ public enum Design {
         /// A control drawn on glass (where it can't be glass itself).
         public static let onGlass = adaptive(light: .black.withAlphaComponent(0.06), dark: .white.withAlphaComponent(0.08))
         public static let hairline = Color.primary.opacity(0.1)
+        /// Under the text of a large glass panel, so it reads over any page (Spotlight's).
+        public static let glassScrim = adaptive(light: .white.withAlphaComponent(0.10), dark: .black.withAlphaComponent(0.12))
 
         static func adaptive(light: NSColor, dark: NSColor) -> Color {
             Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light })
