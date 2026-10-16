@@ -10,8 +10,10 @@ struct SidebarView: View {
     var body: some View {
         VStack(spacing: 6) {
             header
-            SlotHost(.sidebarAddress, window: window)
-                .padding(.horizontal, 8)
+            if !window.isLocked {  // a locked private space shows nothing of its pages
+                SlotHost(.sidebarAddress, window: window)
+                    .padding(.horizontal, 8)
+            }
             FavoritesGrid(window: window, model: model)
                 .padding(.horizontal, 8)
             SlotHost(.sidebarTop, window: window)

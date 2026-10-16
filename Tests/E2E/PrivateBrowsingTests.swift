@@ -57,7 +57,14 @@ struct PrivateBrowsingTests {
         try app.quit()
     }
 
-    /// Touch ID refused: the private space stays locked and none of its pages is on screen.
+    /// The browser window's own controls, as accessibility reads them (the address bar's text).
+    func browserControls(_ app: AppDriver) throws -> String {
+        let windows = try app.call(["op": "views"])["windows"] as? [[String: Any]] ?? []
+        let shell = windows.first { $0["class"] as? String == "ShellWindow" }?["number"] as? Int ?? 0
+        return (try app.call(["op": "ax", "number": shell])["ax"] as? [String] ?? []).joined(separator: "\n")
+    }
+
+    /// Touch ID refused: the private space stays locked and none of its pages is on screen, nor its address.
     @Test func lockedPrivateSpacesShowNoPage() throws {
         let server = try TestHTTPServer(pages: Self.pages)
         let (app, data) = try launch(touchID: "deny")
@@ -65,9 +72,11 @@ struct PrivateBrowsingTests {
         _ = try app.run("tabs.new-private-tab")
         try app.navigate(server.url("/p"))
         try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "P" }
+        try app.waitUntil(timeout: 5) { try browserControls(app).contains("127.0.0.1") }
         _ = try app.run("spaces.previous")
         _ = try app.run("spaces.next")
         try app.waitUntil(timeout: 5) { try window(app)["locked"] as? Bool == true }
+        #expect(try !browserControls(app).contains("127.0.0.1"))
         let views = try app.call(["op": "views"])
         let pageWindows = (views["windows"] as? [[String: Any]] ?? []).filter {
             $0["class"] as? String == "CefNSWindow" && $0["visible"] as? Bool == true && ($0["parent"] as? Int ?? 0) != 0

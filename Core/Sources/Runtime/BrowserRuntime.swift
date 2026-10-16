@@ -213,7 +213,11 @@ public final class BrowserRuntime {
 
     // MARK: Tabs
 
-    public func selectedTab(in window: BrowserWindowState) -> BrowserTab? { window.selectedTabID.flatMap { tabs.tab($0) } }
+    /// The page the window shows: none while its private space is locked, so nothing shows, reads or acts on a hidden
+    /// page (the address, copying its URL, editing it).
+    public func selectedTab(in window: BrowserWindowState) -> BrowserTab? {
+        window.isLocked ? nil : window.selectedTabID.flatMap { tabs.tab($0) }
+    }
 
     /// Creates a tab (and its live page when `url` is given) and optionally selects it.
     @discardableResult

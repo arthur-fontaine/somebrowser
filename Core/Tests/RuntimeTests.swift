@@ -224,10 +224,11 @@ struct RuntimeTests {
         h.runtime.switchSpace(h.runtime.tabs.normalSpace.id, in: h.window)
         #expect(h.selectedTab?.id == normal.id && !h.window.isPrivate)
         h.runtime.switchSpace(h.runtime.tabs.space(kind: .private)!.id, in: h.window)
-        #expect(h.window.isLocked && h.selectedTab?.id == secret.id)
+        // Locked: the window keeps its tab, but nothing shows, reads or acts on it (the address bar, copying its URL).
+        #expect(h.window.isLocked && h.window.selectedTabID == secret.id && h.selectedTab == nil)
         #expect(h.viewport.presentedTab == nil)
         h.runtime.unlockPrivateSpace(in: h.window)
-        #expect(!h.window.isLocked)
+        #expect(!h.window.isLocked && h.selectedTab?.id == secret.id)
         #expect(h.viewport.presentedTab === h.fakeTab(secret))
 
         h.runtime.close(secret.id)
