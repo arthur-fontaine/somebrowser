@@ -76,6 +76,9 @@ public enum Design {
     public enum Motion {
         /// Layout changes: the sidebar arriving or leaving, sections opening.
         public static let layout = Animation.smooth(duration: 0.30)
+        /// Something leaving (the sidebar sliding out): it accelerates away.
+        public static let leaveDuration: TimeInterval = 0.20
+        public static let leave = Animation.easeIn(duration: leaveDuration)
         /// The selection lens, chips, segmented controls.
         public static let selection = Animation.snappy(duration: 0.28)
         /// Paging between spaces.

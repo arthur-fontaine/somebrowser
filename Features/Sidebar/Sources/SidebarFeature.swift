@@ -80,12 +80,16 @@ final class SidebarModel {
                 w.isSidebarVisible = false
                 w.isSidebarLeaving = true
             }
-            withAnimation(motion) { slide[w.id] = -1 } completion: { [weak self] in
+            // Accelerating out. The page (Chromium's) takes ~50 ms to paint at its new size, so it takes the room back
+            // that much before the slide ends: it covers the sidebar's last few points instead of leaving a gap.
+            let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            withAnimation(reduce ? Design.Motion.reduced : Design.Motion.leave) { slide[w.id] = -1 } completion: { [weak self] in
                 guard let self, self.slideGeneration[w.id] == generation else { return }
-                withTransaction(still) {
-                    w.isSidebarLeaving = false
-                    self.slide[w.id] = nil
-                }
+                withTransaction(still) { self.slide[w.id] = nil }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + Design.Motion.leaveDuration - 0.05) { [weak self] in
+                guard self?.slideGeneration[w.id] == generation else { return }
+                withTransaction(still) { w.isSidebarLeaving = false }
             }
         } else {
             let leaving = w.isSidebarLeaving
