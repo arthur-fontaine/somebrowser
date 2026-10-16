@@ -163,6 +163,7 @@ final class PiPPanel: NSPanel {
         if spring.isSettled {
             place(spring.target)
             stopSpring()
+            placeCatcher()  // where it glided to may be under the pointer, or away from it
         } else {
             self.spring = spring
             place(spring.frame)
@@ -211,45 +212,81 @@ final class PiPPanel: NSPanel {
 
     private var swipeMoves: [(t: TimeInterval, d: CGVector)] = []
     private(set) var catcher: SwipeCatcher?
+    private var swipeMonitor: Any?
+    /// Where the pointer stood when swipes on the panel began: swipes move the panel, wherever it is, until the pointer
+    /// leaves that spot.
+    private(set) var heldPointer: CGPoint?
     /// Where the pointer is (tests set it).
     var pointerLocation: () -> CGPoint = { NSEvent.mouseLocation }
 
     /// Two fingers on the trackpad move the panel (Radian: "controllable with trackpad"), the pointer staying where it
-    /// is. Swipes go to what's under the pointer, which the panel leaves as it moves: a catcher stays there and hands
-    /// them to the panel, swipe after swipe, until the pointer moves.
+    /// is, swipe after swipe, while the panel slides away from under it.
     func scroll(_ event: NSEvent) {
         guard event.hasPreciseScrollingDeltas, event.momentumPhase.isEmpty else { return }  // our spring replaces momentum
         switch event.phase {
         case .began, .changed:
+            if heldPointer == nil { holdSwipes() }
             if event.phase == .began { swipeMoves = [] }
             let d = PiPPhysics.fingerMove(scrollX: event.scrollingDeltaX, scrollY: event.scrollingDeltaY,
                                           natural: event.isDirectionInvertedFromDevice)
             swipeMoves.append((event.timestamp, d))
             if swipeMoves.count > 16 { swipeMoves.removeFirst() }
             moveBy(d.dx, d.dy)
-            holdSwipes()
         case .ended, .cancelled:
             release(velocity: PiPPhysics.velocity(of: swipeMoves, at: event.timestamp))
-            holdSwipes()
+            placeCatcher()
         default:
             break
         }
     }
 
-    /// Over the panel the swipes reach it anyway (and clicks too); off it, the catcher takes them.
     private func holdSwipes() {
-        let pointer = pointerLocation()
-        if frame.contains(pointer) { return releaseSwipes() }
+        heldPointer = pointerLocation()
+        guard swipeMonitor == nil else { return }
+        // Swipes over the browser's own windows (a page that scrolls) come here first, and scroll nothing else.
+        swipeMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self, self.heldPointer != nil else { return event }
+            guard self.pointerStays() else {
+                self.releaseSwipes()
+                return event
+            }
+            self.scroll(event)
+            return nil
+        }
+    }
+
+    private func pointerStays() -> Bool {
+        guard let held = heldPointer else { return false }
+        let now = pointerLocation()
+        return hypot(now.x - held.x, now.y - held.y) <= 3
+    }
+
+    /// Between swipes only: all of a swipe's events go to the window it began over, whatever comes under the pointer
+    /// meanwhile. Where the panel isn't under the pointer, the catcher takes the next ones (over other apps too); over
+    /// the panel they reach it anyway, and so do clicks.
+    private func placeCatcher() {
+        guard let pointer = heldPointer else { return }
+        guard pointerStays() else { return releaseSwipes() }
+        if frame.contains(pointer) {
+            catcher?.orderOut(nil)
+            return
+        }
         let catcher = catcher ?? SwipeCatcher(panel: self)
         self.catcher = catcher
         catcher.hold(at: pointer)
     }
 
-    func releaseSwipes() { catcher?.orderOut(nil) }
+    /// The pointer moved: swipes are the pointer's again.
+    func releaseSwipes() {
+        heldPointer = nil
+        catcher?.orderOut(nil)
+        if let swipeMonitor { NSEvent.removeMonitor(swipeMonitor) }
+        swipeMonitor = nil
+    }
 
-    /// Pinches over the panel, or where the catcher holds its swipes.
+    /// Pinches over the panel, or where its swipes are held.
     private func isUnder(_ pointer: CGPoint) -> Bool {
-        frame.contains(pointer) || catcher.map { $0.isVisible && $0.frame.contains(pointer) } == true
+        frame.contains(pointer) || (heldPointer != nil && pointerStays())
     }
 
     /// A pinch over the panel. AppKit sends pinches to the key window, and the panel never becomes key (it never takes
@@ -354,8 +391,9 @@ final class PiPRootView: NSView {
     }
 }
 
-/// A small invisible window under a still pointer that hands two-finger moves to the panel once the panel has left from
-/// under it. Gone once the pointer moves (or clicks: the click is its, not what's below).
+/// A small invisible window under a still pointer that hands the next swipes to the panel once it has slid from under
+/// the pointer: swipes go to what's under the pointer, other apps' windows included. Gone once the pointer moves (or
+/// clicks: that click is its, not what's below).
 final class SwipeCatcher: NSPanel {
     private weak var panel: PiPPanel?
     private var pointer = CGPoint.zero
@@ -390,10 +428,14 @@ final class SwipeCatcher: NSPanel {
     func scroll(_ event: NSEvent) { panel?.scroll(event) }
     func pinch(_ event: NSEvent) { panel?.pinch(event) }
 
+    /// Mouse moves and exits here may be the window's own coming and going: only the pointer's moving ends the hold.
     func pointerMoved() {
-        guard let now = panel?.pointerLocation() else { return orderOut(nil) }
-        if hypot(now.x - pointer.x, now.y - pointer.y) > 2 { orderOut(nil) }
+        guard let panel else { return orderOut(nil) }
+        let now = panel.pointerLocation()
+        if hypot(now.x - pointer.x, now.y - pointer.y) > 3 { panel.releaseSwipes() }
     }
+
+    func clicked() { panel?.releaseSwipes() }
 }
 
 final class SwipeCatcherView: NSView {
@@ -417,8 +459,8 @@ final class SwipeCatcherView: NSView {
     override func scrollWheel(with event: NSEvent) { catcher?.scroll(event) }
     override func magnify(with event: NSEvent) { catcher?.pinch(event) }
     override func mouseMoved(with event: NSEvent) { catcher?.pointerMoved() }
-    override func mouseExited(with event: NSEvent) { catcher?.orderOut(nil) }
-    override func mouseDown(with event: NSEvent) { catcher?.orderOut(nil) }
+    override func mouseExited(with event: NSEvent) { catcher?.pointerMoved() }
+    override func mouseDown(with event: NSEvent) { catcher?.clicked() }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 

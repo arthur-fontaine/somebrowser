@@ -86,38 +86,41 @@ struct PiPSwipeTests {
         return NSEvent(cgEvent: cg)!
     }
 
-    /// The pointer stays where it is: once the panel has slid from under it, the swipes there still move the panel,
-    /// swipe after swipe, until the pointer moves.
+    /// The pointer stays where it is, swipe after swipe: the panel slides from under it and back, and keeps moving,
+    /// until the pointer moves. A swipe's events all go where it began, so the catcher changes only between swipes.
     @Test func swipesKeepMovingThePanelWhileThePointerStays() throws {
         _ = NSApplication.shared
         let panel = PiPPanel(content: .view(NSView()), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
         panel.present(from: nil)
         let screen = panel.screenFrame
-        panel.moveBy(screen.midX - panel.frame.midX, screen.midY - panel.frame.midY)  // in the middle, settled
+        panel.moveBy(screen.midX - panel.frame.midX, screen.midY - panel.frame.midY)  // in the middle
         var pointer = CGPoint(x: panel.frame.midX, y: panel.frame.midY)
         panel.pointerLocation = { pointer }
 
+        // A swipe on the panel takes it away from under the pointer; the catcher waits for the swipe's end.
         panel.scroll(swipe(1))
-        panel.scroll(swipe(2, dx: -10))  // fingers right a little: still under the pointer, no catcher
-        #expect(panel.catcher?.isVisible != true)
         let before = panel.frame.minX
-        panel.scroll(swipe(2, dx: -200))  // right, away from under the pointer
+        panel.scroll(swipe(2, dx: -200))  // fingers right
         #expect(panel.frame.minX > before + 200)
+        #expect(panel.heldPointer == pointer && panel.catcher?.isVisible != true)
+        panel.scroll(swipe(4))
         let catcher = try #require(panel.catcher)
         #expect(catcher.isVisible && catcher.frame.contains(pointer))
-        panel.scroll(swipe(4))
 
-        // A second swipe where the pointer still is: it reaches the panel through the catcher.
-        let moved = panel.frame.minX
+        // The next swipe, over the catcher, brings the panel back under the pointer and past it: it keeps moving.
+        let away = panel.frame.minX
         catcher.scroll(swipe(1))
-        catcher.scroll(swipe(2, dx: 40))  // fingers left
-        #expect(panel.frame.minX < moved)
+        catcher.scroll(swipe(2, dx: 200))  // fingers left: back under the pointer
+        #expect(panel.frame.minX < away && panel.frame.contains(pointer))
+        #expect(catcher.isVisible)  // not mid-swipe
+        catcher.scroll(swipe(2, dx: 40))
+        #expect(panel.frame.minX < away - 300)
         catcher.scroll(swipe(4))
-        #expect(catcher.isVisible)
 
+        // The pointer moves: swipes are its own again.
         pointer.x += 10
         catcher.pointerMoved()
-        #expect(!catcher.isVisible)
+        #expect(panel.heldPointer == nil && !catcher.isVisible)
         panel.orderOut(nil)
     }
 
