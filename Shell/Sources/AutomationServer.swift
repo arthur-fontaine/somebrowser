@@ -159,6 +159,64 @@ final class AutomationServer {
                 if target.isKeyWindow { NSApp.sendEvent(event) } else { target.sendEvent(event) }
             }
             reply(["ok": true, "keyWindow": String(describing: type(of: target))])
+        case "click":
+            // A left click in the page at (x, y) from its top-left (mouse routing tests).
+            // In the engine's page window if it has one, else in the browser window over its web view (WebKit pages).
+            let shellWindow = window.flatMap { shell?.nsWindow(for: $0) }
+            let pageWindow = shellWindow?.childWindows?.last(where: { $0.identifier != ShellOverlay.windowIdentifier && $0.frame.width > 2 && $0.isVisible })
+            let webView = shellWindow?.contentView.flatMap { Self.firstView(named: "WKWebView", in: $0) }
+            guard let page = pageWindow ?? (webView != nil ? shellWindow : nil) else { return reply(["ok": false, "error": "no page"]) }
+            let x = req["x"] as? Double ?? 20, y = req["y"] as? Double ?? 20
+            let point: NSPoint
+            if pageWindow == nil, let webView {
+                let frame = webView.convert(webView.bounds, to: nil)
+                point = NSPoint(x: frame.minX + x, y: frame.maxY - y)
+            } else {
+                point = NSPoint(x: x, y: page.frame.height - y)
+            }
+            // Delivered to the view AppKit hit-tests there, as a key window would: a test app in the background has no key
+            // window, and a first click in a window that isn't key only makes it key.
+            guard let target = page.contentView?.superview?.hitTest(point) ?? page.contentView?.hitTest(point) else {
+                return reply(["ok": false, "error": "no view there"])
+            }
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                     windowNumber: page.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+                else { continue }
+                if type == .leftMouseDown { target.mouseDown(with: event) } else { target.mouseUp(with: event) }
+            }
+            var chain: [String] = []
+            var hit: NSView? = target
+            while let view = hit, chain.count < 6 { chain.append(String(describing: type(of: view))); hit = view.superview }
+            reply(["ok": true, "hit": chain])
+        case "hit":
+            // The browser window's child windows (front to back) under (x, y) of the content area, with the AppKit view
+            // and the accessibility path there (mouse routing checks).
+            guard let shellWindow = window.flatMap({ shell?.nsWindow(for: $0) }), let w = window else { return reply(["ok": false]) }
+            let content = w.contentFrame
+            let local = NSPoint(x: content.minX + (req["x"] as? Double ?? 20), y: content.minY + (req["y"] as? Double ?? 20))
+            let screen = shellWindow.convertPoint(toScreen: NSPoint(x: local.x, y: (shellWindow.contentView?.bounds.height ?? 0) - local.y))
+            var found: [[String: Any]] = []
+            for child in (shellWindow.childWindows ?? []).reversed() where child.isVisible && child.frame.contains(screen) {
+                let point = child.convertPoint(fromScreen: screen)
+                var chain: [String] = []
+                var hit = child.contentView?.superview?.hitTest(point) ?? child.contentView?.hitTest(point)
+                while let view = hit, chain.count < 4 { chain.append(String(describing: type(of: view))); hit = view.superview }
+                // The accessibility path names Chromium's views, which all live in one AppKit view.
+                var ax: [String] = []
+                var element = child.accessibilityHitTest(screen) as? NSObject
+                while let e = element, ax.count < 12 {
+                    let get = { (key: String) in (e.responds(to: NSSelectorFromString(key)) ? e.value(forKey: key) : nil).map { "\($0)" } ?? "" }
+                    // Chromium's nodes carry their views class name as the DOM class list.
+                    let classes = (e.accessibilityAttributeValue(NSAccessibility.Attribute(rawValue: "AXDOMClassList")) as? [String])?.joined(separator: " ") ?? ""
+                    ax.append("\(type(of: e)) \(get("accessibilityRole")) \(get("accessibilitySubrole")) '\(get("accessibilityLabel"))' "
+                              + "'\(get("accessibilityTitle"))' \(get("accessibilityFrame")) [\(classes)]")
+                    element = e.responds(to: NSSelectorFromString("accessibilityParent")) ? e.value(forKey: "accessibilityParent") as? NSObject : nil
+                }
+                found.append(["window": String(describing: type(of: child)), "overlay": child.identifier == ShellOverlay.windowIdentifier,
+                              "ignoresMouse": child.ignoresMouseEvents, "hit": chain, "ax": ax])
+            }
+            reply(["ok": true, "windows": found])
         case "state":
             reply(["ok": true, "state": stateJSON()])
         case "eval":
@@ -184,7 +242,10 @@ final class AutomationServer {
             reply(["ok": true])
         case "views":
             // View hierarchy of the key browser window: class, frame, hidden — for layout tests and debugging.
-            guard let w = window, let ns = shell?.nsWindow(for: w), let root = ns.contentView else { return reply(["ok": false, "error": "no window"]) }
+            // `number` dumps any app window instead (a page child window, say), frame view included.
+            let numbered = (req["number"] as? Int).flatMap { n in NSApp.windows.first { $0.windowNumber == n } }
+            guard let w = window, let ns = numbered ?? shell?.nsWindow(for: w),
+                  let root = numbered != nil ? ns.contentView?.superview : ns.contentView else { return reply(["ok": false, "error": "no window"]) }
             func dump(_ v: NSView, _ depth: Int) -> [[String: Any]] {
                 guard depth < 40 else { return [] }
                 var out: [[String: Any]] = [["depth": depth, "class": String(describing: type(of: v)),
@@ -217,6 +278,12 @@ final class AutomationServer {
         return engine.installedExtensions.map {
             ["id": $0.id, "name": $0.name, "pinned": $0.isPinned, "badge": badges[$0.id] ?? ""]
         }
+    }
+
+    static func firstView(named name: String, in view: NSView) -> NSView? {
+        if String(describing: type(of: view)) == name, !view.isHiddenOrHasHiddenAncestor { return view }
+        for sub in view.subviews { if let found = firstView(named: name, in: sub) { return found } }
+        return nil
     }
 
     /// This process's physical footprint in bytes (Activity Monitor's "Memory"), renderers and GPU excluded.

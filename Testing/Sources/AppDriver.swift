@@ -80,6 +80,13 @@ nonisolated public final class AppDriver: @unchecked Sendable {
         try call(["op": "key", "key": key, "modifiers": modifiers, "keyCode": keyCode, "page": inPage])
     }
 
+    /// A left click in the selected page at (x, y) from its top-left, delivered to the view AppKit hit-tests there.
+    /// Returns that view and its ancestors.
+    @discardableResult
+    public func click(x: Double, y: Double) throws -> [String] {
+        try call(["op": "click", "x": x, "y": y])["hit"] as? [String] ?? []
+    }
+
     /// The app process's physical footprint in bytes (renderers and GPU excluded).
     public func footprint() throws -> Int { ((try state()["memory"] as? [String: Any])?["footprint"] as? Int) ?? -1 }
 
