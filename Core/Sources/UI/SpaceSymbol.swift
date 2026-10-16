@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 public extension SpaceKind {
@@ -20,9 +21,27 @@ public struct SpaceSymbol: View {
     public var body: some View {
         switch kind {
         case .normal: Image(systemName: "person.fill").resizable().scaledToFit()
-        case .private: IncognitoShape().fill(style: FillStyle(eoFill: true)).aspectRatio(1, contentMode: .fit)
-        case .claude: ClaudeSpark().fill().aspectRatio(1, contentMode: .fit)
+        // Template images, not shape fills: on Liquid Glass a shape's fill isn't rendered as vibrant as a symbol, so a
+        // `.primary` incognito glyph came out grey beside a `.secondary` person.
+        case .private: Image(nsImage: Self.incognito).resizable().scaledToFit()
+        case .claude: Image(nsImage: Self.spark).resizable().scaledToFit()
         }
+    }
+
+    private static let incognito = template(IncognitoShape(), evenOdd: true)
+    private static let spark = template(ClaudeSpark(), evenOdd: false)
+
+    private static func template(_ shape: some Shape, evenOdd: Bool) -> NSImage {
+        let side: CGFloat = 128  // sharp up to the 44 pt lock screen glyph at 2x
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: true) { rect in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.addPath(shape.path(in: rect).cgPath)
+            context.setFillColor(NSColor.black.cgColor)
+            context.fillPath(using: evenOdd ? .evenOdd : .winding)
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 }
 

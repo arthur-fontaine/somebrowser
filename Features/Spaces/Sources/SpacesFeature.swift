@@ -86,12 +86,12 @@ struct SpaceSwitcher: View {
                     let selected = space.id == window.spaceID
                     Button { runtime.switchSpace(space.id, in: window) } label: {
                         SpaceSymbol(space.kind)
+                            .foregroundStyle(selected ? .primary : .secondary)
                             .frame(width: 15, height: 15)
                             .frame(width: 36, height: Design.Size.control - 8)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(selected ? .primary : .secondary)
                     .background {
                         if selected { Capsule().fill(Design.Fill.selection).matchedGeometryEffect(id: "selection", in: selection) }
                     }
