@@ -44,6 +44,7 @@ struct FeatureEntry: Equatable {
 
 struct ResolvedBrand: Equatable {
     var name: String
+    var formerNames: [String]
     var bundleId: String
     var urlScheme: String
     var userAgentBrand: String
@@ -98,6 +99,7 @@ enum ProjectLoader {
         }
         let brand = ResolvedBrand(
             name: name,
+            formerNames: b.formerNames ?? [],
             bundleId: bundleId,
             urlScheme: b.urlScheme ?? name.lowercased().filter { $0.isLetter || $0.isNumber },
             userAgentBrand: b.userAgentBrand ?? name,

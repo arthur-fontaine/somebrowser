@@ -139,6 +139,8 @@ enum JSONValue: Codable, Equatable {
 /// Branding: the only place a product name, bundle id, scheme or icon is defined.
 struct BrandConfig: Codable, Equatable {
     var name: String?
+    /// Names the product had before (`forkctl rename` adds them): the profile folder moves from theirs on first launch.
+    var formerNames: [String]?
     var bundleId: String?
     var urlScheme: String?
     var userAgentBrand: String?
@@ -150,6 +152,7 @@ struct BrandConfig: Codable, Equatable {
     func merged(over base: BrandConfig) -> BrandConfig {
         BrandConfig(
             name: name ?? base.name,
+            formerNames: formerNames ?? base.formerNames,
             bundleId: bundleId ?? base.bundleId,
             urlScheme: urlScheme ?? base.urlScheme,
             userAgentBrand: userAgentBrand ?? base.userAgentBrand,

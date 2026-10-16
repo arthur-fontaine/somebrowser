@@ -37,7 +37,15 @@ public enum ShellApplication {
         if let override = ProcessInfo.processInfo.environment["BROWSER_DATA_DIR"] {
             return URL(fileURLWithPath: override, isDirectory: true)
         }
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent(Brand.name, isDirectory: true)
+        let fm = FileManager.default
+        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let directory = base.appendingPathComponent(Brand.name, isDirectory: true)
+        // A renamed product keeps its profile: the folder named after a former name moves to the new one.
+        if !fm.fileExists(atPath: directory.path),
+           let former = Brand.formerNames.reversed().map({ base.appendingPathComponent($0, isDirectory: true) })
+               .first(where: { fm.fileExists(atPath: $0.path) }) {
+            try? fm.moveItem(at: former, to: directory)
+        }
+        return directory
     }
 }

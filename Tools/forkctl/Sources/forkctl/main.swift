@@ -77,13 +77,15 @@ struct CLI {
             try ci()
         case "rename":
             guard let name = positional.first else { throw ProjectError.invalid("usage: forkctl rename <Name>") }
+            let current = try project().brand
             try ForkFile.update(root) { f in
                 var b = f.brand ?? BrandConfig()
+                b.formerNames = (current.formerNames + [current.name]).filter { $0 != name }
                 b.name = name
                 let slug = name.lowercased().filter { $0.isLetter || $0.isNumber }
                 b.bundleId = option("--bundle-id") ?? b.bundleId ?? "dev.\(slug).\(slug)"
                 b.urlScheme = option("--scheme") ?? slug
-                b.userAgentBrand = name
+                b.userAgentBrand = name.filter { !$0.isWhitespace }  // a user-agent product token has no spaces
                 f.brand = b
             }
             try regenerate("renamed to \(name)")

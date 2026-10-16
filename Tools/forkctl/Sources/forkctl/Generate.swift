@@ -125,6 +125,7 @@ enum Generator {
         /// Product identity. Change it with `./forkctl rename` (writes `Fork/fork.json`), never by editing literals.
         public enum Brand {
             public static let name = \(swiftStringLiteral(b.name))
+            public static let formerNames: [String] = [\(b.formerNames.map(swiftStringLiteral).joined(separator: ", "))]
             public static let executableName = \(swiftStringLiteral(b.executableName))
             public static let bundleIdentifier = \(swiftStringLiteral(b.bundleId))
             public static let urlScheme = \(swiftStringLiteral(b.urlScheme))
