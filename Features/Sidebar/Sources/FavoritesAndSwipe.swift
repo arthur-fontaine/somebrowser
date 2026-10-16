@@ -13,7 +13,7 @@ struct FavoritesGrid: View {
         let store = env.runtime.tabs
         let ids = store.favorites
         if !ids.isEmpty || model.dragging != nil {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 52, maximum: 120), spacing: 6)], spacing: 6) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 52, maximum: 120), spacing: Design.Space.block)], spacing: Design.Space.block) {
                 ForEach(ids, id: \.self) { id in
                     if let tab = store.tab(id) { FavoriteTile(tab: tab, window: window) }
                 }

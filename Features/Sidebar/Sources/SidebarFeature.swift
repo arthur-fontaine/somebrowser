@@ -10,8 +10,12 @@ public extension SlotID {
     static let sidebarAddress: SlotID = "sidebar.address"
     /// Above the space's tabs (e.g. Archive, Safari favorites).
     static let sidebarTop: SlotID = "sidebar.top"
-    /// Bottom bar (spaces switcher, downloads, library).
+    /// Bottom bar, its leading end (History, Archive).
     static let sidebarFooter: SlotID = "sidebar.footer"
+    /// Bottom bar, on the sidebar's axis (the space switcher).
+    static let sidebarFooterCenter: SlotID = "sidebar.footer.center"
+    /// Bottom bar, its trailing end (Downloads).
+    static let sidebarFooterTrailing: SlotID = "sidebar.footer.trailing"
 }
 
 public final class SidebarFeature: BrowserFeature {
@@ -110,5 +114,5 @@ final class SidebarModel {
 
     var settings: SettingsStore { runtime.settings }
     var rowHeight: CGFloat { CGFloat(max(24, min(48, settings.int("sidebar.rowHeight")))) }
-    static let rowSpacing: CGFloat = 2
+    static let rowSpacing = Design.Space.row
 }

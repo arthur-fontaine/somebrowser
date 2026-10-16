@@ -43,7 +43,7 @@ public final class SpacesFeature: BrowserFeature {
         }
 
         let runtime = self.runtime
-        context.ui.contribute("sidebar.footer", id: "spaces.switcher", order: 50) { window in SpaceSwitcher(window: window, runtime: runtime) }
+        context.ui.contribute("sidebar.footer.center", id: "spaces.switcher", order: 50) { window in SpaceSwitcher(window: window, runtime: runtime) }
         context.ui.contribute(.contentOverlay, id: "spaces.locked", order: 5) { window in LockedContent(window: window, runtime: runtime) }
     }
 
@@ -99,12 +99,9 @@ struct SpaceSwitcher: View {
                     .accessibilityLabel(space.kind.title)
                 }
             }
-            .padding(4)
+            .padding(Design.Space.segment)
             .glassControl(in: Capsule())
             .animation(Design.Motion.selection, value: window.spaceID)
-            .frame(maxWidth: .infinity)
-        } else {
-            Spacer(minLength: 0)  // the footer's other buttons keep their sides
         }
     }
 }

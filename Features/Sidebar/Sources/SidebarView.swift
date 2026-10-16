@@ -12,7 +12,7 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             // Its controls end 8 pt above the address field, the outer margin.
             header
-            VStack(spacing: 6) {
+            VStack(spacing: Design.Space.block) {
                 if !window.isLocked {  // a locked private space shows nothing of its pages
                     SlotHost(.sidebarAddress, window: window)
                         .padding(.horizontal, Design.Grid.edge)
@@ -34,7 +34,7 @@ struct SidebarView: View {
     /// The traffic lights' row: the shell centers them in it (the system's toolbar height).
     private var header: some View {
         GlassGroup(spacing: 6) {
-            HStack(spacing: 6) {
+            HStack(spacing: Design.Space.block) {
                 // The traffic lights live here (full-size content view); the floating sidebar covers them instead.
                 Spacer(minLength: isOnGlass ? 0 : 72)
                 SlotHost(.sidebarHeader, window: window)
@@ -50,12 +50,34 @@ struct SidebarView: View {
 
     private var footer: some View {
         GlassGroup(spacing: 6) {
-            HStack(spacing: 6) {
-                SlotHost(.sidebarFooter, window: window)
+            FooterLayout {
+                HStack(spacing: Design.Space.block) { SlotHost(.sidebarFooter, window: window) }
+                SlotHost(.sidebarFooterCenter, window: window)
+                HStack(spacing: Design.Space.block) { SlotHost(.sidebarFooterTrailing, window: window) }
             }
         }
         .padding(.horizontal, Design.Grid.edge)
         .frame(height: Design.Size.control)
+    }
+}
+
+/// The footer: buttons at its ends, the center on the sidebar's axis (the address field's and the lens's), moved
+/// aside only if it would come within 8 pt of the buttons.
+struct FooterLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        CGSize(width: proposal.width ?? 0, height: Design.Size.control)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 3 else { return }
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: .unspecified)
+        subviews[2].place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing, proposal: .unspecified)
+        let gap = Design.Space.block
+        let lowest = bounds.minX + (sizes[0].width > 0 ? sizes[0].width + gap : 0)
+        let highest = bounds.maxX - (sizes[2].width > 0 ? sizes[2].width + gap : 0) - sizes[1].width
+        let x = min(max(bounds.midX - sizes[1].width / 2, lowest), max(lowest, highest))
+        subviews[1].place(at: CGPoint(x: x, y: bounds.midY), anchor: .leading, proposal: .unspecified)
     }
 }
 
@@ -155,7 +177,7 @@ struct SpaceTabs: View {
         }
         let hasPinned = !space.pinned.isEmpty || model.dragging != nil
         return AnyView(ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: Design.Space.row) {
                 if hasPinned {  // the pinned section (and its divider) only once there's something to keep
                     TabList(window: window, model: model, container: .section(space.id, .pinned))
                     SectionDivider(window: window)
@@ -220,7 +242,8 @@ struct SectionDivider: View {
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
         }
-        .frame(height: 18)
+        // 12 + 1 + 12 from the rows around it (the stack's own 2 pt gaps included).
+        .frame(height: 2 * (Design.Space.divider - Design.Space.row) + 1)
         .padding(.horizontal, Design.Grid.iconInset)
         .contentShape(Rectangle())
         .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }

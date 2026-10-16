@@ -25,6 +25,19 @@ public enum Design {
     /// Every list item's shape: rows, tiles, the selection lens, hover and drop targets.
     public static let itemShape = RoundedRectangle(cornerRadius: Radius.item, style: .continuous)
 
+    /// The spacing scale: every gap is one of these.
+    /// 2 between rows · 4 inside a segmented control · 8 between blocks and neighbouring glass, the outer margin ·
+    /// 12 each side of a divider · 16 trailing inside capsules · 24 between tiles on a page · 32 between page sections.
+    nonisolated public enum Space {
+        public static let row: CGFloat = 2
+        public static let segment: CGFloat = 4
+        public static let block: CGFloat = 8
+        public static let divider: CGFloat = 12
+        public static let capsuleTrailing: CGFloat = 16
+        public static let tileGutter: CGFloat = 24
+        public static let section: CGFloat = 32
+    }
+
     public enum Radius {
         /// Rows, tiles, the selection lens, hover and drop targets.
         public static let item: CGFloat = 10
@@ -35,7 +48,7 @@ public enum Design {
         public static let favicon: CGFloat = 4
     }
 
-    public enum Size {
+    nonisolated public enum Size {
         /// A chrome control's height: header buttons, the address field, footer buttons, toasts.
         public static let control: CGFloat = 36
         /// The sidebar's top row, where the traffic lights sit (the system's toolbar height).

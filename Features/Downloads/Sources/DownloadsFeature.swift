@@ -30,7 +30,7 @@ public final class DownloadsFeature: BrowserFeature {
         context.commands.handle("downloads.open-folder") { _ in NSWorkspace.shared.open(DownloadsModel.downloadsFolder) }
         context.commands.handle("downloads.clear") { _ in model.clearFinished() }
 
-        context.ui.contribute("sidebar.footer", id: "downloads.button", order: 90) { window in DownloadsButton(window: window, model: model) }
+        context.ui.contribute("sidebar.footer.trailing", id: "downloads.button", order: 90) { window in DownloadsButton(window: window, model: model) }
         context.ui.contribute(.overlay, id: "downloads.panel", order: 60) { window in DownloadsPanel(window: window, model: model) }
         context.ui.contribute(.overlay, id: "downloads.fly", order: 300) { window in FlyingDownload(window: window, model: model) }
     }
