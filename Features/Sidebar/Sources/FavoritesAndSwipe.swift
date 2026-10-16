@@ -147,6 +147,7 @@ struct SwipeCatcher: NSViewRepresentable {
             var t = Transaction()
             t.disablesAnimations = true
             withTransaction(t) {
+                model.swiped.insert(window.id)
                 runtime.switchSpace(space, in: window)
                 model.swipeOffset[window.id] = 0
             }

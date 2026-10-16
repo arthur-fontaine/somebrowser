@@ -61,6 +61,8 @@ final class SidebarModel {
     /// The docked sidebar sliding in or out, per window: −1 is out of its column, 0 in place.
     var slide: [UUID: CGFloat] = [:]
     @ObservationIgnored private var slideGeneration: [UUID: UUID] = [:]
+    /// Windows whose space a swipe just changed (the pager doesn't slide them again).
+    @ObservationIgnored var swiped: Set<UUID> = []
 
     init(runtime: BrowserRuntime) { self.runtime = runtime }
 

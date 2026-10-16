@@ -68,31 +68,62 @@ struct DockedSidebar: View {
     }
 }
 
-/// One space's tabs (pinned, divider, new tab, today). Horizontal two-finger swipes page between spaces.
+/// One space's tabs (pinned, divider, new tab, today). Horizontal two-finger swipes page between spaces; switching
+/// any other way (the switcher, ⌥⌘→, a private tab) slides the same way, the next space coming from its side.
 struct SpacePager: View {
     @Environment(BrowserEnvironment.self) private var env
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let window: BrowserWindowState
     let model: SidebarModel
+    /// The space sliding out, and the direction (1: to the next space, on the right).
+    @State private var leaving: (id: UUID, direction: CGFloat)?
+    @State private var progress: CGFloat = 1
 
     var body: some View {
         let store = env.runtime.tabs
         let offset = model.swipeOffset[window.id] ?? 0
         GeometryReader { geo in
+            let width = geo.size.width
+            // Under Reduce Motion the spaces cross-fade instead.
+            let direction = reduceMotion ? 0 : leaving?.direction ?? 0
             ZStack {
                 if let space = store.space(window.spaceID) {
                     SpaceTabs(window: window, model: model, space: space)
-                        .offset(x: offset)
+                        .offset(x: offset + direction * width * (1 - progress))
+                        .opacity(reduceMotion && leaving != nil ? progress : 1)
                         .id(space.id)
-                        .transition(.asymmetric(insertion: .opacity, removal: .opacity))
+                }
+                if let leaving, let space = store.space(leaving.id) {
+                    SpaceTabs(window: window, model: model, space: space)
+                        .offset(x: -direction * width * progress)
+                        .opacity(reduceMotion ? 1 - progress : 1)
+                        .allowsHitTesting(false)
                 }
                 if offset != 0, let neighbor = neighbor(offset: offset) {
                     SpaceTabs(window: window, model: model, space: neighbor)
-                        .offset(x: offset + (offset < 0 ? geo.size.width : -geo.size.width))
+                        .offset(x: offset + (offset < 0 ? width : -width))
                         .allowsHitTesting(false)
                 }
             }
             .clipped()
-            .background(SwipeCatcher(window: window, model: model, width: geo.size.width, runtime: env.runtime))
+            .background(SwipeCatcher(window: window, model: model, width: width, runtime: env.runtime))
+        }
+        .onChange(of: window.spaceID) { old, new in slide(from: old, to: new) }
+    }
+
+    private func slide(from old: UUID, to new: UUID) {
+        // A swipe has already moved the spaces with the fingers.
+        if model.swiped.remove(window.id) != nil { return }
+        let ids = env.runtime.tabs.spaces.map(\.id)
+        guard let i = ids.firstIndex(of: old), let j = ids.firstIndex(of: new) else { return }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) {
+            leaving = (old, j > i ? 1 : -1)
+            progress = 0
+        }
+        withAnimation(reduceMotion ? Design.Motion.reduced : Design.Motion.space) { progress = 1 } completion: {
+            if leaving?.id == old { leaving = nil }
         }
     }
 
