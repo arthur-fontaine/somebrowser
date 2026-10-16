@@ -2,8 +2,8 @@ import AppKit
 import BrowserCore
 import SwiftUI
 
-/// The browser's own surfaces: the window around the page shows the desktop through the system's sidebar material,
-/// and panels and bars are Liquid Glass (`glassSurface`); or all solid. Pages stay opaque content. The system's
+/// The browser's own surfaces: the window around the page shows the desktop (or frosted), and controls, panels and bars
+/// are Liquid Glass (`glassControl`, `glassSurface`); or all solid. Pages stay opaque content. The system's
 /// Liquid Glass setting and Reduce Transparency still apply.
 public final class AppearanceFeature: BrowserFeature {
     private let context: FeatureContext
@@ -17,8 +17,7 @@ public final class AppearanceFeature: BrowserFeature {
     }
 }
 
-/// Around the page: the desktop through the window (the system's sidebar material, which macOS draws as its own
-/// sidebar glass), or solid.
+/// Around the page: the desktop through the window, or frosted, or solid.
 struct WindowSurface: View {
     @Environment(BrowserEnvironment.self) private var env
 
@@ -26,7 +25,10 @@ struct WindowSurface: View {
         if env.runtime.settings.string(SurfaceStyle.settingKey) == SurfaceStyle.solid.rawValue {
             Color(nsColor: .windowBackgroundColor).ignoresSafeArea()
         } else {
-            BehindWindow(material: .sidebar).ignoresSafeArea()
+            // The desktop shows through (its light and shapes give the glass something to refract), or frosted (the
+            // system's sidebar material, nearly opaque).
+            let frosted = env.runtime.settings.string("appearance.backdrop") == "frosted"
+            BehindWindow(material: frosted ? .sidebar : .fullScreenUI).ignoresSafeArea()
         }
     }
 }

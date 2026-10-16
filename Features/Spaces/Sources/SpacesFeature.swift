@@ -70,10 +70,12 @@ public final class SpacesFeature: BrowserFeature {
 
 // MARK: Switcher
 
-/// One symbol per space, shown only once there are two (most of the time there is only yours).
+/// One symbol per space, shown only once there are two (most of the time there is only yours): a glass segmented
+/// control, its selection sliding between spaces.
 struct SpaceSwitcher: View {
     let window: BrowserWindowState
     let runtime: BrowserRuntime
+    @Namespace private var selection
 
     var body: some View {
         let spaces = runtime.tabs.spaces
@@ -89,11 +91,15 @@ struct SpaceSwitcher: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(selected ? .primary : .secondary)
-                    .background { if selected { Capsule().fill(.primary.opacity(0.1)) } }
+                    .background {
+                        if selected { Capsule().fill(.primary.opacity(0.12)).matchedGeometryEffect(id: "selection", in: selection) }
+                    }
                     .help(space.kind.title)
                     .accessibilityLabel(space.kind.title)
                 }
             }
+            .padding(3)
+            .glassControl(in: Capsule())
             .animation(.spring(duration: 0.3, bounce: 0.2), value: window.spaceID)
             .frame(maxWidth: .infinity)
         }

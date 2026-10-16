@@ -122,9 +122,9 @@ struct AddressPill: View {
                 .transition(.opacity)
             }
         }
-        .padding(.horizontal, 6)
-        .frame(height: 32)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(hovering ? 0.09 : 0.06)))
+        .padding(.horizontal, 8)
+        .frame(height: 36)
+        .glassControl(in: Capsule())
         .overlay(alignment: .bottom) {
             if let live, live.isLoading {
                 GeometryReader { g in
@@ -132,7 +132,8 @@ struct AddressPill: View {
                         .animation(.easeOut(duration: 0.25), value: live.estimatedProgress)
                 }
                 .frame(height: 2)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 1)
                 .transition(.opacity)
             }
         }

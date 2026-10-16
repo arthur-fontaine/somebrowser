@@ -116,6 +116,7 @@ struct NavigationButtons: View {
 
     var body: some View {
         let live = env.runtime.selectedTab(in: window)?.live
+        // One piece of glass for the three, as the system groups a toolbar's single-action buttons.
         HStack(spacing: 0) {
             NavButton(systemImage: "chevron.left", help: "Back (⌘[)", enabled: live?.canGoBack ?? false) {
                 try? commands.run("navigation.back", window: window)
@@ -128,6 +129,8 @@ struct NavigationButtons: View {
                 try? commands.run(live?.isLoading == true ? "navigation.stop" : "navigation.reload", window: window)
             }
         }
+        .padding(.horizontal, 3)
+        .glassControl(in: Capsule())
     }
 }
 
@@ -136,7 +139,6 @@ struct NavButton: View {
     let help: String
     let enabled: Bool
     let action: () -> Void
-    @State private var hovering = false
     @State private var bounce = 0
 
     var body: some View {
@@ -148,14 +150,12 @@ struct NavButton: View {
                 .font(.system(size: 13, weight: .semibold))
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, value: bounce)
-                .frame(width: 28, height: 28)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(hovering && enabled ? Color.primary.opacity(0.08) : .clear))
+                .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(enabled ? .secondary : .quaternary)
+        .foregroundStyle(enabled ? .primary : .tertiary)
         .disabled(!enabled)
         .help(help)
-        .onHover { hovering = $0 }
     }
 }

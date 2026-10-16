@@ -1,12 +1,13 @@
 {
   "id": "appearance",
   "name": "Appearance",
-  "summary": "Liquid Glass for the browser's own surfaces (the window around the page, panels, bars), or solid ones.",
+  "summary": "Liquid Glass for the browser's own surfaces (controls, panels, bars) over the desktop seen through the window, or solid ones.",
   "entry": "AppearanceFeature",
   "provides": ["appearance"],
   "requires": [],
   "commands": [],
   "settings": [
-    { "key": "appearance.glass", "title": "Window and panels", "type": "choice", "default": "glass", "options": ["glass", "solid"] }
+    { "key": "appearance.glass", "title": "Controls and panels: Liquid Glass (regular), clear glass, or solid", "type": "choice", "default": "glass", "options": ["glass", "clear", "solid"] },
+    { "key": "appearance.backdrop", "title": "Around the page: the desktop through the window, or frosted", "type": "choice", "default": "desktop", "options": ["desktop", "frosted"] }
   ]
 }

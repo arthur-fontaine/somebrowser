@@ -89,12 +89,7 @@ struct TabRow: View {
         .frame(height: rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(alignment: .leading) { guides }
-        .background {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(selected ? AnyShapeStyle(Color(nsColor: .controlBackgroundColor).opacity(0.92))
-                      : hovered ? AnyShapeStyle(Color.primary.opacity(0.07)) : AnyShapeStyle(Color.clear))
-                .shadow(color: .black.opacity(selected ? 0.10 : 0), radius: 1.5, y: 0.5)
-        }
+        .selectionLens(selected: selected, hovered: hovered, id: row.id)
         .overlay { dropIndicator(drop) }
         .contentShape(Rectangle())
         // A single click selects at once: a double-click gesture placed before it would hold every click for the
@@ -375,4 +370,39 @@ struct RowDropDelegate: DropDelegate {
         if ok { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
         return ok
     }
+}
+
+/// The selected row's Liquid Glass lens, the row drawn inside it. Rows share one glass group and the lens keeps one
+/// identity, so when the selection moves the glass flows from row to row. A hovered row gets a faint fill.
+struct SelectionLens: ViewModifier {
+    @Environment(BrowserEnvironment.self) private var env
+    @Environment(\.selectionGlass) private var namespace
+    let selected: Bool
+    let hovered: Bool
+    let id: UUID
+    var cornerRadius: CGFloat = 10
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let solid = env.runtime.settings.string(SurfaceStyle.settingKey) == SurfaceStyle.solid.rawValue
+        let clear = env.runtime.settings.string(SurfaceStyle.settingKey) == SurfaceStyle.clear.rawValue
+        let lens: Glass = selected && !solid ? (clear ? Glass.clear : .regular).interactive() : .identity
+        let hover = shape.fill(Color.primary.opacity(selected && solid ? 0.12 : hovered && !selected ? 0.06 : 0))
+        if let namespace {
+            content.background(hover).glassEffect(lens, in: shape).glassEffectID(selected ? "selection" : id.uuidString, in: namespace)
+        } else {
+            content.background(hover).glassEffect(lens, in: shape)
+        }
+    }
+}
+
+extension View {
+    func selectionLens(selected: Bool, hovered: Bool, id: UUID, cornerRadius: CGFloat = 10) -> some View {
+        modifier(SelectionLens(selected: selected, hovered: hovered, id: id, cornerRadius: cornerRadius))
+    }
+}
+
+extension EnvironmentValues {
+    /// The sidebar's selection glass namespace (rows morph the lens between them).
+    @Entry var selectionGlass: Namespace.ID?
 }

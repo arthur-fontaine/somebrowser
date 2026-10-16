@@ -125,11 +125,12 @@ struct DownloadsButton: View {
                     Image(systemName: "arrow.down").font(.system(size: 10, weight: .bold)).symbolEffect(.bounce, value: bounce)
                 }
                 .frame(width: 20, height: 20)
-                .frame(width: 26, height: 26)
+                .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.primary)
+            .glassControl(in: Circle())
             .help("Downloads (⌘⇧J)")
             .onChange(of: model.flyToken) { DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { bounce += 1 } }
         }

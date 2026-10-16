@@ -222,6 +222,8 @@ struct ExtensionButtons: View {
                 }
                 ExtensionIcon(title: "Extensions", image: nil, help: "Extensions (⌘⇧E)", action: menu)
             }
+            .padding(.horizontal, 2)
+            .glassControl(in: Capsule())
         }
     }
 }
@@ -232,7 +234,6 @@ struct ExtensionIcon: View {
     var badge: String?
     var help: String?
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
@@ -243,7 +244,7 @@ struct ExtensionIcon: View {
                     Image(systemName: "puzzlepiece.extension").font(.system(size: 13, weight: .medium))
                 }
             }
-            .frame(width: 28, height: 28)
+            .frame(width: 30, height: 30)
             .overlay(alignment: .bottomTrailing) {
                 if let badge, !badge.isEmpty {
                     Text(badge.prefix(4))
@@ -256,15 +257,13 @@ struct ExtensionIcon: View {
                         .accessibilityHidden(true)
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(hovering ? Color.primary.opacity(0.08) : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(.primary)
         .help(help ?? title)
         .accessibilityLabel(title)
         .accessibilityValue(badge ?? "")
-        .onHover { hovering = $0 }
     }
 }
 

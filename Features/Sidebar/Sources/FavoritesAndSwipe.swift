@@ -13,9 +13,11 @@ struct FavoritesGrid: View {
         let store = env.runtime.tabs
         let ids = store.favorites
         if !ids.isEmpty || model.dragging != nil {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 52, maximum: 120), spacing: 6)], spacing: 6) {
-                ForEach(ids, id: \.self) { id in
-                    if let tab = store.tab(id) { FavoriteTile(tab: tab, window: window) }
+            GlassGroup(spacing: 0) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 52, maximum: 120), spacing: 6)], spacing: 6) {
+                    ForEach(ids, id: \.self) { id in
+                        if let tab = store.tab(id) { FavoriteTile(tab: tab, window: window) }
+                    }
                 }
             }
             .padding(ids.isEmpty ? 10 : 0)
@@ -49,8 +51,8 @@ struct FavoriteTile: View {
         FaviconView(tab: tab)
             .frame(width: 18, height: 18)
             .frame(maxWidth: .infinity, minHeight: 40)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(selected ? Color(nsColor: .controlBackgroundColor).opacity(0.92) : Color.primary.opacity(hovering ? 0.10 : 0.06)))
+            // Each favorite is a tile of glass; the open one stands out with a brighter lens.
+            .glassControl(in: RoundedRectangle(cornerRadius: 12, style: .continuous), tint: selected ? .white.opacity(0.35) : nil)
             .overlay(alignment: .bottom) {
                 if tab.live?.isPlayingAudio == true {
                     Image(systemName: "music.note").font(.system(size: 8)).foregroundStyle(.secondary)

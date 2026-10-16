@@ -25,23 +25,28 @@ struct SidebarView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 2) {
-            Spacer(minLength: 74)  // traffic lights live here (full-size content view)
-            SlotHost(.sidebarHeader, window: window)
-            SidebarIconButton(systemImage: "sidebar.left", help: "Toggle Sidebar (⌘S)") {
-                try? env.runtime.commands.run("sidebar.toggle", window: window)
+        GlassGroup(spacing: 6) {
+            HStack(spacing: 6) {
+                Spacer(minLength: 70)  // traffic lights live here (full-size content view)
+                SlotHost(.sidebarHeader, window: window)
+                SidebarIconButton(systemImage: "sidebar.left", help: "Toggle Sidebar (⌘S)") {
+                    try? env.runtime.commands.run("sidebar.toggle", window: window)
+                }
+                .glassControl(in: Circle())
             }
         }
         .padding(.horizontal, 8)
-        .frame(height: 40)
+        .frame(height: 44)
     }
 
     private var footer: some View {
-        HStack(spacing: 6) {
-            SlotHost(.sidebarFooter, window: window)
+        GlassGroup(spacing: 6) {
+            HStack(spacing: 6) {
+                SlotHost(.sidebarFooter, window: window)
+            }
         }
         .padding(.horizontal, 10)
-        .frame(height: 30)
+        .frame(height: 38)
     }
 }
 
@@ -86,6 +91,7 @@ struct SpaceTabs: View {
     let window: BrowserWindowState
     let model: SidebarModel
     let space: Space
+    @Namespace private var glass
 
     var body: some View {
         let store = env.runtime.tabs
@@ -94,6 +100,7 @@ struct SpaceTabs: View {
             return AnyView(LockedSpace(window: window))
         }
         return AnyView(ScrollView(.vertical) {
+            GlassGroup(spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
                 TabList(window: window, model: model, container: .section(space.id, .pinned))
                 SectionDivider(window: window)
@@ -107,6 +114,9 @@ struct SpaceTabs: View {
                         return env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: .section(space.id, .today), store: store) }
                     }
             }
+            }
+            .environment(\.selectionGlass, glass)
+            .animation(.spring(duration: 0.38, bounce: 0.18), value: window.selectedTabID)
             .padding(.horizontal, 8)
         }
         .scrollIndicators(.never))
@@ -190,26 +200,24 @@ struct NewTabRow: View {
     }
 }
 
+/// An icon button of the sidebar's; its glass comes from where it sits (alone, or in a group).
 struct SidebarIconButton: View {
     let systemImage: String
     let help: String
     var isEnabled = true
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 13, weight: .medium))
-                .frame(width: 28, height: 28)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(hovering && isEnabled ? Color.primary.opacity(0.08) : .clear))
+                .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(isEnabled ? .secondary : .tertiary)
+        .foregroundStyle(isEnabled ? .primary : .tertiary)
         .disabled(!isEnabled)
         .help(help)
-        .onHover { hovering = $0 }
     }
 }
 
