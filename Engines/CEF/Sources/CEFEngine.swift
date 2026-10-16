@@ -24,6 +24,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     private var webKit: WebKitEngine?
     private var webKitProfile: URL?
     private var chromeDialogs: ChromeDialogs?
+    private var chromeOverlays: ChromeOverlays?
     /// Chrome's extensions page, never shown, for the browser's Extensions panel.
     private(set) lazy var management = ExtensionManagement(engine: self)
 
@@ -84,8 +85,6 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         // No "… started debugging this browser" bar in pages: Claude in Chrome debugs the tabs it controls, which the
         // Claude space and the extension's own glow already show.
         "silent-debugger-extension-api": "",
-        // Our Chromium (patch chromium/0004): no animation flying to Chrome's hidden downloads button.
-        "disable-download-ui": "",
         // Our Chromium (patches chromium/0005, cef/0002): an extension's new tab is ours from the start (its id lasts) and
         // our pages are normal windows to extensions (ADR-0005).
         "views-hosted-new-tabs": "",
@@ -171,6 +170,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         hooks.observePageDialog { [weak self] in self?.runtime.handlesSignIn = self?.hooks.pageDialog != nil }
         // Chrome's own dialogs (extensions' prompts) go to the same feature.
         chromeDialogs = ChromeDialogs(hooks: hooks)
+        chromeOverlays = ChromeOverlays()
         let profile = profileDirectory.appendingPathComponent("Default", isDirectory: true)
         // A first launch restores nothing: the extensions' window is made at once (their welcome pages open then).
         let firstLaunch = !FileManager.default.fileExists(atPath: profile.appendingPathComponent("Preferences").path)

@@ -81,7 +81,8 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
-    /// A download is the browser's own (the Downloads feature): Chrome's download bubble doesn't pop up beside it.
+    /// A download is the browser's own (the Downloads feature): Chrome's download bubble doesn't pop up beside it, nor
+    /// its "download started" animation flying to its (hidden) downloads button.
     @Test func downloadsShowNoChromeBubble() throws {
         let server = try TestHTTPServer(pages: [:], responders: [
             "/file": { _ in (["Content-Disposition: attachment; filename=\"file.bin\""], String(repeating: "x", count: 100_000)) },
@@ -89,14 +90,13 @@ struct EngineConformanceTests {
         let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
         try app.open(server.url("/file"))
         var bubbles: [String] = []
-        for _ in 0..<25 {
+        for _ in 0..<80 {
             let windows = try app.call(["op": "views"])["windows"] as? [[String: Any]] ?? []
-            // Chrome's bubble: a views widget of its own, 320 points wide, shown; with our patch chromium/0004 built in
-            // (BROWSER_E2E_CEF_PATCHES lists it), also its 64-point animation flying to the downloads button.
-            let sizes = ProcessInfo.processInfo.environment["BROWSER_E2E_CEF_PATCHES"]?.contains("0004") == true ? ["{320,", "{64, 64}"] : ["{320,"]
+            // Chrome's bubble (a views widget of its own, 320 points wide) or its 64-point animation, shown.
             bubbles += windows.filter { w in w["class"] as? String == "NativeWidgetMacNSWindow" && w["visible"] as? Bool == true
-                && sizes.contains { (w["frame"] as? String ?? "").contains($0) } }.compactMap { $0["frame"] as? String }
-            Thread.sleep(forTimeInterval: 0.1)
+                && (w["alpha"] as? Double ?? 0) > 0 && ["{320,", "{64, 64}"].contains { (w["frame"] as? String ?? "").contains($0) } }
+                .compactMap { $0["frame"] as? String }
+            Thread.sleep(forTimeInterval: 0.03)
         }
         let downloads = app.directory.appendingPathComponent("data/Downloads/file.bin")
         try app.waitUntil(timeout: 10) { FileManager.default.fileExists(atPath: downloads.path) }

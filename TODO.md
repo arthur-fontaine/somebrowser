@@ -165,7 +165,8 @@ to check that the feature still works (`forkctl test <feature>`).
 ## 8b. The browser's own UI instead of Chromium's (2026-10-16)
 - [x] Extensions panel (run, sidebar pins, options, side panel) instead of Chrome's extensions menu
 - [x] Chrome's download bubble never pops up (`download_bubble.partial_view_enabled`)
-- [~] Chrome's "download started" animation: patch `chromium/0004` written, not built yet
+- [x] Chrome's "download started" animation hidden as it's shown, and Chrome's status bubble off (a browser setting): no
+      rebuild, so patch `chromium/0004` went (E2E `downloadsShowNoChromeBubble`, `hoveredLinksShowNoChromeBubble`)
 - [x] Pages' dialogs (alert, confirm, prompt, leaving, sites' sign-in) are the browser's own (Dialogs feature)
 - [x] Error and certificate pages are the browser's own (Error Pages feature), Visit Anyway included
 - [x] Context menu without Chrome's own UI items; Open Link in Private Tab
