@@ -1026,6 +1026,11 @@ static id AXButtonNamed(id e, NSString *name, int depth) {
     NSWindow *toolbarWindow = self.toolbarWindow;
     id container = AXExtensionsContainer(toolbarWindow, 0);
     if (!container) { completion(NO); return; }
+    // The page is Chrome's active window as the action runs, so what the extension asks for (a permission, to remove
+    // itself) comes over this page. Clicked in the sidebar, the browser window is key instead, and Chrome would pick its
+    // newest page window, maybe a hidden tab's.
+    NSWindow *page = self.window;
+    if (NSApp.isActive && page.isVisible && !page.isKeyWindow) [page makeKeyWindow];
     for (id button in AXKids(container)) {
         if (button != AXKids(container).lastObject && [AXName(button) hasPrefix:name]) { completion([button accessibilityPerformPress]); return; }
     }

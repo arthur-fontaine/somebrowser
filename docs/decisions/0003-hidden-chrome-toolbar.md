@@ -49,7 +49,10 @@ when Chrome replaces those files.
   fill layout stretches it over the whole page. Chromium routes a click to the page only when its views put the
   page under the pointer, so that view took every click (2026-10-16, CEF 154 and 156). The page's view is moved
   back on top after the overlay is added; E2E `clicksReachThePage` covers it.
-- The installed list lags Chrome by its preference write interval (~10 s).
+- The installed list lags Chrome by its preference write interval (~10 s). An extension installed since launch is
+  pinned live (Chrome follows `extensions.pinned_extensions`), so actions don't go through Chrome's menu.
+- The page is made key before its action runs: Chrome puts what the extension asks for (a permission prompt…) over its
+  active window, else over its newest page window, maybe a hidden tab's (with the sidebar key) (2026-10-16).
 - Teardown: Chrome's browser view keeps a pointer to its toolbar, so before a page window closes the toolbar
   is moved back into that window (hidden) and the overlay destroyed; otherwise the toolbar dies with the
   overlay widget first and closing the window is a use-after-free. E2E quits fail on any crash.
