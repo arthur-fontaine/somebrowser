@@ -81,6 +81,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func observeChrome() {
         withObservationTracking {
             _ = state.isSidebarVisible
+            _ = state.isSidebarArriving
             _ = state.isSidebarPeeking
             _ = state.titlebarRequests
             _ = state.overlayFocusRequests
@@ -106,11 +107,22 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     private func updateTrafficLights() {
         let hasSidebar = !runtime.ui.views(for: .sidebar).isEmpty
-        let visible = !hasSidebar || state.isSidebarVisible || state.isSidebarPeeking || !state.titlebarRequests.isEmpty || state.isFullscreen
-        for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            window?.standardWindowButton(kind)?.isHidden = !visible
+        let docked = state.isSidebarVisible && !state.isSidebarArriving  // they'd sit over the sidebar sliding under them
+        let visible = !hasSidebar || docked || state.isSidebarPeeking || !state.titlebarRequests.isEmpty || state.isFullscreen
+        let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { window?.standardWindowButton($0) }
+        let appearing = visible && buttons.contains(where: \.isHidden)
+        for button in buttons {
+            button.isHidden = !visible
+            if appearing { button.alphaValue = 0 }
         }
-        window?.toolbar?.isVisible = visible
+        if appearing {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.15
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                for button in buttons { button.animator().alphaValue = 1 }
+            }
+        }
+        window?.toolbar?.isVisible = visible || (hasSidebar && state.isSidebarVisible)
     }
 
     required init?(coder: NSCoder) { fatalError() }
