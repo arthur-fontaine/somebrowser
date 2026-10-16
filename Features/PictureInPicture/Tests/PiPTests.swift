@@ -47,6 +47,30 @@ struct PiPPhysicsTests {
 }
 
 @MainActor
+struct PiPPanelTests {
+    /// Back to the tab, the page is back in the browser window before the panel's fade ends: the fade's end leaves it
+    /// there, on screen (it hid it: a white page until the tab was clicked again).
+    @Test func thePageBackInTheBrowserStaysOnScreen() throws {
+        _ = NSApplication.shared
+        let browser = NSWindow(contentRect: CGRect(x: 100, y: 100, width: 800, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
+        let page = NSWindow(contentRect: CGRect(x: 100, y: 100, width: 800, height: 600), styleMask: [.borderless], backing: .buffered, defer: false)
+        browser.orderFront(nil)
+        let panel = PiPPanel(content: .window(page), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.present(from: nil)
+        #expect(page.parent === panel)
+        panel.dismiss()
+        // What closing does next (the engine's reattach, then the viewport presenting the page again).
+        panel.removeChildWindow(page)
+        browser.addChildWindow(page, ordered: .above)
+        page.orderFront(nil)
+        panel.fadedOut()  // the fade's end (AppKit runs it after 0.18 s, not in a test process)
+        #expect(page.parent === browser && page.isVisible)
+        #expect(!panel.isVisible)
+        browser.orderOut(nil)
+    }
+}
+
+@MainActor
 struct PiPFeatureTests {
     @Test func popsOutOnlyPlayingVideosAndRespectsSiteSetting() throws {
         let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)

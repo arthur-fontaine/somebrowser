@@ -80,6 +80,13 @@ final class PiPPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
+    /// The engine's page window while the panel holds it. Once the page is back in the browser window (reattached,
+    /// presented again), nothing here touches it: not the fade's end, nor a late spring or aspect change.
+    private var pageWindow: NSWindow? {
+        if case .window(let w) = content, w.parent === self { return w }
+        return nil
+    }
+
     var screenFrame: CGRect { (screen ?? NSScreen.main)?.visibleFrame ?? .zero }
 
     func setAspect(_ ratio: CGFloat) {
@@ -101,7 +108,7 @@ final class PiPPanel: NSPanel {
         }
         orderFrontRegardless()
         watchPinches()
-        if case .window(let w) = content { w.setFrame(frame, display: false); w.orderFront(nil) }
+        if let w = pageWindow { w.setFrame(frame, display: false); w.orderFront(nil) }
         settle(target)
         NSAnimationContext.animate(.easeOut(duration: 0.3)) { animator().alphaValue = 1 }
     }
@@ -112,10 +119,14 @@ final class PiPPanel: NSPanel {
         NSAnimationContext.animate(.easeIn(duration: 0.18)) {
             animator().alphaValue = 0
         } completion: { [weak self] in
-            guard let self else { return }
-            if case .window(let w) = self.content { self.removeChildWindow(w); w.orderOut(nil) }
-            self.orderOut(nil)
+            self?.fadedOut()
         }
+    }
+
+    /// The page leaves with the panel, unless it's back in the browser window already.
+    func fadedOut() {
+        if let w = pageWindow { removeChildWindow(w); w.orderOut(nil) }
+        orderOut(nil)
     }
 
     // Our own spring, not AppKit's animations: it starts at the throw's velocity, and fingers can catch the panel
@@ -155,14 +166,14 @@ final class PiPPanel: NSPanel {
 
     private func place(_ f: CGRect) {
         setFrame(f, display: true)
-        if case .window(let w) = content { w.setFrame(f, display: true) }
+        pageWindow?.setFrame(f, display: true)
     }
 
     func moveBy(_ dx: CGFloat, _ dy: CGFloat) {
         stopSpring()
         let o = frame.origin
         setFrameOrigin(CGPoint(x: o.x + dx, y: o.y + dy))
-        if case .window(let w) = content { w.setFrameOrigin(frame.origin) }
+        pageWindow?.setFrameOrigin(frame.origin)
         if model.stashed { model.stashed = false }
     }
 
