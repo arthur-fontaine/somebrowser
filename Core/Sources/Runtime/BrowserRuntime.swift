@@ -296,20 +296,34 @@ public final class BrowserRuntime {
     }
 
     /// Replaces a tab's page with a new one loading `url`; the engine may make another kind of page for it. Windows
-    /// showing the tab show the new page.
+    /// showing the tab keep the old page on screen until the new one has loaded (at most `swapTimeout`), so the switch
+    /// isn't seen: a page moving from Chromium to WebKit for protected media looks like the same page.
     public func recreate(_ page: EngineTab, at url: URL) {
         guard let tab = tabs.allTabs.first(where: { $0.engineTab === page }) else { return }
         let shownIn = windows.filter { $0.viewport?.presentedTab === page }
-        for w in shownIn { w.viewport?.present(nil) }
+        page.delegate = nil
         tab.engineTab = nil
         bindings[tab.id] = nil
-        page.close()
         events.publish(TabLiveChanged(tabID: tab.id, isLive: false))
         tab.url = url
         tab.restorationData = nil
-        let e = live(tab)
-        for w in shownIn { w.viewport?.present(e) }
+        var swapped = false
+        let swap = { [weak self] in
+            guard !swapped else { return }
+            swapped = true
+            self?.pendingSwaps[tab.id] = nil
+            // Windows that moved to another tab meanwhile already let go of the old page.
+            for w in shownIn where w.viewport?.presentedTab === page { w.viewport?.present(tab.engineTab) }
+            page.close()
+        }
+        pendingSwaps[tab.id] = swap
+        _ = live(tab)
+        DispatchQueue.main.asyncAfter(deadline: .now() + swapTimeout, execute: swap)
     }
+
+    /// Swaps waiting for a recreated tab's new page to finish loading (see `recreate`).
+    @ObservationIgnored private var pendingSwaps: [NodeID: () -> Void] = [:]
+    @ObservationIgnored var swapTimeout: TimeInterval = 4
 
     /// Reasons a tab must keep its page even in the background (it floats in picture in picture…).
     @ObservationIgnored private var awakeHolds: [NodeID: Set<String>] = [:]
@@ -382,6 +396,7 @@ public final class BrowserRuntime {
     }
 
     fileprivate func tabDidFinishLoad(_ id: NodeID) {
+        pendingSwaps[id]?()
         if let t = tabs.tab(id), let live = t.engineTab?.state {
             if !live.title.isEmpty { t.title = live.title }
             if let f = live.faviconURL { t.faviconURL = f }

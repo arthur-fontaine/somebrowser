@@ -9,6 +9,8 @@ public final class FakeEngine: BrowserEngine, EngineExtensions, EngineFloating {
     public let hooks = EngineHooks()
     public private(set) var createdTabs: [FakeEngineTab] = []
     public private(set) var viewports: [FakeViewport] = []
+    /// Loads stay in progress until the tab's `finishLoad()` (pages that take time).
+    public var holdsLoads = false
 
     public init(options: [String: SettingValue] = [:]) {}
 
@@ -102,6 +104,22 @@ public final class FakeEngineTab: EngineTab {
         if engine?.hooks.decide(NavigationAction(url: url, sourceTab: self)) == .some(.cancel) { return }
         history = Array(history.prefix(historyIndex + 1)) + [url]
         historyIndex = history.count - 1
+        if engine?.holdsLoads == true {
+            heldURL = url
+            state.url = url
+            state.isLoading = true
+            return
+        }
+        commit(url)
+    }
+
+    private var heldURL: URL?
+
+    /// Finishes a load held by `FakeEngine.holdsLoads`.
+    public func finishLoad() {
+        guard let url = heldURL else { return }
+        heldURL = nil
+        state.isLoading = false
         commit(url)
     }
 

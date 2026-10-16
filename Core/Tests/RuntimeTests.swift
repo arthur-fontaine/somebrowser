@@ -139,6 +139,37 @@ struct RuntimeTests {
         #expect(h.runtime.tabs.allTabs.count == 1)
     }
 
+    /// The switch isn't seen: the old page stays on screen until the new one has loaded, then goes.
+    @Test func recreatedPagesShowOnceLoaded() throws {
+        let h = try harness()
+        let a = h.openTab("https://a.example")
+        let old = h.fakeTab(a)
+        let engine = try #require(h.runtime.engine as? FakeEngine)
+        engine.holdsLoads = true
+        h.runtime.recreate(old, at: URL(string: "https://media.example/watch")!)
+        let new = h.fakeTab(a)
+        #expect(new !== old)
+        #expect(h.viewport.presentedTab === old)
+        #expect(!old.isClosed)
+        new.finishLoad()
+        #expect(h.viewport.presentedTab === new)
+        #expect(old.isClosed)
+    }
+
+    /// A new page that never finishes loading still replaces the old one, after the timeout.
+    @Test func recreatedPagesShowAfterTheTimeout() async throws {
+        let h = try harness()
+        let a = h.openTab("https://a.example")
+        let old = h.fakeTab(a)
+        try #require(h.runtime.engine as? FakeEngine).holdsLoads = true
+        h.runtime.swapTimeout = 0.05
+        h.runtime.recreate(old, at: URL(string: "https://media.example/watch")!)
+        let new = h.fakeTab(a)
+        for _ in 0..<100 where h.viewport.presentedTab !== new { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(h.viewport.presentedTab === new)
+        #expect(old.isClosed)
+    }
+
     @Test func heldTabsStayAwakeAndIdleCountsFromLeaving() throws {
         let h = try harness()
         let a = h.openTab("https://a.example")
