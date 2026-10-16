@@ -63,5 +63,6 @@ when Chrome replaces those files.
   overlay widget first and closing the window is a use-after-free. E2E quits fail on any crash.
 - Rejected: a reserved toolbar row (costs the "almost fullscreen" layout); ordering the overlay below the page
   (Chrome's bubbles then need re-parenting, and non-key bubbles stay hidden).
-- Forks: `"engineOptions": { "chromeToolbar": "none" }` removes the toolbar (no actions, menu falls back to
-  `chrome://extensions`).
+- Forks: `"engineOptions": { "chromeToolbar": "none" }` removes the toolbar (no actions).
+- Managing extensions (the panel's details) calls Chrome's management API on `chrome://extensions` in a page never shown
+  (Extensions README), so Chrome's extensions page doesn't show either (2026-10-16).

@@ -190,6 +190,7 @@ static void ChromeWindowsAnnounceThemselves() {
 @property (nonatomic) BOOL isClosing;
 @property (nonatomic, readwrite) BOOL isPrivate;
 @property (nonatomic, readonly) BOOL isAnchor;
+@property (nonatomic, readonly) BOOL isUtility;
 - (instancetype)initAnchor;
 @end
 
@@ -725,7 +726,7 @@ public:
     explicit ViewDelegate(CEFTab *tab) : tab_(tab) {}
     cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
     ChromeToolbarType GetChromeToolbarType(CefRefPtr<CefBrowserView>) override {
-        return [CEFRuntime shared].extensionToolbar && !tab_.isAnchor ? CEF_CTT_NORMAL : CEF_CTT_NONE;
+        return [CEFRuntime shared].extensionToolbar && !tab_.isAnchor && !tab_.isUtility ? CEF_CTT_NORMAL : CEF_CTT_NONE;
     }
 
     void OnWindowChanged(CefRefPtr<CefView> view, bool added) override {
@@ -857,6 +858,26 @@ public:
     if ((self = [self initDetachedPopup])) {
         _isAnchor = YES;
         [self createBrowserWithURL:nil];
+    }
+    return self;
+}
+
+- (instancetype)initUtilityWithURL:(NSString *)url delegate:(id<CEFTabDelegate>)delegate {
+    if ((self = [super init])) {
+        _isUtility = YES;  // before registering: not one of the user's pages
+        _client = new TabClient(self);
+        _viewDelegate = new ViewDelegate(self);
+        _pending = [NSMutableArray array];
+        [[CEFRuntime shared] registerTab:self];
+        _delegate = delegate;
+        [self createBrowserWithURL:url];
+        NSWindow *w = self.window;
+        [w setFrame:NSMakeRect(-20000, -20000, 1, 1) display:NO];
+        w.alphaValue = 0;  // AppKit may move it on screen
+        w.ignoresMouseEvents = YES;
+        w.excludedFromWindowsMenu = YES;
+        w.collectionBehavior |= NSWindowCollectionBehaviorIgnoresCycle | NSWindowCollectionBehaviorTransient;
+        [w orderBack:nil];
     }
     return self;
 }
@@ -1376,7 +1397,7 @@ private:
 - (void)registerTab:(CEFTab *)tab {
     [_tabs addObject:tab];
     [_retained addObject:tab];
-    if (!tab.isAnchor && !tab.isPrivate) [self updateAnchor];
+    if (!tab.isAnchor && !tab.isUtility && !tab.isPrivate) [self updateAnchor];
 }
 
 /// Extensions' `chrome.tabs.create` starts from Chrome's current window ("No current window" without one), and here
@@ -1394,7 +1415,7 @@ private:
 
 - (void)updateAnchor {
     BOOL pages = NO;
-    for (CEFTab *t in _retained) if (!t.isAnchor && !t.isPrivate && !t.isClosing) { pages = YES; break; }
+    for (CEFTab *t in _retained) if (!t.isAnchor && !t.isUtility && !t.isPrivate && !t.isClosing) { pages = YES; break; }
     BOOL needed = _anchorAllowed && self.extensionsInstalled && !_quitting && !pages;
     if (needed && !_anchor) {
         _anchor = [[CEFTab alloc] initAnchor];

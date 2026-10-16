@@ -7,7 +7,8 @@ nonisolated public enum ChromiumExtensions {
     /// Component and external-component installs (PDF viewer, …) are part of the browser, not the user's.
     public static let hiddenLocations: Set<Int> = [5, 10]
 
-    public static func read(profile: URL, locale: String = Locale.preferredLanguages.first ?? "en") -> [BrowserExtension] {
+    /// The installed extensions; turned-off ones too (`isEnabled` false) with `includeDisabled`.
+    public static func read(profile: URL, locale: String = Locale.preferredLanguages.first ?? "en", includeDisabled: Bool = false) -> [BrowserExtension] {
         let settings = (json(profile.appendingPathComponent("Secure Preferences"))?["extensions"] as? [String: Any])?["settings"] as? [String: Any]
             ?? (json(profile.appendingPathComponent("Preferences"))?["extensions"] as? [String: Any])?["settings"] as? [String: Any]
             ?? [:]
@@ -15,7 +16,7 @@ nonisolated public enum ChromiumExtensions {
         var out: [BrowserExtension] = []
         for (id, value) in settings {
             guard let entry = value as? [String: Any], !hiddenLocations.contains(entry["location"] as? Int ?? 0),
-                  isEnabled(entry), let rawPath = entry["path"] as? String else { continue }
+                  includeDisabled || isEnabled(entry), let rawPath = entry["path"] as? String else { continue }
             let root = rawPath.hasPrefix("/") ? URL(fileURLWithPath: rawPath)
                 : profile.appendingPathComponent("Extensions").appendingPathComponent(rawPath)
             // Unpacked and command-line extensions keep no manifest copy: Chrome reads it from their folder.
@@ -27,6 +28,7 @@ nonisolated public enum ChromiumExtensions {
             ext.opensSidePanelOnClick = entry["open_side_panel_on_icon_click"] as? Bool ?? false
             ext.newTabPagePath = (manifest["chrome_url_overrides"] as? [String: Any])?["newtab"] as? String
             ext.optionsPath = (manifest["options_ui"] as? [String: Any])?["page"] as? String ?? manifest["options_page"] as? String
+            ext.isEnabled = isEnabled(entry)
             out.append(ext)
         }
         return out.sorted { a, b in

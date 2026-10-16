@@ -2,25 +2,34 @@
 
 **Purpose** — Chrome extensions from the sidebar: the extensions you chose show as buttons next to the navigation
 buttons, and the Extensions panel (⌘⇧E, the puzzle button) lists them all: run one, show it in the sidebar or not, its
-options and side panel. The panel is the browser's own; Chrome's extensions menu never shows. Popups, permission
-prompts and options pages are the extensions' (or Chrome's), so extensions behave as in Chrome (popups,
-`action.onClicked`, the `activeTab` grant); Manage Extensions… opens Chrome's page for site access and removal.
-Chrome's prompts (a permission an extension asks for, an extension removing itself) show as the browser's own dialogs
-(Dialogs feature); the Web Store's install prompt has the same shape but isn't checked end to end.
+options and side panel, and its details (ⓘ): turn it off or on, site access, private windows, what it can do, removal.
+The panel is the browser's own; Chrome's extensions menu and extensions page never show. Popups and options pages are
+the extensions', so extensions behave as in Chrome (popups, `action.onClicked`, the `activeTab` grant). Chrome's prompts
+(a permission an extension asks for, an extension removing itself, confirming a removal) show as the browser's own
+dialogs (Dialogs feature); the Web Store's install prompt has the same shape but isn't checked end to end. A turned-off
+extension stays in the panel (to turn it on) with no button.
 
 **How it works** — The engine implements `EngineExtensions` (Core). On Chromium, every page carries Chrome's real
 toolbar in an invisible 1×1 overlay where every extension is pinned (the engine pins them all in Chrome's preferences
-before launch; one installed meanwhile goes through Chrome's menu, unseen behind the overlay, until the next launch).
+before launch, and one installed meanwhile as soon as it's listed: Chrome follows the preference live).
 Which ones show in the sidebar is the browser's own list (`sidebar-extensions.json` in the engine profile, taken from
 Chrome's pins the first time). Actions are pressed through the hidden toolbar, and Chrome anchors popups to its (virtual)
 buttons at the page's top-left, beside the sidebar. See `docs/decisions/0003-hidden-chrome-toolbar.md`.
+Managing goes through Chrome's own extensions page, never shown: the engine opens `chrome://extensions` in a page of its
+own (window ordered in off screen, transparent) and calls Chrome's management API there (`chrome.developerPrivate`,
+`chrome.management`), as that page does; replies come back through `__browser.post`. It costs one renderer (~150 MB
+resident, measured 2026-10-16) while open, from the first details asked for until a minute unused, and contacts nobody
+(net log). Chrome's removal confirmation is parented to that window and shown as the browser's dialog.
 Engines without extensions (WebKit) get no buttons and the commands do nothing.
 
 **Commands**
 - `extensions.menu` — Extensions… (cmd+shift+e): the browser's Extensions panel
 - `extensions.run` — runs one extension's action (argument `id`; automation and other features)
 - `extensions.cycle` — Next Pinned Extension (⌘E, Arc): each press runs the next pinned one
-- `extensions.manage` — Manage Extensions (`chrome://extensions`, where "Load unpacked" lives)
+- `extensions.manage` — Manage Extensions: the Extensions panel
+- `extensions.set-enabled`, `extensions.site-access` (`ON_CLICK`, `ON_SPECIFIC_SITES`, `ON_ALL_SITES`),
+  `extensions.allow-private`, `extensions.remove` — the panel's details (arguments `id`, then `enabled`, `access` or
+  `allowed`; automation)
 - `extensions.store` — Chrome Web Store
 - `extensions.side-panel` — Extension Side Panel (argument `id`; else the open or last used panel)
 
@@ -33,10 +42,12 @@ Engines without extensions (WebKit) get no buttons and the commands do nothing.
 **Engine option** — `"engineOptions": { "chromeToolbar": "none" }` drops the hidden toolbar (no actions).
 
 **Tests** — `./forkctl test extensions`; end to end: `EngineConformanceTests.extensionActionGetsActiveTab` (popup
-with activeTab, pinned and from the menu), `contentScriptsTalkToTheirWorker` (MV3 content script ↔ service worker), and
+with activeTab, pinned before launch or once listed), `contentScriptsTalkToTheirWorker` (MV3 content script ↔ service worker), and
 `ExtensionAPITests`, where a probe extension (`Tests/Fixtures/ApiProbeExtension`) runs the APIs whose plumbing differs
 here from Chrome's: scripting, offscreen documents, the web auth flow, `tabs.update`/`tabs.create`, the side panel, the
-new tab page, DevTools panels and keyboard shortcuts.
+new tab page, DevTools panels and keyboard shortcuts; `extensionPromptsAreTheBrowsers` and
+`extensionsAreManagedWithoutChromesPage` (a fixture extension's prompts, then turning it off and on, site access,
+private windows and removal, nothing of Chrome's shown, nobody contacted).
 
 **Compatibility** (Chromium engine, 2026-10-15). Pages here are Chrome browsers in windows of their own, without
 Chrome's window chrome (tab strip, side panel, omnibox), which decides what differs:

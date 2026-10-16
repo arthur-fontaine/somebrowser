@@ -277,6 +277,9 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
             guard let d = body as? [String: Any], let id = d["id"] as? Int, let cb = evalCallbacks.removeValue(forKey: id)?.callback else { return }
             if d["ok"] as? Bool == true { cb(.success(d["value"] is NSNull ? nil : d["value"])) }
             else { cb(.failure(NSError(domain: "JavaScript", code: 1, userInfo: [NSLocalizedDescriptionKey: d["error"] as? String ?? "error"]))) }
+        case "__management":
+            // Only from the browser's own management page.
+            if let management = engine?.management, management.page === self { management.received(body) }
         case "__protectedMedia":
             engine?.protectedMediaRequested(by: self)
         case "__media":

@@ -24,6 +24,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     private var webKit: WebKitEngine?
     private var webKitProfile: URL?
     private var chromeDialogs: ChromeDialogs?
+    /// Chrome's extensions page, never shown, for the browser's Extensions panel.
+    private(set) lazy var management = ExtensionManagement(engine: self)
 
     public init(options: [String: SettingValue]) {
         self.options = options
@@ -224,14 +226,15 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         }
         guard stamps != preferenceStamps else { return }
         preferenceStamps = stamps
-        let chromeOrder = ChromiumExtensions.read(profile: profile)
-        toolbarOrder = chromeOrder.filter(\.isPinned).map(\.id)
+        let chromeOrder = ChromiumExtensions.read(profile: profile, includeDisabled: true)
+        // Chrome's toolbar has buttons for turned-on extensions only.
+        toolbarOrder = chromeOrder.filter { $0.isPinned && $0.isEnabled }.map(\.id)
         // One installed since launch gets its button in the hidden toolbar too (Chrome follows the preference live),
         // so actions don't go through Chrome's extensions menu.
         let unpinned = chromeOrder.filter { !$0.isPinned }.map(\.id)
         if !unpinned.isEmpty { runtime.setProfilePreference("extensions.pinned_extensions", value: toolbarOrder + unpinned) }
         // Unpacked ones are in the profile only once Chrome has loaded them.
-        runtime.extensionsInstalled = !chromeOrder.isEmpty || CommandLine.arguments.contains { $0.hasPrefix("--load-extension") }
+        runtime.extensionsInstalled = chromeOrder.contains(where: \.isEnabled) || CommandLine.arguments.contains { $0.hasPrefix("--load-extension") }
         runtime.extensionToolbarWidth = Int32(Self.toolbarWidth(pinned: toolbarOrder.count))
         publishExtensions(chromeOrder)
     }
@@ -312,6 +315,33 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
               let ext = installedExtensions.first(where: { $0.id == extensionID }) else { return false }
         cefTab.runExtensionActionNamed(ext.name) { _ in }
         return true
+    }
+
+    // MARK: Managing extensions (Chrome's extensions page, never shown)
+
+    public func details(of extensionID: String, completion: @escaping (ExtensionDetails?) -> Void) {
+        management.details(of: extensionID, completion: completion)
+    }
+
+    public func setEnabled(_ extensionID: String, _ enabled: Bool) {
+        management.setEnabled(extensionID, enabled) { [weak self] done in
+            // Chrome writes its preferences later (~10 s): the list follows at once.
+            guard done, let self, let i = self.installedExtensions.firstIndex(where: { $0.id == extensionID }) else { return }
+            self.installedExtensions[i].isEnabled = enabled
+            self.onExtensionsChanged?()
+        }
+    }
+
+    public func setSiteAccess(_ extensionID: String, _ access: ExtensionDetails.SiteAccess) { management.setSiteAccess(extensionID, access) }
+
+    public func setAllowedInPrivate(_ extensionID: String, _ allowed: Bool) { management.setAllowedInPrivate(extensionID, allowed) }
+
+    public func remove(_ extensionID: String) {
+        management.remove(extensionID) { [weak self] removed in
+            guard removed, let self else { return }
+            self.installedExtensions.removeAll { $0.id == extensionID }
+            self.onExtensionsChanged?()
+        }
     }
 
     /// Read from the page's hidden toolbar (our Chromium build exposes badges to accessibility). A button is named after

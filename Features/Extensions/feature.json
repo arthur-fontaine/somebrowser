@@ -1,7 +1,7 @@
 {
   "id": "extensions",
   "name": "Extensions",
-  "summary": "Chrome extensions from the sidebar: pinned actions and the extensions menu; popups, permissions and options are Chrome's own.",
+  "summary": "Chrome extensions from the sidebar: pinned actions and the extensions panel, which manages them (what Chrome's extensions page does); popups and options are the extensions' own.",
   "entry": "ExtensionsFeature",
   "provides": ["new-tab-page"],
   "commands": [
@@ -9,6 +9,10 @@
     { "id": "extensions.run", "title": "Run Extension", "palette": false },
     { "id": "extensions.cycle", "title": "Next Pinned Extension", "shortcut": "cmd+e", "menu": "Tools", "group": "extensions", "order": 2, "keywords": ["popup", "cycle"] },
     { "id": "extensions.manage", "title": "Manage Extensions", "menu": "Tools", "group": "extensions", "order": 2 },
+    { "id": "extensions.set-enabled", "title": "Turn Extension On or Off", "palette": false },
+    { "id": "extensions.site-access", "title": "Extension Site Access", "palette": false },
+    { "id": "extensions.allow-private", "title": "Allow Extension in Private Windows", "palette": false },
+    { "id": "extensions.remove", "title": "Remove Extension", "palette": false },
     { "id": "extensions.store", "title": "Chrome Web Store", "menu": "Tools", "group": "extensions", "order": 3 },
     { "id": "extensions.side-panel", "title": "Extension Side Panel", "menu": "View", "group": "extensions", "order": 1, "keywords": ["sidebar", "panel", "chrome.sidePanel"] }
   ],

@@ -129,6 +129,9 @@ FOUNDATION_EXPORT NSNotificationName const CEFChromeWindowShownNotification;
 @interface CEFTab : NSObject
 /// `isPrivate`: an off-the-record profile shared by private tabs (nothing written to disk).
 - (instancetype)initWithURL:(nullable NSString *)url delegate:(nullable id<CEFTabDelegate>)delegate private:(BOOL)isPrivate;
+/// A page of Chrome's the browser drives without showing it (`chrome://extensions` for managing extensions): no toolbar,
+/// not a page of the user's, its window ordered in off screen (Chrome then shows the dialogs it parents to it).
+- (instancetype)initUtilityWithURL:(NSString *)url delegate:(id<CEFTabDelegate>)delegate;
 @property (readonly) BOOL isPrivate;
 @property (weak, nullable) id<CEFTabDelegate> delegate;
 /// The page's own frameless window (exists right after init; the browser itself is created asynchronously).

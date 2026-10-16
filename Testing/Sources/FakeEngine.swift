@@ -59,6 +59,33 @@ public final class FakeEngine: BrowserEngine, EngineExtensions, EngineFloating {
         onExtensionsChanged?()
     }
 
+    /// Managing extensions: the details given back, and each change asked for ("enabled <id> false"…).
+    public var extensionDetails: [String: ExtensionDetails] = [:]
+    public private(set) var managementCalls: [String] = []
+
+    public func details(of extensionID: String, completion: @escaping (ExtensionDetails?) -> Void) { completion(extensionDetails[extensionID]) }
+
+    public func setEnabled(_ extensionID: String, _ enabled: Bool) {
+        managementCalls.append("enabled \(extensionID) \(enabled)")
+        extensionDetails[extensionID]?.isEnabled = enabled
+        if let i = installedExtensions.firstIndex(where: { $0.id == extensionID }) {
+            installedExtensions[i].isEnabled = enabled
+            onExtensionsChanged?()
+        }
+    }
+
+    public func setSiteAccess(_ extensionID: String, _ access: ExtensionDetails.SiteAccess) {
+        managementCalls.append("access \(extensionID) \(access.rawValue)")
+        extensionDetails[extensionID]?.siteAccess = access
+    }
+
+    public func setAllowedInPrivate(_ extensionID: String, _ allowed: Bool) {
+        managementCalls.append("private \(extensionID) \(allowed)")
+        extensionDetails[extensionID]?.allowedInPrivate = allowed
+    }
+
+    public func remove(_ extensionID: String) { managementCalls.append("remove \(extensionID)") }
+
     /// Applies the request filters exactly like a real engine would.
     public func simulateRequest(_ url: URL, type: WebRequest.ResourceType = .script, documentURL: URL? = nil) -> RequestVerdict {
         hooks.evaluate(WebRequest(url: url, documentURL: documentURL, type: type))

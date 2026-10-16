@@ -156,11 +156,50 @@ struct ExtensionsTests {
         #expect(provider.newTabPage(in: h.window) == nil)
     }
 
-    @Test func managementAndStoreOpenTabs() throws {
+    /// The Web Store opens as a tab; managing extensions is the browser's panel (Chrome's page never opens).
+    @Test func storeOpensATabAndManagingIsThePanel() throws {
         let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
         try h.run("extensions.store")
         #expect(h.selectedTab?.url == ExtensionsFeature.storeURL)
+        let tabs = h.runtime.tabs.allTabs.count
         try h.run("extensions.manage")
-        #expect(h.selectedTab?.url == ExtensionsFeature.manageURL)
+        #expect(h.window.flags.contains(ExtensionsFeature.panelFlag))
+        #expect(h.runtime.tabs.allTabs.count == tabs)
+    }
+
+    /// A turned-off extension stays listed (to turn it on again) but has no button, doesn't run and gives no new tabs.
+    @Test func turnedOffExtensionsDontRun() throws {
+        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(ExtensionsFeature.self))
+        _ = h.openTab("https://a.example")
+        var off = BrowserExtension(id: "off", name: "Off", isPinned: true)
+        off.isEnabled = false
+        off.newTabPagePath = "tab.html"
+        h.engine.simulateExtensions([off])
+        #expect(feature.model.extensions.map(\.id) == ["off"])
+        #expect(feature.model.pinned.isEmpty)
+        try h.run("extensions.run", arguments: ["id": "off"])
+        #expect(h.engine.ranActions.isEmpty)
+        #expect(feature.newTabPage(in: h.window) == nil)
+    }
+
+    /// The panel's details come from the engine and its changes go to the engine (Chrome's extensions page there).
+    @Test func managingGoesThroughTheEngine() throws {
+        let h = try TestHarness(features: [ExtensionsFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(ExtensionsFeature.self))
+        h.engine.simulateExtensions([BrowserExtension(id: "x", name: "X")])
+        h.engine.extensionDetails["x"] = ExtensionDetails(id: "x", version: "2.1", summary: "Does x", isEnabled: true, siteAccess: .onAllSites,
+                                                          permissions: ["Read your history"], allowedInPrivate: false, isUserModifiable: true)
+        feature.showDetails("x")
+        #expect(feature.model.shownDetails == "x")
+        #expect(feature.model.details["x"]?.version == "2.1")
+        try h.run("extensions.set-enabled", arguments: ["id": "x", "enabled": "false"])
+        try h.run("extensions.site-access", arguments: ["id": "x", "access": "ON_CLICK"])
+        try h.run("extensions.allow-private", arguments: ["id": "x", "allowed": "true"])
+        try h.run("extensions.remove", arguments: ["id": "x"])
+        #expect(h.engine.managementCalls == ["enabled x false", "access x ON_CLICK", "private x true", "remove x"])
+        #expect(feature.model.details["x"]?.isEnabled == false)
+        #expect(feature.model.details["x"]?.siteAccess == ExtensionDetails.SiteAccess.onClick)
+        #expect(feature.model.extensions.first?.isEnabled == false)
     }
 }

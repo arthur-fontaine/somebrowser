@@ -157,6 +157,52 @@ struct ExtensionAPITests {
         try app.quit()
     }
 
+    /// Extensions are managed from the browser's panel, through Chrome's extensions page never shown: turned off and on,
+    /// site access, private windows, and removal confirmed in the browser's own dialog. Chrome's page and windows never
+    /// show, and that page contacts nobody.
+    @Test func extensionsAreManagedWithoutChromesPage() throws {
+        let fixture = Self.fixture.deletingLastPathComponent().appendingPathComponent("PromptExtension")
+        let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-manage-\(UUID().uuidString.prefix(6))")
+        let log = data.appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: data); try? FileManager.default.removeItem(at: log) }
+        let server = try TestHTTPServer(pages: Self.pages)
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path],
+                                arguments: ["--load-extension=\(fixture.path)", "--log-net-log=\(log.path)"])
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+        try app.open(server.url("/one"))
+        var id = ""
+        try app.waitUntil(timeout: 20) {
+            id = (try app.state()["extensions"] as? [[String: Any]])?.first?["id"] as? String ?? ""
+            return !id.isEmpty
+        }
+        let details = { (try app.call(["op": "extension", "id": id])["details"] as? [String: Any]) ?? [:] }
+        try app.waitUntil(timeout: 20) { try details()["version"] as? String == "1.0" }
+        #expect(try details()["siteAccess"] as? String == "ON_ALL_SITES")
+
+        try app.run("extensions.set-enabled", ["id": id, "enabled": "false"])
+        try app.waitUntil(timeout: 10) { try details()["enabled"] as? Bool == false }
+        #expect((try app.state()["extensions"] as? [[String: Any]])?.first?["enabled"] as? Bool == false)
+        try app.run("extensions.set-enabled", ["id": id, "enabled": "true"])
+        try app.waitUntil(timeout: 10) { try details()["enabled"] as? Bool == true }
+        try app.run("extensions.site-access", ["id": id, "access": "ON_CLICK"])
+        try app.waitUntil(timeout: 10) { try details()["siteAccess"] as? String == "ON_CLICK" }
+        try app.run("extensions.allow-private", ["id": id, "allowed": "true"])
+        try app.waitUntil(timeout: 10) { try details()["allowedInPrivate"] as? Bool == true }
+
+        // Removing: Chrome asks to confirm, in a window of its own kept invisible; the browser's dialog answers.
+        try app.run("extensions.remove", ["id": id])
+        try app.waitUntil(timeout: 10) { (try? app.run("dialogs.accept")) != nil }
+        try app.waitUntil(timeout: 10) { (try app.state()["extensions"] as? [[String: Any]])?.isEmpty == true }
+        let shown = ((try app.call(["op": "views"])["windows"] as? [[String: Any]]) ?? []).filter {
+            ["NativeWidgetMacNSWindow", "CefNSWindow"].contains($0["class"] as? String ?? "") && ($0["alpha"] as? Double ?? 0) > 0
+                && $0["visible"] as? Bool == true && !(($0["frame"] as? String) ?? "").hasSuffix("{1, 1}}")
+        }
+        #expect(shown.count == 1, "only the page shows: \(shown)")
+        try app.quit()
+        let hosts = Set(try String(contentsOf: log, encoding: .utf8).matches(of: /"url":"[a-z-]+:\/\/([^\/:"]+)/).map { String($0.1) })
+        #expect(hosts.subtracting(["127.0.0.1", "localhost"]).isEmpty, "contacted \(hosts.sorted())")
+    }
+
     /// With no page open (a first launch), an extension's welcome page still opens as a tab: `tabs.create` needs a
     /// Chrome window to start from, and each page here is one ("No current window" before); the page-less anchor
     /// stands in (with `chromium/0005`, the tab opens from it as its popups would, and the browser adopts it). With every tab closed

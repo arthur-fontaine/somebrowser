@@ -253,6 +253,15 @@ final class AutomationServer {
                 return out
             }
             reply(["ok": true, "ax": dump(w, 0)])
+        case "extension":
+            // An extension's details as the engine reads them (Chrome's extensions page, never shown).
+            guard let id = req["id"] as? String, let engine = runtime.engine as? EngineExtensions else { return reply(["ok": false]) }
+            engine.details(of: id) { d in
+                guard let d else { return reply(["ok": false, "error": "no details"]) }
+                reply(["ok": true, "details": ["version": d.version, "enabled": d.isEnabled, "siteAccess": d.siteAccess?.rawValue ?? NSNull(),
+                                               "permissions": d.permissions, "allowedInPrivate": d.allowedInPrivate,
+                                               "modifiable": d.isUserModifiable]])
+            }
         case "state":
             reply(["ok": true, "state": stateJSON()])
         case "eval":
@@ -313,7 +322,7 @@ final class AutomationServer {
         let page = window.flatMap { runtime.selectedTab(in: $0)?.engineTab }
         let badges = page.map { engine.actionBadges(in: $0) } ?? [:]
         return engine.installedExtensions.map {
-            ["id": $0.id, "name": $0.name, "pinned": $0.isPinned, "badge": badges[$0.id] ?? ""]
+            ["id": $0.id, "name": $0.name, "pinned": $0.isPinned, "enabled": $0.isEnabled, "badge": badges[$0.id] ?? ""]
         }
     }
 

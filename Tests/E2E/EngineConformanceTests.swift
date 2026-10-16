@@ -463,7 +463,8 @@ struct EngineConformanceTests {
 
     /// Extension actions run through Chrome's own toolbar path: the fixture's popup (activeTab + scripting, no host
     /// permissions) can only retitle the page if the click granted activeTab, and the popup must be in front of the page.
-    /// Unpinned actions go through Chrome's extensions menu; pinned ones press their (hidden) toolbar button.
+    /// Pinned ones press their (hidden) toolbar button; one not pinned at launch is pinned once listed (Chrome's menu runs
+    /// it until then).
     @Test(arguments: [false, true]) func extensionActionGetsActiveTab(pinned: Bool) throws {
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Fixtures/ActiveTabExtension")
