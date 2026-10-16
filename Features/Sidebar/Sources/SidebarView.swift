@@ -83,17 +83,98 @@ struct FooterLayout: Layout {
     }
 }
 
-/// The sidebar in its column, sliding while it arrives or leaves (`SidebarModel.toggle`); under Reduce Motion it fades.
+/// The sidebar in its column. It slides in and out in Core Animation (on the render server), so the slide keeps
+/// moving while the page's resize holds the main thread, which a SwiftUI animation would not; under Reduce Motion it
+/// fades. Its own hosting view carries the environment the window's would.
 struct DockedSidebar: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
     let model: SidebarModel
 
     var body: some View {
-        let slide = model.slide[window.id] ?? 0
-        SidebarView(window: window, model: model)
-            .offset(x: reduceMotion ? 0 : slide * window.sidebarWidth)
-            .opacity(reduceMotion ? 1 + slide : 1)
+        SidebarSlideHost(window: window, model: model, env: env, isActive: window.isKeyWindow, slide: model.slides[window.id])
+    }
+}
+
+struct SidebarSlideHost: NSViewRepresentable {
+    let window: BrowserWindowState
+    let model: SidebarModel
+    let env: BrowserEnvironment
+    let isActive: Bool
+    let slide: SidebarModel.Slide?
+
+    func makeNSView(context: Context) -> SlideView {
+        let view = SlideView()
+        // Made to slide in: it starts out of view (the slide is added before its first frame).
+        if let slide, slide.to == 0 { view.current = -1 }
+        return view
+    }
+
+    func updateNSView(_ view: SlideView, context: Context) {
+        view.hosting.rootView = AnyView(SidebarView(window: window, model: model)
+            .ignoresSafeArea()  // under the titlebar, as the window's own content is
+            .environment(env)
+            .environment(\.controlActiveState, isActive ? .key : .inactive))
+        view.width = window.sidebarWidth  // its bounds are still empty when it's made
+        if let slide, slide.id != view.lastSlide { view.run(slide) }
+    }
+
+    final class SlideView: NSView {
+        let hosting = NSHostingView(rootView: AnyView(EmptyView()))
+        var lastSlide: UUID?
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            hosting.sizingOptions = []
+            hosting.safeAreaRegions = []
+            hosting.autoresizingMask = [.width, .height]
+            hosting.frame = bounds
+            addSubview(hosting)
+        }
+
+        required init?(coder: NSCoder) { fatalError() }
+
+        /// The offset the last slide ends at, in sidebar widths.
+        var current: CGFloat = 0
+        var width: CGFloat = 0
+
+        func run(_ slide: SidebarModel.Slide) {
+            lastSlide = slide.id
+            guard let layer = hosting.layer else { slide.finished?(); return }
+            // From wherever it is now (a slide reversed halfway carries on from there).
+            let from: CGFloat
+            if layer.animation(forKey: "slide") != nil,
+               let presented = layer.presentation()?.value(forKeyPath: slide.fades ? "opacity" : "transform.translation.x") as? CGFloat {
+                from = slide.fades ? presented - 1 : (width > 0 ? presented / width : current)
+            } else {
+                from = current
+            }
+            current = slide.to
+            let animation = Self.animation(fades: slide.fades, from: from, to: slide.to, width: width)
+            animation.duration = slide.duration
+            let c = slide.curve
+            animation.timingFunction = CAMediaTimingFunction(controlPoints: c[0], c[1], c[2], c[3])
+            CATransaction.begin()
+            CATransaction.setCompletionBlock { [weak self] in
+                MainActor.assumeIsolated {
+                    guard self?.lastSlide == slide.id else { return }
+                    if slide.to == 0 { self?.hosting.layer?.removeAnimation(forKey: "slide") }
+                    slide.finished?()
+                }
+            }
+            layer.add(animation, forKey: "slide")
+            CATransaction.commit()
+        }
+
+        private static func animation(fades: Bool, from: CGFloat, to: CGFloat, width: CGFloat) -> CABasicAnimation {
+            let a = CABasicAnimation(keyPath: fades ? "opacity" : "transform.translation.x")
+            a.fromValue = fades ? 1 + from : from * width
+            a.toValue = fades ? 1 + to : to * width
+            a.fillMode = .both
+            a.isRemovedOnCompletion = false
+            return a
+        }
     }
 }
 

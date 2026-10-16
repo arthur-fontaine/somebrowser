@@ -22,6 +22,8 @@ public final class BrowserWindowState: Identifiable {
     public var isSidebarVisible = true
     /// The sidebar is hidden but still sliding out: its column stays until it has (the page then takes the room).
     public var isSidebarLeaving = false
+    /// The sidebar is sliding in (the traffic lights wait for it, then fade in).
+    public var isSidebarArriving = false
     /// Sidebar temporarily shown over the content while hidden (edge hover, Horse's "Shelf").
     public var isSidebarPeeking = false
     public var sidebarWidth: CGFloat = 260

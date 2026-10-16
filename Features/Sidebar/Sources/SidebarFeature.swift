@@ -62,19 +62,34 @@ final class SidebarModel {
     var dragging: NodeID?
     /// Interactive two-finger swipe offset (points), per window.
     var swipeOffset: [UUID: CGFloat] = [:]
-    /// The docked sidebar sliding in or out, per window: −1 is out of its column, 0 in place.
-    var slide: [UUID: CGFloat] = [:]
+    /// The docked sidebar's slide in or out, per window, run by its column (`SidebarSlideHost`) in Core Animation.
+    var slides: [UUID: Slide] = [:]
     @ObservationIgnored private var slideGeneration: [UUID: UUID] = [:]
     /// Windows whose space a swipe just changed (the pager doesn't slide them again).
     @ObservationIgnored var swiped: Set<UUID> = []
+
+    /// A slide of the docked sidebar: its offset in sidebar widths (−1 is out of its column, 0 in place).
+    struct Slide: Equatable {
+        let id = UUID()
+        let to: CGFloat
+        let duration: TimeInterval
+        /// Cubic Bézier control points.
+        let curve: [Float]
+        /// Under Reduce Motion: a fade instead.
+        let fades: Bool
+        let finished: (@MainActor () -> Void)?
+
+        static func == (a: Slide, b: Slide) -> Bool { a.id == b.id }
+    }
 
     init(runtime: BrowserRuntime) { self.runtime = runtime }
 
     /// Shows or hides the docked sidebar; the window's state changes at once, the slide follows. The page (a window of
     /// its own under Chromium) changes size once, never animated: it makes room before the sidebar slides in, and takes
-    /// the room back once it has slid out (`isSidebarLeaving` keeps the column until then).
+    /// the room back as it finishes sliding out (`isSidebarLeaving` keeps the column until then). The slide runs in
+    /// Core Animation, so it keeps moving while Chromium's resize holds the main thread.
     func toggle(_ w: BrowserWindowState) {
-        let motion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? Design.Motion.reduced : Design.Motion.layout
+        let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         var still = Transaction()
         still.disablesAnimations = true
         let generation = UUID()
@@ -82,31 +97,31 @@ final class SidebarModel {
         if w.isSidebarVisible {
             withTransaction(still) {
                 w.isSidebarVisible = false
+                w.isSidebarArriving = false
                 w.isSidebarLeaving = true
+                // Accelerating out.
+                slides[w.id] = Slide(to: -1, duration: reduce ? 0.15 : Design.Motion.leaveDuration, curve: [0.42, 0, 1, 1],
+                                     fades: reduce, finished: nil)
             }
-            // Accelerating out. The page (Chromium's) takes ~50 ms to paint at its new size, so it takes the room back
-            // that much before the slide ends: it covers the sidebar's last few points instead of leaving a gap.
-            let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-            withAnimation(reduce ? Design.Motion.reduced : Design.Motion.leave) { slide[w.id] = -1 } completion: { [weak self] in
-                guard let self, self.slideGeneration[w.id] == generation else { return }
-                withTransaction(still) { self.slide[w.id] = nil }
-            }
+            // The page (Chromium's) takes ~50 ms to paint at its new size, so it takes the room back that much before the
+            // slide ends: it covers the sidebar's last points instead of leaving a gap.
             DispatchQueue.main.asyncAfter(deadline: .now() + Design.Motion.leaveDuration - 0.05) { [weak self] in
-                guard self?.slideGeneration[w.id] == generation else { return }
-                withTransaction(still) { w.isSidebarLeaving = false }
+                guard let self, self.slideGeneration[w.id] == generation else { return }
+                withTransaction(still) {
+                    w.isSidebarLeaving = false
+                    self.slides[w.id] = nil
+                }
             }
         } else {
-            let leaving = w.isSidebarLeaving
             withTransaction(still) {
-                if !leaving { slide[w.id] = -1 }
                 w.isSidebarLeaving = false
                 w.isSidebarVisible = true
-            }
-            // Next turn, once the sidebar has been laid out out of view (or from wherever it was leaving).
-            DispatchQueue.main.async { [weak self] in
-                withAnimation(motion) { self?.slide[w.id] = 0 } completion: {
+                w.isSidebarArriving = true
+                // Spotlight's fast-start curve: no long tail.
+                slides[w.id] = Slide(to: 0, duration: reduce ? 0.15 : 0.30, curve: [0.2, 0.8, 0.2, 1], fades: reduce) { [weak self] in
                     guard let self, self.slideGeneration[w.id] == generation else { return }
-                    self.slide[w.id] = nil
+                    w.isSidebarArriving = false
+                    self.slides[w.id] = nil
                 }
             }
         }
