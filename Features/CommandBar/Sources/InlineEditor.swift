@@ -49,8 +49,9 @@ struct InlineEditor: View {
             .clipShape(shape)
             // Expanded, a menu's denser material, so it reads as one surface over the sidebar and the page alike.
             .background(Color(nsColor: .windowBackgroundColor).opacity(tinted ? 0.65 : 0), in: shape)
-            .background(Design.Fill.glassScrim, in: shape)
-            .glassSurface(in: shape)
+            .background(Design.Fill.glassScrim.opacity(tinted ? 1 : 0), in: shape)
+            // Collapsed, exactly the field's surface (its interactive glass, no tint), so the hand-overs don't show.
+            .glassControl(in: shape)
             .background { if editing { ClickOutside { model.close(window) } } }
             .shadow(color: .black.opacity(expanded ? 0.22 : 0), radius: 24, y: 10)
             .offset(x: field.minX, y: field.minY)
