@@ -52,8 +52,8 @@ struct StartPage: View {
                 VStack(alignment: .leading, spacing: 28) {
                     field
                     if runtime.settings.bool("start-page.showFavorites") { favorites }
-                    SlotHost("start-page.extras", window: window)
                     getStarted
+                    SlotHost("start-page.extras", window: window)
                 }
                 .frame(width: min(Self.columnWidth, geo.size.width - 64))
                 .padding(.top, min(96, geo.size.height * 0.12))

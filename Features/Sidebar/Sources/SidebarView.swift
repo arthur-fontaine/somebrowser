@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Environment(BrowserEnvironment.self) private var env
+    @Environment(\.isOnGlass) private var isOnGlass
     let window: BrowserWindowState
     let model: SidebarModel
 
@@ -34,7 +35,8 @@ struct SidebarView: View {
     private var header: some View {
         GlassGroup(spacing: 6) {
             HStack(spacing: 6) {
-                Spacer(minLength: 72)  // traffic lights live here (full-size content view)
+                // The traffic lights live here (full-size content view); the floating sidebar covers them instead.
+                Spacer(minLength: isOnGlass ? 0 : 72)
                 SlotHost(.sidebarHeader, window: window)
                 SidebarIconButton(systemImage: "sidebar.left", help: "Toggle Sidebar (⌘S)") {
                     try? env.runtime.commands.run("sidebar.toggle", window: window)
