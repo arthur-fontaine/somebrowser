@@ -5,9 +5,21 @@ import SwiftUI
 /// One routing rule: links matching `pattern` open in `destination`.
 nonisolated struct TrafficRule: Codable, Equatable, Identifiable, Sendable {
     enum Destination: Codable, Equatable, Hashable, Sendable {
-        case space(UUID)
         case miniWindow
         case mainWindow
+
+        /// Rules made when spaces were the user's own may name a space: their links now open in the main window.
+        init(from decoder: Decoder) throws {
+            let keys = try decoder.container(keyedBy: AnyKey.self).allKeys.map(\.stringValue)
+            self = keys.contains("miniWindow") ? .miniWindow : .mainWindow
+        }
+
+        private struct AnyKey: CodingKey {
+            var stringValue: String
+            var intValue: Int? { nil }
+            init(stringValue: String) { self.stringValue = stringValue }
+            init?(intValue: Int) { nil }
+        }
     }
     var id = UUID()
     /// A host (`github.com`, its subdomains too) or, with a `/`, the start of an address (`docs.google.com/document`).
@@ -29,7 +41,7 @@ nonisolated struct TrafficRule: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-/// Air Traffic Control (Arc): links from other apps follow your rules — to a Space, a mini window, or the main window
+/// Air Traffic Control (Arc): links from other apps follow your rules — to a mini window, or the main window
 /// even when mini windows take links from other apps. First matching rule wins; no match keeps the usual behavior.
 public final class AirTrafficFeature: BrowserFeature {
     let context: FeatureContext
@@ -46,10 +58,9 @@ public final class AirTrafficFeature: BrowserFeature {
         // Before other handlers (mini windows): a rule decides first.
         context.runtime.externalURLHandlers.insert({ [weak self] url in self?.route(url) ?? false }, at: 0)
         context.commands.handle("air-traffic.edit") { inv in inv.window?.flags.insert(Self.editorFlag) }
-        let model = self.model, runtime = context.runtime
+        let model = self.model
         context.ui.contribute(.overlay, id: "air-traffic.editor", order: 87) { [weak self] window in
-            AirTrafficEditor(model: model, window: window, spaces: runtime.tabs.spaces.map { ($0.id, $0.name, $0.icon) },
-                             save: { self?.save() }, close: { window.flags.remove(Self.editorFlag) })
+            AirTrafficEditor(model: model, window: window, save: { self?.save() }, close: { window.flags.remove(Self.editorFlag) })
         }
     }
 
@@ -67,11 +78,6 @@ public final class AirTrafficFeature: BrowserFeature {
             try? context.commands.run("mini-window.new", window: nil, arguments: ["url": url.absoluteString])
         case .mainWindow:
             open(url, in: mainWindow())
-        case .space(let id):
-            guard context.tabs.space(id) != nil else { return false }
-            let window = context.windows.first { !$0.isPrivate && $0.spaceID == id && !$0.isMini } ?? mainWindow()
-            context.runtime.switchSpace(id, in: window)
-            open(url, in: window)
         }
         return true
     }

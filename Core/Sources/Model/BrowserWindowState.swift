@@ -7,9 +7,16 @@ import Observation
 @Observable
 public final class BrowserWindowState: Identifiable {
     public let id: UUID
-    public var spaceID: UUID
+    public internal(set) var spaceID: UUID
+    /// The kind of the space shown (`BrowserRuntime.switchSpace` keeps it).
+    public internal(set) var spaceKind: SpaceKind
     public internal(set) var selectedTabID: NodeID?
-    public let isPrivate: Bool
+    /// The window shows the private space: new tabs here are private.
+    public var isPrivate: Bool { spaceKind == .private }
+    /// The private space was unlocked (Touch ID) since the window last entered it; leaving it locks it again.
+    public internal(set) var isPrivateUnlocked = false
+    /// The private space is shown but locked: its pages and tab titles stay hidden until unlocked.
+    public var isLocked: Bool { isPrivate && !isPrivateUnlocked }
 
     // Layout (features toggle these; the shell lays out accordingly).
     public var isSidebarVisible = true
@@ -35,10 +42,10 @@ public final class BrowserWindowState: Identifiable {
     /// Saved frame for restoration (`NSStringFromRect`).
     @ObservationIgnored public var frameDescriptor: String?
 
-    public init(id: UUID = UUID(), spaceID: UUID, isPrivate: Bool = false) {
+    public init(id: UUID = UUID(), spaceID: UUID, spaceKind: SpaceKind = .normal) {
         self.id = id
         self.spaceID = spaceID
-        self.isPrivate = isPrivate
+        self.spaceKind = spaceKind
     }
 
     public func toggle(flag: String) {

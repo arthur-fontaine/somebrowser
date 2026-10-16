@@ -7,7 +7,7 @@ public final class WebsiteShortcutsFeature: BrowserFeature {
     private let context: FeatureContext
     /// What you rely on to get around always stays the browser's.
     static let browserOnly: Set<String> = [
-        "command-bar.open", "command-bar.edit-url", "tabs.new-window", "tabs.new-private-window", "tabs.close",
+        "command-bar.open", "command-bar.edit-url", "tabs.new-window", "tabs.new-private-tab", "tabs.close",
         "tabs.close-window", "tabs.reopen", "tab-switcher.next", "tab-switcher.previous",
     ]
     static let browserOnlyPrefixes = ["tabs.select-", "spaces.select-"]

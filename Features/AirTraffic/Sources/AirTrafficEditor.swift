@@ -5,7 +5,6 @@ import SwiftUI
 struct AirTrafficEditor: View {
     @Bindable var model: AirTrafficModel
     let window: BrowserWindowState
-    let spaces: [(id: UUID, name: String, icon: String)]
     let save: () -> Void
     let close: () -> Void
 
@@ -26,8 +25,6 @@ struct AirTrafficEditor: View {
                                 .textFieldStyle(.roundedBorder).font(.system(.body, design: .monospaced))
                             Image(systemName: "arrow.right").foregroundStyle(.secondary)
                             Picker("", selection: $rule.destination) {
-                                ForEach(spaces, id: \.id) { space in Label(space.name, systemImage: space.icon).tag(TrafficRule.Destination.space(space.id)) }
-                                Divider()
                                 Label("Mini Window", systemImage: "macwindow").tag(TrafficRule.Destination.miniWindow)
                                 Label("Main Window", systemImage: "macwindow.on.rectangle").tag(TrafficRule.Destination.mainWindow)
                             }
@@ -40,7 +37,7 @@ struct AirTrafficEditor: View {
                     HStack {
                         Button("Add Rule", systemImage: "plus") {
                             withAnimation(.spring(duration: 0.3)) {
-                                model.rules.append(TrafficRule(pattern: "", destination: spaces.first.map { .space($0.id) } ?? .mainWindow))
+                                model.rules.append(TrafficRule(pattern: "", destination: .mainWindow))
                             }
                         }
                         Spacer()

@@ -6,54 +6,55 @@ import Testing
 @testable import FeatureSpaces
 
 @MainActor
+@Suite(.serialized)
 struct SpacesTests {
-    func harness() throws -> TestHarness { try TestHarness(features: [SpacesFeature.self], manifestDirectory: #filePath) }
-
-    @Test func newSpaceSwitchesAndOpensEditor() throws {
-        let h = try harness()
-        try h.run("spaces.new")
-        #expect(h.runtime.tabs.spaces.count == 2)
-        #expect(h.window.spaceID == h.runtime.tabs.spaces[1].id)
-        #expect(h.window.flags.contains(SpacesFeature.editFlag))
+    func harness(authenticates: Bool = true) throws -> (TestHarness, () -> Int) {
+        var asked = 0
+        SpacesFeature.authenticate = { _, done in asked += 1; done(authenticates) }
+        return (try TestHarness(features: [SpacesFeature.self], manifestDirectory: #filePath), { asked })
     }
 
-    @Test func numberAndArrowSwitching() throws {
-        let h = try harness()
-        try h.run("spaces.new")
-        try h.run("spaces.new")
-        try h.run("spaces.select-1")
-        #expect(h.window.spaceID == h.runtime.tabs.spaces[0].id)
-        try h.run("spaces.next")
-        #expect(h.window.spaceID == h.runtime.tabs.spaces[1].id)
+    /// Most of the time there is one space: no switcher.
+    @Test func oneSpaceShowsNoSwitcher() throws {
+        let (h, _) = try harness()
+        #expect(h.runtime.tabs.spaces.map(\.kind) == [.normal])
+        #expect(!h.runtime.commands.canRun("spaces.unlock"))
+    }
+
+    /// Coming back to the private space asks for Touch ID; its pages show only once unlocked.
+    @Test func enteringThePrivateSpaceAsksToUnlock() throws {
+        let (h, asked) = try harness()
+        h.openTab("https://a.example")
+        let secret = h.runtime.openPrivateTab(URL(string: "https://secret.example")!, in: h.window)
+        #expect(asked() == 0)  // just opened: no question
         try h.run("spaces.previous")
-        #expect(h.window.spaceID == h.runtime.tabs.spaces[0].id)
-        #expect(!h.runtime.commands.canRun("spaces.select-4"))
+        #expect(!h.window.isPrivate)
+        try h.run("spaces.next")
+        #expect(asked() == 1)
+        #expect(!h.window.isLocked)
+        #expect(h.viewport.presentedTab === h.fakeTab(secret))
     }
 
-    @Test func eachSpaceKeepsItsTabs() throws {
-        let h = try harness()
-        let a = h.openTab("https://a.example")
-        try h.run("spaces.new")
-        let b = h.openTab("https://b.example")
-        #expect(h.runtime.tabs.spaceID(of: b.id) == h.window.spaceID)
-        try h.run("spaces.select-1")
-        #expect(h.selectedTab?.id == a.id)
+    /// A refused check keeps the space locked; Unlock asks again.
+    @Test func refusedUnlockStaysLocked() throws {
+        let (h, asked) = try harness(authenticates: false)
+        h.runtime.openPrivateTab(URL(string: "https://secret.example")!, in: h.window)
+        try h.run("spaces.lock")
+        #expect(!h.window.isPrivate)
+        try h.run("spaces.next")
+        #expect(h.window.isLocked && h.viewport.presentedTab == nil)
+        try h.run("spaces.unlock")
+        #expect(asked() == 2)
+        #expect(h.window.isLocked)
     }
 
-    @Test func deleteMovesWindowsAway() throws {
-        let h = try harness()
-        try h.run("spaces.new")
-        let doomed = h.window.spaceID
-        h.openTab("https://b.example")
-        try h.run("spaces.delete")
-        #expect(h.runtime.tabs.space(doomed) == nil)
-        #expect(h.window.spaceID == h.runtime.tabs.spaces[0].id)
-        #expect(h.runtime.tabs.tabCount == 0)
-        #expect(!h.runtime.commands.canRun("spaces.delete"))
-    }
-
-    @Test func hexColors() {
-        #expect(Color(hex: "#6E5BFF") != nil)
-        #expect(Color(hex: "nope") == nil)
+    @Test func arrowsStopAtTheEnds() throws {
+        let (h, _) = try harness()
+        h.runtime.openPrivateTab(nil, in: h.window)
+        try h.run("spaces.next")
+        #expect(h.window.isPrivate)
+        try h.run("spaces.previous")
+        try h.run("spaces.previous")
+        #expect(h.window.spaceID == h.runtime.tabs.normalSpace.id)
     }
 }

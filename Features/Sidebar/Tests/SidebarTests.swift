@@ -8,7 +8,7 @@ import Testing
 struct SidebarLogicTests {
     let store = TabStore()
     let space: Space
-    init() { space = store.addSpace(name: "S") }
+    init() { space = store.normalSpace }
     var today: Container { .section(space.id, .today) }
     func tab(_ s: String) -> BrowserTab { BrowserTab(url: URL(string: "https://\(s).example")!, title: s) }
     func titles() -> [String] { store.rows(in: today).map { store.tab($0.id)!.title } }

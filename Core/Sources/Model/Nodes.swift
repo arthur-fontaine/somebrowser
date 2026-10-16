@@ -84,44 +84,24 @@ public enum SidebarSection: String, Codable, Sendable, CaseIterable {
     case today
 }
 
-public struct SpaceTheme: Codable, Equatable, Sendable {
-    /// Hex colors (`#RRGGBB`) for the window background gradient.
-    public var colors: [String]
-    public var grain: Double
-    public var appearance: String?  // "light", "dark", nil = system
-
-    public init(colors: [String], grain: Double = 0, appearance: String? = nil) {
-        self.colors = colors
-        self.grain = grain
-        self.appearance = appearance
-    }
-
-    public static let defaults: [SpaceTheme] = [
-        SpaceTheme(colors: ["#6E5BFF", "#2F2A8F"]),
-        SpaceTheme(colors: ["#FF7A59", "#B23A6B"]),
-        SpaceTheme(colors: ["#2BB673", "#156D63"]),
-        SpaceTheme(colors: ["#3AA0FF", "#1E3F8F"]),
-        SpaceTheme(colors: ["#F2B33D", "#B5651D"]),
-    ]
+/// The kinds of space. The user's own tabs live in the normal space, the only one most of the time. A private space
+/// (tabs that keep nothing, locked behind Touch ID whenever left) and a Claude space (the tabs Claude controls) exist
+/// while they hold tabs; the sidebar shows a switcher only then.
+public enum SpaceKind: String, Codable, Sendable, CaseIterable {
+    case normal, `private`, claude
 }
 
-/// A workspace with its own pinned and today tabs (Arc Spaces / Horse Trailheads).
+/// A set of pinned and today tabs (Arc Spaces / Horse Trailheads), one per kind.
 @Observable
 public final class Space: Identifiable {
     public let id: UUID
-    public var name: String
-    /// SF Symbol name or a single emoji.
-    public var icon: String
-    public var theme: SpaceTheme
+    public let kind: SpaceKind
     public internal(set) var pinned: [NodeID]
     public internal(set) var today: [NodeID]
 
-    public init(id: UUID = UUID(), name: String, icon: String = "circle.fill", theme: SpaceTheme = SpaceTheme.defaults[0],
-                pinned: [NodeID] = [], today: [NodeID] = []) {
+    public init(id: UUID = UUID(), kind: SpaceKind = .normal, pinned: [NodeID] = [], today: [NodeID] = []) {
         self.id = id
-        self.name = name
-        self.icon = icon
-        self.theme = theme
+        self.kind = kind
         self.pinned = pinned
         self.today = today
     }

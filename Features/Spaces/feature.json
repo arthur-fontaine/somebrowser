@@ -1,27 +1,14 @@
 {
   "id": "spaces",
   "name": "Spaces",
-  "summary": "Separate sets of tabs with their own color theme and icon; switch with ⌃1–9, ⌘⌥←/→ or a two-finger swipe.",
+  "summary": "Your tabs, a private space locked behind Touch ID whenever you leave it, and the tabs Claude controls; the switcher shows once there are two.",
   "entry": "SpacesFeature",
   "provides": ["spaces"],
   "commands": [
     { "id": "spaces.next", "title": "Next Space", "shortcut": "cmd+opt+right", "menu": "Spaces", "group": "switch", "order": 1 },
     { "id": "spaces.previous", "title": "Previous Space", "shortcut": "cmd+opt+left", "menu": "Spaces", "group": "switch", "order": 2 },
-    { "id": "spaces.select-1", "title": "Space 1", "shortcut": "ctrl+1", "menu": "Spaces", "group": "index", "order": 1, "palette": false },
-    { "id": "spaces.select-2", "title": "Space 2", "shortcut": "ctrl+2", "menu": "Spaces", "group": "index", "order": 2, "palette": false },
-    { "id": "spaces.select-3", "title": "Space 3", "shortcut": "ctrl+3", "menu": "Spaces", "group": "index", "order": 3, "palette": false },
-    { "id": "spaces.select-4", "title": "Space 4", "shortcut": "ctrl+4", "menu": "Spaces", "group": "index", "order": 4, "palette": false },
-    { "id": "spaces.select-5", "title": "Space 5", "shortcut": "ctrl+5", "menu": "Spaces", "group": "index", "order": 5, "palette": false },
-    { "id": "spaces.select-6", "title": "Space 6", "shortcut": "ctrl+6", "menu": "Spaces", "group": "index", "order": 6, "palette": false },
-    { "id": "spaces.select-7", "title": "Space 7", "shortcut": "ctrl+7", "menu": "Spaces", "group": "index", "order": 7, "palette": false },
-    { "id": "spaces.select-8", "title": "Space 8", "shortcut": "ctrl+8", "menu": "Spaces", "group": "index", "order": 8, "palette": false },
-    { "id": "spaces.select-9", "title": "Space 9", "shortcut": "ctrl+9", "menu": "Spaces", "group": "index", "order": 9, "palette": false },
-    { "id": "spaces.new", "title": "New Space", "shortcut": "ctrl+shift+n", "menu": "Spaces", "group": "edit", "order": 1, "keywords": ["workspace", "profile"] },
-    { "id": "spaces.edit", "title": "Edit Space…", "menu": "Spaces", "group": "edit", "order": 2, "keywords": ["rename", "theme", "color", "icon"] },
-    { "id": "spaces.delete", "title": "Delete Space", "menu": "Spaces", "group": "edit", "order": 3 }
+    { "id": "spaces.unlock", "title": "Unlock Private Tabs", "menu": "Spaces", "group": "private", "order": 1, "keywords": ["touch id", "incognito"] },
+    { "id": "spaces.lock", "title": "Lock Private Tabs", "menu": "Spaces", "group": "private", "order": 2, "keywords": ["incognito"] }
   ],
-  "settings": [
-    { "key": "spaces.themedWindow", "title": "Tint the window with the space color", "type": "bool", "default": true },
-    { "key": "spaces.themeIntensity", "title": "Theme intensity", "type": "double", "default": 0.55 }
-  ]
+  "settings": []
 }

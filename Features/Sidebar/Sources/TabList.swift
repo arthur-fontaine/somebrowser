@@ -327,12 +327,9 @@ struct RowMenu: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(SidebarLogic.markdown(for: id, store: store), forType: .string)
             }
-            if store.spaces.count > 1 {
-                Menu("Move to Space") {
-                    ForEach(store.spaces.filter { $0.id != window.spaceID }) { s in
-                        Button(s.name) { runtime.sidebarHistory.move(id) { try? store.move(id, to: .section(s.id, .today), at: 0) } }
-                    }
-                }
+            // Between the user's own tabs and Claude's; private tabs never leave the private space, nor join it.
+            ForEach(store.spaces.filter { $0.id != window.spaceID && $0.kind != .private && !tab.isPrivate }) { s in
+                Button("Move to \(s.kind.title)") { runtime.sidebarHistory.move(id) { try? store.move(id, to: .section(s.id, .today), at: 0) } }
             }
             Divider()
             Button("Close") { runtime.sidebarHistory.close([id], includingDescendants: false) }

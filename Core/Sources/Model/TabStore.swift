@@ -47,7 +47,7 @@ public struct ClosedItem: Sendable {
 /// each row observes its own `BrowserTab` for title/favicon updates.
 @Observable
 public final class TabStore {
-    public private(set) var spaces: [Space] = []
+    public private(set) var spaces: [Space] = [Space(kind: .normal)]
     public private(set) var favorites: [NodeID] = []
     /// Bumped on any structural change (insert, move, remove, collapse).
     public private(set) var structureVersion = 0
@@ -175,16 +175,26 @@ public final class TabStore {
 
     // MARK: Spaces
 
+    public func space(kind: SpaceKind) -> Space? { spaces.first { $0.kind == kind } }
+
+    /// The user's own tabs: always there, first.
+    public var normalSpace: Space { space(kind: .normal)! }
+
+    /// The space of that kind, made if needed (spaces stay in kind order: normal, private, Claude).
     @discardableResult
-    public func addSpace(name: String, icon: String = "circle.fill", theme: SpaceTheme? = nil, at index: Int? = nil) -> Space {
-        let s = Space(name: name, icon: icon, theme: theme ?? SpaceTheme.defaults[spaces.count % SpaceTheme.defaults.count])
-        spaces.insert(s, at: min(index ?? spaces.count, spaces.count))
+    public func ensureSpace(_ kind: SpaceKind) -> Space {
+        if let s = space(kind: kind) { return s }
+        let s = Space(kind: kind)
+        let order = SpaceKind.allCases
+        let index = spaces.firstIndex { order.firstIndex(of: $0.kind)! > order.firstIndex(of: kind)! } ?? spaces.count
+        spaces.insert(s, at: index)
         changed()
         return s
     }
 
+    /// Removes a private or Claude space and closes its tabs (the normal space stays).
     public func removeSpace(_ id: UUID) {
-        guard let s = space(id), spaces.count > 1 else { return }
+        guard let s = space(id), s.kind != .normal else { return }
         var removed: [BrowserTab] = []
         for root in s.pinned + s.today { removed += detachSubtree(root) }
         spaces.removeAll { $0.id == id }
@@ -192,18 +202,14 @@ public final class TabStore {
         onTabsRemoved?(removed)
     }
 
-    /// Edits a space's name, icon or theme and persists it.
-    public func updateSpace(_ id: UUID, _ change: (Space) -> Void) {
-        guard let s = space(id) else { return }
-        change(s)
+    /// Private and Claude spaces exist while they hold something; returns the ones removed.
+    @discardableResult
+    public func removeEmptySpaces() -> [UUID] {
+        let empty = spaces.filter { $0.kind != .normal && $0.pinned.isEmpty && $0.today.isEmpty }.map(\.id)
+        guard !empty.isEmpty else { return [] }
+        spaces.removeAll { empty.contains($0.id) }
         changed()
-    }
-
-    public func moveSpace(_ id: UUID, to index: Int) {
-        guard let i = spaces.firstIndex(where: { $0.id == id }) else { return }
-        let s = spaces.remove(at: i)
-        spaces.insert(s, at: max(0, min(index, spaces.count)))
-        changed()
+        return empty
     }
 
     // MARK: Insertion
@@ -245,10 +251,7 @@ public final class TabStore {
         return insert(tab, into: c, at: i + 1)
     }
 
-    private func defaultTodayContainer() -> Container {
-        if spaces.isEmpty { addSpace(name: "Personal") }
-        return .section(spaces[0].id, .today)
-    }
+    private func defaultTodayContainer() -> Container { .section(normalSpace.id, .today) }
 
     private func place(_ id: NodeID, into container: Container, at index: Int?) {
         var list = rawList(container)
@@ -478,8 +481,9 @@ public final class TabStore {
     // MARK: Persistence
 
     public struct Snapshot: Codable, Sendable {
+        /// `kind` is absent in version 1 snapshots, made when spaces were the user's own (named, colored).
         public struct SpaceRecord: Codable, Sendable {
-            var id: UUID, name: String, icon: String, theme: SpaceTheme, pinned: [NodeID], today: [NodeID]
+            var id: UUID, kind: SpaceKind?, pinned: [NodeID], today: [NodeID]
         }
         public struct TabRecord: Codable, Sendable {
             var id: NodeID, url: URL?, title: String, faviconURL: URL?, customTitle: String?, pinnedURL: URL?
@@ -488,7 +492,7 @@ public final class TabStore {
         public struct FolderRecord: Codable, Sendable {
             var id: NodeID, name: String, icon: String?, isCollapsed: Bool
         }
-        public var version = 1
+        public var version = 2
         public var spaces: [SpaceRecord]
         public var favorites: [NodeID]
         public var tabs: [TabRecord]
@@ -498,7 +502,8 @@ public final class TabStore {
 
     public func snapshot() -> Snapshot {
         Snapshot(
-            spaces: spaces.map { .init(id: $0.id, name: $0.name, icon: $0.icon, theme: $0.theme, pinned: $0.pinned, today: $0.today) },
+            // A private space is never kept, and its tabs aren't either.
+            spaces: spaces.filter { $0.kind != .private }.map { .init(id: $0.id, kind: $0.kind, pinned: $0.pinned, today: $0.today) },
             favorites: favorites,
             tabs: tabsByID.values.filter { !$0.isPrivate }.map {
                 .init(id: $0.id, url: $0.url, title: $0.title, faviconURL: $0.faviconURL, customTitle: $0.customTitle,
@@ -524,9 +529,18 @@ public final class TabStore {
         }
         for f in s.folders { foldersByID[f.id] = Folder(id: f.id, name: f.name, icon: f.icon, isCollapsed: f.isCollapsed) }
         let known = { (id: NodeID) in self.tabsByID[id] != nil || self.foldersByID[id] != nil }
-        spaces = s.spaces.map { r in
-            Space(id: r.id, name: r.name, icon: r.icon, theme: r.theme, pinned: r.pinned.filter(known), today: r.today.filter(known))
+        // Spaces from before the kinds (the user's own, several) become the one normal space, in their order.
+        spaces = []
+        for r in s.spaces where r.kind != .private {
+            let kind = r.kind ?? .normal
+            if let existing = space(kind: kind) {
+                existing.pinned += r.pinned.filter(known)
+                existing.today += r.today.filter(known)
+            } else {
+                spaces.append(Space(id: r.id, kind: kind, pinned: r.pinned.filter(known), today: r.today.filter(known)))
+            }
         }
+        spaces.sort { SpaceKind.allCases.firstIndex(of: $0.kind)! < SpaceKind.allCases.firstIndex(of: $1.kind)! }
         favorites = s.favorites.filter { tabsByID[$0] != nil }
         for sp in spaces {
             for id in sp.pinned { containerOf[id] = .section(sp.id, .pinned) }
@@ -541,7 +555,8 @@ public final class TabStore {
         // Drop orphans (corrupt snapshot) rather than crash.
         for id in Array(tabsByID.keys) where containerOf[id] == nil { tabsByID.removeValue(forKey: id) }
         for id in Array(foldersByID.keys) where containerOf[id] == nil { foldersByID.removeValue(forKey: id) }
-        if spaces.isEmpty { addSpace(name: "Personal") }
+        if space(kind: .normal) == nil { spaces.insert(Space(kind: .normal), at: 0) }
+        spaces.removeAll { $0.kind != .normal && $0.pinned.isEmpty && $0.today.isEmpty }
         changed()
     }
 }

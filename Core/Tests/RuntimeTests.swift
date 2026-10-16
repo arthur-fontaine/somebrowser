@@ -192,13 +192,37 @@ struct RuntimeTests {
     @Test func spacesSwitchSelection() throws {
         let h = try harness()
         let first = h.openTab("https://a.example")
-        let work = h.runtime.tabs.addSpace(name: "Work")
+        let claude = h.runtime.tabs.ensureSpace(.claude)
         let events = h.record(SpaceSwitched.self)
-        h.runtime.switchSpace(work.id, in: h.window)
+        h.runtime.switchSpace(claude.id, in: h.window)
         #expect(h.selectedTab == nil)
         #expect(events.last?.direction == 1)
-        h.runtime.switchSpace(h.runtime.tabs.spaces[0].id, in: h.window)
+        h.runtime.switchSpace(h.runtime.tabs.normalSpace.id, in: h.window)
         #expect(h.selectedTab?.id == first.id)
+    }
+
+    /// A private tab opens in the private space; leaving the space locks it (its pages aren't shown) until unlocked;
+    /// its last tab closing ends it, and the window goes back to the normal space.
+    @Test func privateSpacesLockWhenLeft() throws {
+        let h = try harness()
+        let normal = h.openTab("https://a.example")
+        let secret = h.runtime.openPrivateTab(URL(string: "https://secret.example")!, in: h.window)
+        #expect(secret.isPrivate && h.window.isPrivate && !h.window.isLocked)
+        #expect(h.runtime.tabs.spaces.map(\.kind) == [.normal, .private])
+        #expect(h.viewport.presentedTab === h.fakeTab(secret))
+
+        h.runtime.switchSpace(h.runtime.tabs.normalSpace.id, in: h.window)
+        #expect(h.selectedTab?.id == normal.id && !h.window.isPrivate)
+        h.runtime.switchSpace(h.runtime.tabs.space(kind: .private)!.id, in: h.window)
+        #expect(h.window.isLocked && h.selectedTab?.id == secret.id)
+        #expect(h.viewport.presentedTab == nil)
+        h.runtime.unlockPrivateSpace(in: h.window)
+        #expect(!h.window.isLocked)
+        #expect(h.viewport.presentedTab === h.fakeTab(secret))
+
+        h.runtime.close(secret.id)
+        #expect(h.runtime.tabs.spaces.map(\.kind) == [.normal])
+        #expect(!h.window.isPrivate && h.selectedTab?.id == normal.id)
     }
 
     @Test func requestFiltersRunInOrder() throws {

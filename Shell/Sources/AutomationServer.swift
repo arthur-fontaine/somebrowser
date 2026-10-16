@@ -357,13 +357,14 @@ final class AutomationServer {
                     "selected": w.selectedTabID?.uuidString ?? NSNull(),
                     "sidebarVisible": w.isSidebarVisible,
                     "private": w.isPrivate,
+                    "locked": w.isLocked,
                     "flags": Array(w.flags).sorted(),
                 ] as [String: Any]
             },
             "favorites": runtime.tabs.favorites.compactMap(tabJSON),
             "spaces": runtime.tabs.spaces.map { s in
                 [
-                    "id": s.id.uuidString, "name": s.name,
+                    "id": s.id.uuidString, "kind": s.kind.rawValue,
                     "pinned": s.pinned.compactMap(tabJSON), "today": s.today.compactMap(tabJSON),
                 ] as [String: Any]
             },

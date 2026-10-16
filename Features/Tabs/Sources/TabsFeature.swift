@@ -21,7 +21,11 @@ public final class TabsFeature: BrowserFeature {
         }
 
         c.handle("tabs.new-window") { [weak self] _ in self?.context.shell?.openWindow(spaceID: nil, isPrivate: false, initialURL: nil) }
-        c.handle("tabs.new-private-window") { [weak self] _ in self?.context.shell?.openWindow(spaceID: nil, isPrivate: true, initialURL: nil) }
+        c.handle("tabs.new-private-tab") { [weak self] inv in
+            guard let self else { return }
+            let window = inv.window ?? self.context.shell?.openWindow(spaceID: nil, isPrivate: false, initialURL: nil)
+            if let window { self.runtime.openPrivateTab(nil, in: window) }
+        }
         c.handle("tabs.close-window") { [weak self] inv in if let w = inv.window { self?.context.shell?.closeWindow(w) } }
 
         c.handle("tabs.new-blank") { [weak self] inv in

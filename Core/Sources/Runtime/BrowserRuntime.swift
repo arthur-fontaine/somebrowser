@@ -108,10 +108,7 @@ public final class BrowserRuntime {
     /// Restores tabs/spaces; returns saved window records for the shell to reopen.
     @discardableResult
     public func loadSession() -> [SessionSnapshot.WindowRecord] {
-        guard let snapshot = persistence?.load() else {
-            if tabs.spaces.isEmpty { tabs.addSpace(name: "Personal", icon: "person.fill") }
-            return []
-        }
+        guard let snapshot = persistence?.load() else { return [] }
         tabs.restore(snapshot.tabs)
         return snapshot.windows
     }
@@ -119,8 +116,10 @@ public final class BrowserRuntime {
     public func sessionSnapshot() -> SessionSnapshot {
         SessionSnapshot(
             tabs: tabs.snapshot(),
-            windows: windows.filter { !$0.isPrivate }.map {
-                .init(id: $0.id, spaceID: $0.spaceID, selectedTabID: $0.selectedTabID, frame: $0.frameDescriptor,
+            // A window on the private space comes back on the normal one (the private space isn't kept).
+            windows: windows.map {
+                .init(id: $0.id, spaceID: $0.isPrivate ? tabs.normalSpace.id : $0.spaceID,
+                      selectedTabID: $0.isPrivate ? nil : $0.selectedTabID, frame: $0.frameDescriptor,
                       isSidebarVisible: $0.isSidebarVisible, sidebarWidth: Double($0.sidebarWidth))
             }
         )
@@ -132,9 +131,10 @@ public final class BrowserRuntime {
 
     @discardableResult
     public func makeWindowState(spaceID: UUID? = nil, isPrivate: Bool = false, id: UUID = UUID()) -> BrowserWindowState {
-        if tabs.spaces.isEmpty { tabs.addSpace(name: "Personal", icon: "person.fill") }
-        let space = spaceID.flatMap { tabs.space($0) }?.id ?? tabs.spaces[0].id
-        let w = BrowserWindowState(id: id, spaceID: space, isPrivate: isPrivate)
+        // A private window is a window on the private space, unlocked: the user just asked for it.
+        let space = isPrivate ? tabs.ensureSpace(.private) : spaceID.flatMap { tabs.space($0) } ?? tabs.normalSpace
+        let w = BrowserWindowState(id: id, spaceID: space.id, spaceKind: space.kind)
+        w.isPrivateUnlocked = isPrivate
         windows.append(w)
         events.publish(WindowOpened(windowID: w.id))
         return w
@@ -144,10 +144,6 @@ public final class BrowserRuntime {
         window.viewport?.present(nil)
         windows.removeAll { $0.id == window.id }
         events.publish(WindowClosed(windowID: window.id))
-        // Private tabs die with their window.
-        if window.isPrivate {
-            for t in tabs.allTabs where t.isPrivate { tabs.close(t.id, includingDescendants: true) }
-        }
     }
 
     public var keyWindow: BrowserWindowState? { shell?.keyWindowState ?? windows.first }
@@ -158,12 +154,47 @@ public final class BrowserRuntime {
         guard window.spaceID != spaceID, let target = tabs.space(spaceID) else { return }
         let from = tabs.spaces.firstIndex { $0.id == window.spaceID } ?? 0
         let to = tabs.spaces.firstIndex { $0.id == spaceID } ?? 0
-        window.spaceID = target.id
+        enter(target, in: window)
         // Re-select the most recent tab of that space (or nothing → start page).
         let candidate = window.mru.first { tabs.spaceID(of: $0) == spaceID }
             ?? tabs.orderedTabs(in: spaceID).first?.id
         select(candidate, in: window)
         events.publish(SpaceSwitched(windowID: window.id, spaceID: spaceID, direction: to == from ? 0 : (to > from ? 1 : -1)))
+    }
+
+    /// Shows `space` in the window. Leaving the private space locks it for this window.
+    private func enter(_ space: Space, in window: BrowserWindowState) {
+        if window.isPrivate, space.kind != .private { window.isPrivateUnlocked = false }
+        window.spaceID = space.id
+        window.spaceKind = space.kind
+    }
+
+    /// A private tab in the window's private space (made if needed), unlocked since the user asked for it.
+    @discardableResult
+    public func openPrivateTab(_ url: URL? = nil, in window: BrowserWindowState) -> BrowserTab {
+        let space = tabs.ensureSpace(.private)
+        window.isPrivateUnlocked = true
+        if window.spaceID != space.id { enter(space, in: window) }
+        return openTab(url, in: window)
+    }
+
+    /// After a successful Touch ID check: the private space's pages show again.
+    public func unlockPrivateSpace(in window: BrowserWindowState) {
+        guard window.isLocked else { return }
+        window.isPrivateUnlocked = true
+        select(window.selectedTabID, in: window)
+    }
+
+    /// Spaces left without tabs go away; windows showing them go back to the normal space.
+    private func dropEmptySpaces() {
+        let removed = tabs.removeEmptySpaces()
+        guard !removed.isEmpty else { return }
+        for w in windows where removed.contains(w.spaceID) {
+            let normal = tabs.normalSpace
+            enter(normal, in: w)
+            select(w.mru.first { tabs.spaceID(of: $0) == normal.id } ?? tabs.orderedTabs(in: normal.id).first?.id, in: w)
+            events.publish(SpaceSwitched(windowID: w.id, spaceID: normal.id, direction: -1))
+        }
     }
 
     // MARK: Tabs
@@ -218,14 +249,15 @@ public final class BrowserRuntime {
         for other in windows where other !== window && other.selectedTabID == id {
             select(other.mru.first { $0 != id && tabs.tab($0) != nil }, in: other)
         }
-        if let s = tabs.spaceID(of: id), s != window.spaceID { window.spaceID = s }
+        if let s = tabs.spaceID(of: id).flatMap({ tabs.space($0) }), s.id != window.spaceID { enter(s, in: window) }
         window.selectedTabID = id
         window.noteSelected(id)
         let now = Date()
         if let previous, previous != id { tabs.tab(previous)?.lastActiveAt = now }  // idle counts from when it was left
         tab.lastActiveAt = now
         let engineTab = tab.url == nil && tab.engineTab == nil ? nil : live(tab)
-        window.viewport?.present(engineTab)
+        // A locked private space shows none of its pages.
+        window.viewport?.present(window.isLocked ? nil : engineTab)
         events.publish(TabSelected(windowID: window.id, tabID: id, previousTabID: previous))
     }
 
@@ -252,6 +284,7 @@ public final class BrowserRuntime {
             w.forget(removing)
             if let next = nextSelection[w.id] { select(next, in: w) }
         }
+        dropEmptySpaces()
     }
 
     private func nextTab(afterClosing id: NodeID, removing: Set<NodeID>, in window: BrowserWindowState) -> NodeID? {

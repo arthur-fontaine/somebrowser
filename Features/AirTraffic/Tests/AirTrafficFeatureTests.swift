@@ -17,14 +17,11 @@ struct AirTrafficFeatureTests {
         #expect(!prefix.matches(url("https://docs.google.com/spreadsheets/d/1")))
     }
 
-    @Test func linksGoToTheirSpaceAndOthersAreLeftAlone() throws {
+    @Test func linksGoToTheMainWindowAndOthersAreLeftAlone() throws {
         let h = try TestHarness(features: [AirTrafficFeature.self], manifestDirectory: #filePath)
         let feature = try #require(h.runtime.feature(AirTrafficFeature.self))
-        let work = h.runtime.tabs.addSpace(name: "Work")
-        feature.model.rules = [TrafficRule(pattern: "github.com", destination: .space(work.id))]
-        #expect(h.window.spaceID != work.id)
+        feature.model.rules = [TrafficRule(pattern: "github.com", destination: .mainWindow)]
         #expect(feature.route(url("https://github.com/apple/swift")))
-        #expect(h.window.spaceID == work.id)
         #expect(h.selectedTab?.url?.host() == "github.com")
         #expect(!feature.route(url("https://news.example/")))
         // Rules decide before other handlers (mini windows).
@@ -51,5 +48,13 @@ struct AirTrafficFeatureTests {
         let again = AirTrafficFeature(context: h.context)
         again.activate()
         #expect(again.model.rules.map(\.pattern) == ["github.com"])
+    }
+
+    /// Rules from when spaces were the user's own may name a space: they now send links to the main window.
+    @Test func spaceRulesBecomeMainWindowRules() throws {
+        let saved = #"[{"id":"\#(UUID())","pattern":"a.example","destination":{"space":{"_0":"\#(UUID())"}}},"#
+            + #"{"id":"\#(UUID())","pattern":"b.example","destination":{"miniWindow":{}}}]"#
+        let rules = try JSONDecoder().decode([TrafficRule].self, from: Data(saved.utf8))
+        #expect(rules.map(\.destination) == [.mainWindow, .miniWindow])
     }
 }

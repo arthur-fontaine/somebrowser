@@ -16,8 +16,8 @@
       "order": 1
     },
     {
-      "id": "tabs.new-private-window",
-      "title": "New Private Window",
+      "id": "tabs.new-private-tab",
+      "title": "New Private Tab",
       "shortcut": "cmd+shift+n",
       "menu": "File",
       "group": "new",

@@ -90,9 +90,11 @@ struct SpaceTabs: View {
     var body: some View {
         let store = env.runtime.tabs
         _ = store.structureVersion
-        return ScrollView(.vertical) {
+        if space.kind == .private && window.isLocked {
+            return AnyView(LockedSpace(window: window))
+        }
+        return AnyView(ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 4) {
-                SpaceTitle(space: space)
                 TabList(window: window, model: model, container: .section(space.id, .pinned))
                 SectionDivider(window: window)
                 NewTabRow(window: window)
@@ -107,32 +109,27 @@ struct SpaceTabs: View {
             }
             .padding(.horizontal, 8)
         }
-        .scrollIndicators(.never)
+        .scrollIndicators(.never))
     }
 }
 
-struct SpaceTitle: View {
-    let space: Space
+/// A locked private space shows none of its tabs, only a way in (Touch ID, through `spaces.unlock`).
+struct LockedSpace: View {
+    @Environment(BrowserEnvironment.self) private var env
+    let window: BrowserWindowState
+
     var body: some View {
-        HStack(spacing: 6) {
-            SpaceIcon(icon: space.icon).frame(width: 14, height: 14)
-            Text(space.name).font(.system(size: 12, weight: .semibold))
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "lock.fill").font(.system(size: 22)).foregroundStyle(.secondary)
+            Text("Private tabs are locked").font(.callout).foregroundStyle(.secondary)
+            if env.runtime.commands.isHandled("spaces.unlock") {
+                Button("Unlock") { try? env.runtime.commands.run("spaces.unlock", window: window) }
+                    .buttonStyle(.glass)
+            }
             Spacer()
         }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 6)
-        .padding(.top, 4)
-    }
-}
-
-struct SpaceIcon: View {
-    let icon: String
-    var body: some View {
-        if icon.unicodeScalars.first?.properties.isEmojiPresentation == true || icon.count == 1 {
-            Text(icon).font(.system(size: 12))
-        } else {
-            Image(systemName: icon).resizable().scaledToFit()
-        }
+        .frame(maxWidth: .infinity)
     }
 }
 

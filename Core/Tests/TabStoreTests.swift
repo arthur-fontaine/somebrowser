@@ -8,7 +8,7 @@ struct TabStoreTests {
     let store = TabStore()
     let space: Space
 
-    init() { space = store.addSpace(name: "Work") }
+    init() { space = store.normalSpace }
 
     func tab(_ s: String) -> BrowserTab { BrowserTab(url: URL(string: "https://\(s).example")!, title: s) }
     func titles(_ c: Container) -> [String] { store.rows(in: c).map { store.tab($0.id)?.title ?? store.folder($0.id)!.name } }
@@ -175,5 +175,36 @@ extension TabStoreTests {
         #expect(rows.count == 500)
         #expect(grown < 20 << 20)
         #expect(ms < 8)
+    }
+
+    /// Spaces from before the kinds (named, colored, several) all become the one normal space, in their order.
+    @Test func oldSpacesMergeIntoTheNormalSpace() throws {
+        let a = UUID(), b = UUID(), work = UUID(), home = UUID()
+        let old = """
+        {"version":1,"favorites":[],"folders":[],"children":[],
+         "spaces":[{"id":"\(work)","name":"Work","icon":"briefcase.fill","theme":{"colors":["#6E5BFF","#2F2A8F"],"grain":0},"pinned":[],"today":["\(a)"]},
+                   {"id":"\(home)","name":"Home","icon":"house.fill","theme":{"colors":["#FF7A59","#B23A6B"],"grain":0},"pinned":["\(b)"],"today":[]}],
+         "tabs":[{"id":"\(a)","title":"A","createdAt":0,"lastActiveAt":0,"isCollapsed":false,"opensLinksInPlace":false},
+                 {"id":"\(b)","title":"B","createdAt":0,"lastActiveAt":0,"isCollapsed":false,"opensLinksInPlace":false}]}
+        """
+        let restored = TabStore()
+        restored.restore(try JSONDecoder().decode(TabStore.Snapshot.self, from: Data(old.utf8)))
+        #expect(restored.spaces.map(\.kind) == [.normal])
+        #expect(restored.normalSpace.today == [a])
+        #expect(restored.normalSpace.pinned == [b])
+    }
+
+    /// The private space and its tabs are never kept; the Claude space is.
+    @Test func privateSpacesAreNotKept() throws {
+        let secret = BrowserTab(url: URL(string: "https://secret.example")!, isPrivate: true)
+        store.insert(secret, into: .section(store.ensureSpace(.private).id, .today))
+        let claude = tab("claude")
+        store.insert(claude, into: .section(store.ensureSpace(.claude).id, .today))
+        #expect(store.spaces.map(\.kind) == [.normal, .private, .claude])
+        let copy = TabStore()
+        copy.restore(try JSONDecoder().decode(TabStore.Snapshot.self, from: JSONEncoder().encode(store.snapshot())))
+        #expect(copy.spaces.map(\.kind) == [.normal, .claude])
+        #expect(copy.tab(secret.id) == nil)
+        #expect(copy.tab(claude.id) != nil)
     }
 }

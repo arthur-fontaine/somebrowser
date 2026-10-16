@@ -2,38 +2,78 @@ import BrowserTesting
 import Foundation
 import Testing
 
-/// Private windows keep nothing: their cookies and storage are apart from normal windows', and gone once the last
-/// private window closes. Every engine.
+/// The private space keeps nothing: its cookies and storage are apart from your tabs', and gone once its last tab
+/// closes. Leaving it locks it: coming back shows none of its pages until Touch ID says yes. Every engine.
 @Suite(.serialized, .enabled(if: AppDriver.executableFromEnvironment != nil, "set BROWSER_E2E_APP (./forkctl test --e2e)"))
 struct PrivateBrowsingTests {
-    @Test func privateWindowsShareNothingAndForget() throws {
+    static let pages = ["/p": "<!doctype html><title>P</title><body>p</body>"]
+
+    func launch(touchID: String) throws -> (AppDriver, URL) {
         let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-private-\(UUID().uuidString.prefix(6))")
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!,
+                                extraEnvironment: ["BROWSER_DATA_DIR": data.path, "BROWSER_TEST_TOUCH_ID": touchID])
+        return (app, data)
+    }
+
+    func window(_ app: AppDriver) throws -> [String: Any] { (try app.state()["windows"] as? [[String: Any]])?.first ?? [:] }
+    func spaces(_ app: AppDriver) throws -> [String] { (try app.state()["spaces"] as? [[String: Any]] ?? []).compactMap { $0["kind"] as? String } }
+
+    @Test func privateTabsShareNothingAndForget() throws {
+        let server = try TestHTTPServer(pages: Self.pages)
+        let (app, data) = try launch(touchID: "allow")
         defer { try? FileManager.default.removeItem(at: data) }
-        let server = try TestHTTPServer(pages: ["/p": "<!doctype html><title>P</title><body>p</body>"])
-        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path])
-        func eval(_ js: String, isPrivate: Bool) throws -> String? {
-            try app.call(["op": "eval", "js": js, "private": isPrivate])["value"] as? String
-        }
+        func title() throws -> String? { try app.eval("document.title") as? String }
         func openPrivatePage() throws {
-            _ = try app.run("tabs.new-private-window")
-            try app.waitUntil(timeout: 10) { (try app.state()["windows"] as? [[String: Any]])?.contains { $0["private"] as? Bool == true } == true }
-            _ = try app.call(["op": "open", "url": server.url("/p"), "private": true])
-            try app.waitUntil(timeout: 15) { try eval("document.title", isPrivate: true) == "P" }
+            _ = try app.run("tabs.new-private-tab")
+            try app.navigate(server.url("/p"))
+            try app.waitUntil(timeout: 15) { try title() == "P" }
         }
 
         try app.open(server.url("/p"))
-        try app.waitUntil(timeout: 15) { try eval("document.title", isPrivate: false) == "P" }
-        _ = try eval("document.cookie = 'normal=1; max-age=3600'; localStorage.setItem('normal', '1'); 'ok'", isPrivate: false)
+        try app.waitUntil(timeout: 15) { try title() == "P" }
+        _ = try app.eval("document.cookie = 'normal=1; max-age=3600'; localStorage.setItem('normal', '1'); 'ok'")
+        #expect(try spaces(app) == ["normal"])
 
         try openPrivatePage()
-        #expect(try eval("document.cookie + '|' + localStorage.getItem('normal')", isPrivate: true) == "|null")
-        _ = try eval("document.cookie = 'secret=1; max-age=3600'; localStorage.setItem('secret', '1'); 'ok'", isPrivate: true)
-        #expect(try eval("document.cookie + '|' + localStorage.getItem('secret')", isPrivate: false) == "normal=1|null")
+        #expect(try window(app)["private"] as? Bool == true)
+        #expect(try spaces(app) == ["normal", "private"])
+        #expect(try app.eval("document.cookie + '|' + localStorage.getItem('normal')") as? String == "|null")
+        _ = try app.eval("document.cookie = 'secret=1; max-age=3600'; localStorage.setItem('secret', '1'); 'ok'")
 
-        _ = try app.call(["op": "run", "command": "tabs.close-window", "private": true])
-        try app.waitUntil(timeout: 10) { (try app.state()["windows"] as? [[String: Any]])?.contains { $0["private"] as? Bool == true } == false }
+        _ = try app.run("spaces.previous")
+        try app.waitUntil(timeout: 5) { try window(app)["private"] as? Bool == false }
+        #expect(try app.eval("document.cookie + '|' + localStorage.getItem('secret')") as? String == "normal=1|null")
+
+        // Back in: unlocked by Touch ID (answered yes), the private page again.
+        _ = try app.run("spaces.next")
+        try app.waitUntil(timeout: 5) { try window(app)["private"] as? Bool == true && window(app)["locked"] as? Bool == false }
+        #expect(try app.eval("document.cookie") as? String == "secret=1")
+
+        // Its last tab closed, the private space ends; a new one knows nothing of it.
+        _ = try app.run("tabs.close")
+        try app.waitUntil(timeout: 10) { try spaces(app) == ["normal"] }
         try openPrivatePage()
-        #expect(try eval("document.cookie + '|' + localStorage.getItem('secret')", isPrivate: true) == "|null")
+        #expect(try app.eval("document.cookie + '|' + localStorage.getItem('secret')") as? String == "|null")
+        try app.quit()
+    }
+
+    /// Touch ID refused: the private space stays locked and none of its pages is on screen.
+    @Test func lockedPrivateSpacesShowNoPage() throws {
+        let server = try TestHTTPServer(pages: Self.pages)
+        let (app, data) = try launch(touchID: "deny")
+        defer { try? FileManager.default.removeItem(at: data) }
+        _ = try app.run("tabs.new-private-tab")
+        try app.navigate(server.url("/p"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "P" }
+        _ = try app.run("spaces.previous")
+        _ = try app.run("spaces.next")
+        try app.waitUntil(timeout: 5) { try window(app)["locked"] as? Bool == true }
+        let views = try app.call(["op": "views"])
+        let pageWindows = (views["windows"] as? [[String: Any]] ?? []).filter {
+            $0["class"] as? String == "CefNSWindow" && $0["visible"] as? Bool == true && ($0["parent"] as? Int ?? 0) != 0
+        }
+        let webViews = (views["views"] as? [[String: Any]] ?? []).filter { $0["class"] as? String == "WKWebView" && $0["hidden"] as? Bool == false }
+        #expect(pageWindows.isEmpty && webViews.isEmpty)
         try app.quit()
     }
 }
