@@ -162,6 +162,15 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Checked: `window.focus()` in a background tab (app in front or not) leaves no page window detached from the browser
       window; the one seen came from DevTools being adopted as a tab (fixed)
 
+## 8b. The browser's own UI instead of Chromium's (2026-10-16)
+- [x] Extensions panel (run, sidebar pins, options, side panel) instead of Chrome's extensions menu
+- [x] Chrome's download bubble never pops up (`download_bubble.partial_view_enabled`)
+- [~] Chrome's "download started" animation: patch `chromium/0004` written, not built yet
+- [ ] Chrome's extension install and permission prompts, and `chrome://extensions` (site access, removal): need
+      Chromium patches (management through the browser's own panel)
+- [~] Claude in Chrome: native messaging hosts mirrored, Claude space from the extension's page marks; Claude's own
+      tabs and groups need the CEF/Chromium patches of ADR-0005 (not written or built yet)
+
 ## 9. Performance (U)
 - [x] Lazy feature activation (heavy work deferred) · [-] paint shell before CEF init: measured 2026-10-15, warm launch
       shows the window at ~350–450 ms and CEF initialization is ~80 ms of it — not worth windows before the run loop
