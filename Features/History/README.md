@@ -6,4 +6,7 @@ and the "remember history" switch are respected.
 
 **Capabilities** — provides `HistoryService` and an `OmniboxProvider`.
 
+**Start page** — contributes "Frequently Visited": the sites visited most (by visits to all their pages), favorites
+aside.
+
 **Tests** — `./forkctl test history`.

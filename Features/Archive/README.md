@@ -10,6 +10,8 @@
 - `archive.after` — Archive Today tabs after
 - `archive.keepDays` — Keep archived tabs for (days)
 
+**Start page** — contributes "Recently Archived": the five tabs archived last, a click from coming back.
+
 **Tests** — `./forkctl test archive`.
 
 **Remove it** — `./forkctl feature disable archive`.

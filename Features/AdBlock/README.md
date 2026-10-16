@@ -25,6 +25,9 @@ which requires Brave's credentials.
 **Commands** — `adblock.toggle-site`, `adblock.update-lists`. **Settings** — `adblock.enabled`,
 `adblock.supportCreators`, `adblock.cosmetic`.
 
+**Start page** — contributes a privacy line: requests blocked in the last seven days, counted per day in
+`blocked-days.json` (no list of sites is kept).
+
 **Tests** — `./forkctl test adblock` (a miniature uBO build covers the module forms; set `UBO_EXTENSION_DIR` to an
 unpacked uBO release to check a new release still assembles).
 
