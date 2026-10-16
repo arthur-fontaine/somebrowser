@@ -303,7 +303,13 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
     /// A second press right after the page had its turn goes to the browser.
     private var lastPageFirstKey: (code: UInt16, flags: UInt, at: TimeInterval)?
 
+    /// Arrows, home, end and the deletes: what a text field edits with (⌘← to the line's start). The page has them
+    /// first, as in Chrome: a field takes them; elsewhere the page leaves them and the browser's shortcut runs after
+    /// (⌘← is Back). Held down, they stay the field's.
+    static let editingKeys: Set<UInt16> = [123, 124, 125, 126, 115, 119, 51, 117]
+
     func cefTab(_ tab: CEFTab, prefersPageForKey event: NSEvent) -> Bool {
+        if Self.editingKeys.contains(event.keyCode) { return true }
         guard engine?.hooks.pageFirstShortcut?(event) == true else { return false }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).rawValue
         if let last = lastPageFirstKey, last.code == event.keyCode, last.flags == flags, event.timestamp - last.at < 0.5 {

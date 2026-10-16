@@ -10,6 +10,7 @@ struct EngineConformanceTests {
         "/one": "<!doctype html><title>One</title><body><a id='next' href='/two'>two</a><p>needle needle</p>",
         "/two": "<!doctype html><title>Two</title><body>second page</body>",
         "/three": "<!doctype html><title>Three</title><body>third</body>",
+        "/field": "<!doctype html><title>Field</title><body><input id='i' value='hello world'></body>",
         "/article": article(csp: nil),
         "/strict-article": article(csp: "script-src 'none'; style-src 'none'; require-trusted-types-for 'script'"),
         "/boost": "<!doctype html><title>Boost</title><body><div id='zapme'>ad</div><script>window.__seen = getComputedStyle(document.body).backgroundColor + ' ' + getComputedStyle(document.getElementById('zapme')).display;</script></body>",
@@ -520,6 +521,25 @@ struct EngineConformanceTests {
         #expect(try flags().contains("command-bar"))
         try app.run("command-bar.open")
         #expect(try !flags().contains("command-bar"))
+        try app.quit()
+    }
+
+    /// In a website's text field, ⌘← is the field's (to the line's start), not the browser's Back; out of it, Back.
+    @Test func textFieldsKeepTheirEditingKeys() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        try app.navigate(server.url("/field"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Field" }
+        let cmdLeft = { try app.key("\u{F702}", modifiers: ["cmd"], keyCode: 123, inPage: true) }
+        _ = try app.eval("const i = document.getElementById('i'); i.focus(); i.setSelectionRange(11, 11); 1")
+        try cmdLeft()
+        try app.waitUntil(timeout: 5) { try app.eval("String(document.getElementById('i').selectionStart)") as? String == "0" }
+        Thread.sleep(forTimeInterval: 0.6)
+        #expect(try app.eval("document.title") as? String == "Field")
+        _ = try app.eval("document.activeElement.blur(); 1")
+        try cmdLeft()
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
         try app.quit()
     }
 
