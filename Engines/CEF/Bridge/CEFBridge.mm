@@ -729,6 +729,10 @@ public:
     _toolbarScroll = CefScrollView::CreateScrollView(nullptr);
     _toolbarScroll->SetContentView(full);
     _toolbarOverlay = window->AddOverlayView(_toolbarScroll, CEF_DOCKING_MODE_CUSTOM, false);
+    // CEF adds an empty view above the page as the overlay's z-order reference, and the window's fill layout
+    // stretches it over the whole page. Chromium routes clicks by the view under the pointer, so that view took
+    // every click meant for the page: the page goes back on top.
+    if (_view) window->ReorderChildView(_view, -1);
     _toolbarOverlay->SetBounds([self toolbarOverlayBounds]);
     _toolbarOverlay->SetVisible(true);
     [self placeToolbarContent];

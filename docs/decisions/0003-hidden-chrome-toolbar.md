@@ -42,6 +42,10 @@ when Chrome replaces those files.
   remains: the hidden omnibox's AI-mode popup (`chrome://omnibox-popup.top-chrome/omnibox_popup_aim.html`),
   46 MB footprint for the whole app; `AimEnabled`, `OmniboxDuiPrerendering` and related flags don't stop it.
 - Keyboard: Tab never leaves the page for the toolbar, and ⌘L is ours (the command bar); verified manually.
+- Clicks: `AddOverlayView` also adds an empty view above the page, the overlay's z-order reference, and the window's
+  fill layout stretches it over the whole page. Chromium routes a click to the page only when its views put the
+  page under the pointer, so that view took every click (2026-10-16, CEF 154 and 156). The page's view is moved
+  back on top after the overlay is added; E2E `clicksReachThePage` covers it.
 - The installed list lags Chrome by its preference write interval (~10 s).
 - Teardown: Chrome's browser view keeps a pointer to its toolbar, so before a page window closes the toolbar
   is moved back into that window (hidden) and the overlay destroyed; otherwise the toolbar dies with the

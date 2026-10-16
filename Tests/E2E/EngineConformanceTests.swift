@@ -15,6 +15,7 @@ struct EngineConformanceTests {
         "/boost": "<!doctype html><title>Boost</title><body><div id='zapme'>ad</div><script>window.__seen = getComputedStyle(document.body).backgroundColor + ' ' + getComputedStyle(document.getElementById('zapme')).display;</script></body>",
         "/early": "<!doctype html><title>Pending</title><script>document.title = window.__early === 1 ? 'early' : 'late';</script><body>early</body>",
         "/spoof": "<!doctype html><title>Spoof</title><script>setInterval(() => { if (window.__browser) for (let i = 0; i < 200; i++) window.__browser.post('__eval', { id: i, ok: true, value: 'spoofed' }); }, 5);</script><body>spoof</body>",
+        "/click": "<!doctype html><title>Click</title><body style='margin:0'><button style='position:absolute;left:20px;top:20px;width:120px;height:60px'>b</button><script>addEventListener('click', e => document.title = 'Clicked ' + e.target.tagName);</script></body>",
         "/strict": "<!doctype html><meta http-equiv='Content-Security-Policy' content=\"script-src 'none'; require-trusted-types-for 'script'\"><title>Strict</title><body>strict</body>",
     ]
 
@@ -59,6 +60,18 @@ struct EngineConformanceTests {
     }
 
     /// Simulated responses keep the URL's origin (Sign in with Apple hands back appleid.apple.com's page).
+    /// A click reaches the page: nothing of the window's own covers it (Chromium routes clicks by the views under the
+    /// pointer, and CEF's overlay host view once took them all).
+    @Test func clicksReachThePage() throws {
+        let (app, server) = try launch()
+        try app.open(server.url("/click"))
+        try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.title == "Click" } }
+        let hit = try app.click(x: 60, y: 40)
+        try app.waitUntil(timeout: 5) { try app.eval("document.title") as? String == "Clicked BUTTON" }
+        #expect(!hit.isEmpty)
+        try app.quit()
+    }
+
     @Test func simulatedResponsesKeepTheirOrigin() throws {
         let (app, server) = try launch()
         try app.open(server.url("/one"))
