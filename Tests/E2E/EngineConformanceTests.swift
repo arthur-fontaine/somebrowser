@@ -191,6 +191,19 @@ struct EngineConformanceTests {
         #expect((prefs["translate"] as? [String: Any])?["enabled"] as? Bool == false)
     }
 
+    /// Chrome's new-tab page (Google's; an extension's `tabs.create({url: "chrome://newtab"})` asks for it) never
+    /// shows: the page shows the browser's own new tab, blank.
+    @Test func chromesNewTabPageIsTheBrowsers() throws {
+        let server = try TestHTTPServer(pages: ["/one": "<!doctype html><title>One</title>"])
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.title == "One" } }
+        try app.navigate("chrome://newtab/")
+        try app.waitUntil(timeout: 10) { try app.eval("location.href") as? String == "about:blank" }
+        try app.quit()
+    }
+
     /// A click reaches the page: nothing of the window's own covers it (Chromium routes clicks by the views under the
     /// pointer, and CEF's overlay host view once took them all).
     @Test func clicksReachThePage() throws {

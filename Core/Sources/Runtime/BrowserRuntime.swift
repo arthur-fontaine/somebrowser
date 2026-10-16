@@ -70,6 +70,10 @@ public final class BrowserRuntime {
             guard let self, let window = self.keyWindow else { return }
             self.openTab(url, in: window)
         }
+        engine.hooks.newTabPage = { [weak self] in
+            guard let self, let window = self.keyWindow else { return nil }
+            return self.capabilities.newTabPage?.newTabPage(in: window)
+        }
         engine.hooks.onRecreateTab = { [weak self] page, url in
             // Not from inside the page's own callback.
             DispatchQueue.main.async { self?.recreate(page, at: url) }

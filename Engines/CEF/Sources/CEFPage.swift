@@ -228,6 +228,13 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
 
     func cefTab(_ tab: CEFTab, shouldNavigateTo url: String, userGesture gesture: Bool, isRedirect redirect: Bool) -> Bool {
         guard !redirect, let engine, let u = URL(string: url) else { return true }
+        // Chrome's new-tab page (an extension's `tabs.create({url: "chrome://newtab"})`) would contact Google: the
+        // page shows the browser's own new tab instead (blank, or an extension's override).
+        if CEFEngine.isChromeNewTabPage(u) {
+            let page = engine.hooks.newTabPage?() ?? URL(string: "about:blank")!
+            DispatchQueue.main.async { [weak self] in self?.load(page) }
+            return false
+        }
         var mods = NSEventModifierFlagsBox()
         let flags = NSEvent.modifierFlags
         if flags.contains(.command) { mods.insert(.command) }

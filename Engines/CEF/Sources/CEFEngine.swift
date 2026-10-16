@@ -402,8 +402,12 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     /// Chrome opens its new-tab page when it wants a tabbed window for its own UI (e.g. the "extension
     /// installed" bubble after a Web Store install), not because the user asked for a page.
     static func adoptsChromeOpenedURL(_ url: String) -> Bool {
-        guard let u = URL(string: url), u.scheme == "chrome" else { return true }
-        return !["newtab", "new-tab-page", "new-tab-page-third-party"].contains(u.host ?? "")
+        guard let u = URL(string: url) else { return true }
+        return !isChromeNewTabPage(u)
+    }
+
+    static func isChromeNewTabPage(_ url: URL) -> Bool {
+        url.scheme == "chrome" && ["newtab", "new-tab-page", "new-tab-page-third-party"].contains(url.host ?? "")
     }
 
     /// Same page observer as the WebKit engine: media state, hovered links (CEF has no audible callback).

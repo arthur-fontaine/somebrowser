@@ -149,6 +149,10 @@ public final class EngineHooks {
     /// The engine opened a page on its own (e.g. an extension called `chrome.tabs.create`). The runtime opens it as a tab.
     public var onEngineOpenedURL: ((URL) -> Void)?
 
+    /// The page a new tab shows (an extension's override), nil for the browser's blank new tab. Engines show it for
+    /// their own new-tab page.
+    public var newTabPage: (() -> URL?)?
+
     /// The engine wants a live tab made again at `url` (the next `makeTab` may give another kind of page: CEF moves pages
     /// that need protected media to WebKit). The runtime replaces the tab's page in place.
     public var onRecreateTab: ((EngineTab, URL) -> Void)?
