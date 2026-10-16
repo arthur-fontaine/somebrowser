@@ -6,7 +6,8 @@
   "provides": ["search"],
   "settings": [
     { "key": "search.engine", "title": "Search engine", "type": "choice", "default": "duckduckgo",
-      "options": ["duckduckgo", "kagi", "brave", "startpage", "ecosia", "bing", "google", "perplexity"] },
+      "options": ["duckduckgo", "kagi", "brave", "startpage", "ecosia", "bing", "google", "perplexity"],
+      "optionTitles": ["DuckDuckGo", "Kagi", "Brave Search", "Startpage", "Ecosia", "Bing", "Google", "Perplexity"] },
     { "key": "search.suggestions", "title": "Show search suggestions while typing", "type": "bool", "default": true,
       "description": "Sends what you type to the search engine to get suggestions." },
     { "key": "search.keywords", "title": "Site search keywords", "type": "string",

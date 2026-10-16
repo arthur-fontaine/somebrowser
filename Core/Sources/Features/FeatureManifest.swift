@@ -95,20 +95,27 @@ public struct SettingDescriptor: Decodable, Sendable, Identifiable {
     public var defaultValue: SettingValue
     public var description: String?
     public var options: [String]
+    /// How each option reads in Settings ("DuckDuckGo"), in `options`' order; else the option, capitalized.
+    public var optionTitles: [String]
     public var section: String?
 
     public init(key: String, title: String, kind: SettingKind, defaultValue: SettingValue, description: String? = nil,
-                options: [String] = [], section: String? = nil) {
+                options: [String] = [], optionTitles: [String] = [], section: String? = nil) {
         self.key = key
         self.title = title
         self.kind = kind
         self.defaultValue = defaultValue
         self.description = description
         self.options = options
+        self.optionTitles = optionTitles
         self.section = section
     }
 
-    enum CodingKeys: String, CodingKey { case key, title, type, `default`, description, options, section }
+    public func title(ofOption option: String) -> String {
+        options.firstIndex(of: option).flatMap { optionTitles.indices.contains($0) ? optionTitles[$0] : nil } ?? option.capitalized
+    }
+
+    enum CodingKeys: String, CodingKey { case key, title, type, `default`, description, options, optionTitles, section }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -119,6 +126,7 @@ public struct SettingDescriptor: Decodable, Sendable, Identifiable {
             defaultValue: try c.decode(SettingValue.self, forKey: .default),
             description: try c.decodeIfPresent(String.self, forKey: .description),
             options: try c.decodeIfPresent([String].self, forKey: .options) ?? [],
+            optionTitles: try c.decodeIfPresent([String].self, forKey: .optionTitles) ?? [],
             section: try c.decodeIfPresent(String.self, forKey: .section)
         )
     }

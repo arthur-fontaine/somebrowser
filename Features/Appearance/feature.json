@@ -7,7 +7,9 @@
   "requires": [],
   "commands": [],
   "settings": [
-    { "key": "appearance.glass", "title": "Controls and panels: Liquid Glass (regular), clear glass, or solid", "type": "choice", "default": "glass", "options": ["glass", "clear", "solid"] },
-    { "key": "appearance.backdrop", "title": "Around the page: the desktop through the window, or frosted", "type": "choice", "default": "desktop", "options": ["desktop", "frosted"] }
+    { "key": "appearance.glass", "title": "Controls and panels: Liquid Glass (regular), clear glass, or solid", "type": "choice", "default": "glass", "options": ["glass", "clear", "solid"],
+      "optionTitles": ["Liquid Glass", "Clear glass", "Solid"] },
+    { "key": "appearance.backdrop", "title": "Around the page: the desktop through the window, or frosted", "type": "choice", "default": "desktop", "options": ["desktop", "frosted"],
+      "optionTitles": ["Desktop", "Frosted"] }
   ]
 }

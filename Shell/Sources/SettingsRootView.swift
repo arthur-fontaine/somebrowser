@@ -74,7 +74,7 @@ struct SettingControl: View {
                 Toggle(descriptor.title, isOn: Binding(get: { store.bool(key) }, set: { store.set(key, .bool($0)) }))
             case .choice:
                 Picker(descriptor.title, selection: Binding(get: { store.string(key) }, set: { store.set(key, .string($0)) })) {
-                    ForEach(descriptor.options, id: \.self) { Text($0.capitalized).tag($0) }
+                    ForEach(descriptor.options, id: \.self) { Text(descriptor.title(ofOption: $0)).tag($0) }
                 }
             case .int:
                 Stepper(value: Binding(get: { store.int(key) }, set: { store.set(key, .int($0)) })) {
@@ -86,7 +86,9 @@ struct SettingControl: View {
                         .frame(width: 90)
                 }
             case .string:
-                TextField(descriptor.title, text: Binding(get: { store.string(key) }, set: { store.set(key, .string($0)) }))
+                // Long values (keyword lists) wrap instead of running out of the row.
+                TextField(descriptor.title, text: Binding(get: { store.string(key) }, set: { store.set(key, .string($0)) }), axis: .vertical)
+                    .lineLimit(1...4)
             }
             if let help = descriptor.description {
                 Text(help).font(.caption).foregroundStyle(.secondary)

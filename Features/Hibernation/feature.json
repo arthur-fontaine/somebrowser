@@ -9,7 +9,8 @@
     { "id": "hibernation.hibernate-background", "title": "Hibernate Background Tabs", "menu": "Tabs", "group": "clear", "order": 4, "keywords": ["memory", "sleep", "discard", "free"] }
   ],
   "settings": [
-    { "key": "hibernation.after", "title": "Hibernate background tabs after", "type": "choice", "default": "1h", "options": ["5m", "15m", "30m", "1h", "4h", "never"] },
+    { "key": "hibernation.after", "title": "Hibernate background tabs after", "type": "choice", "default": "1h", "options": ["5m", "15m", "30m", "1h", "4h", "never"],
+      "optionTitles": ["5 minutes", "15 minutes", "30 minutes", "1 hour", "4 hours", "Never"] },
     { "key": "hibernation.memoryPressure", "title": "Free background tabs when memory runs low", "type": "bool", "default": true }
   ]
 }
