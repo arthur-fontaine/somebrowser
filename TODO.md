@@ -166,6 +166,10 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Extensions panel (run, sidebar pins, options, side panel) instead of Chrome's extensions menu
 - [x] Chrome's download bubble never pops up (`download_bubble.partial_view_enabled`)
 - [~] Chrome's "download started" animation: patch `chromium/0004` written, not built yet
+- [x] Pages' dialogs (alert, confirm, prompt, leaving, sites' sign-in) are the browser's own (Dialogs feature)
+- [x] Error and certificate pages are the browser's own (Error Pages feature), Visit Anyway included
+- [x] Context menu without Chrome's own UI items; Open Link in Private Tab
+- [x] No Chrome password, AutoFill, translate offers or debugger bar
 - [ ] Chrome's extension install and permission prompts, and `chrome://extensions` (site access, removal): need
       Chromium patches (management through the browser's own panel)
 - [~] Claude in Chrome: native messaging hosts mirrored, Claude space from the extension's page marks; Claude's own
