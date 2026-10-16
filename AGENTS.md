@@ -40,7 +40,7 @@ This file is for coding agents and humans customizing the browser. Read it fully
 | Test everything / one feature | `./forkctl test` · `./forkctl test sidebar` · `./forkctl test engine` |
 | Chromium logs | run `build/<Name>.app/Contents/MacOS/<Name> --enable-logging=stderr --vmodule='*extension*=1'` |
 | Rename the browser | `./forkctl rename "Kestrel" --bundle-id dev.me.kestrel` (the profile folder moves over on first launch) |
-| Change the icon | `./forkctl icon path/to/1024.png` |
+| Change the icon | `./forkctl icon path/to/1024.png` (hand-drawn small sizes sit next to it as `AppIcon-16.png`, `AppIcon-32.png`) |
 | Swap the engine | `./forkctl engine list` · `./forkctl engine use webkit` |
 | Use your own CEF build | pin it in `Fork/Engines/CEF/vendor.json`, then `./forkctl vendor cef` (`docs/recipes/ungoogled-cef.md`) |
 | Remove / add back a feature | `./forkctl feature disable pip` · `./forkctl feature enable pip` |

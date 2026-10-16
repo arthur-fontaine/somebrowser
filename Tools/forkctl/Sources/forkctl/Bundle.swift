@@ -79,7 +79,8 @@ enum Bundler {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? "1"
     }
 
-    /// Brand icon (1024² PNG) → .icns. Fork icon wins over the default one.
+    /// Brand icon (1024² PNG) → .icns. Fork icon wins over the default one. A master drawn for a small size sits next to
+    /// it as `<name>-<px>.png` (e.g. `AppIcon-16.png`) and is used as is at that size instead of a shrunk copy.
     static func makeIcon(_ p: Project, into icns: URL) throws {
         let source = p.brand.icon.map { p.path($0) } ?? p.path("Defaults/Assets/AppIcon.png")
         guard FileManager.default.fileExists(atPath: source.path) else { return }
@@ -90,7 +91,13 @@ enum Bundler {
             for scale in [1, 2] {
                 let px = size * scale
                 let name = scale == 1 ? "icon_\(size)x\(size).png" : "icon_\(size)x\(size)@2x.png"
-                try Shell.run(["sips", "-z", "\(px)", "\(px)", source.path, "--out", tmp.appendingPathComponent(name).path], quiet: true)
+                let out = tmp.appendingPathComponent(name)
+                let master = source.deletingPathExtension().path + "-\(px).png"
+                if FileManager.default.fileExists(atPath: master) {
+                    try FileManager.default.copyItem(atPath: master, toPath: out.path)
+                } else {
+                    try Shell.run(["sips", "-z", "\(px)", "\(px)", source.path, "--out", out.path], quiet: true)
+                }
             }
         }
         try Shell.run(["iconutil", "-c", "icns", tmp.path, "-o", icns.path], quiet: true)
