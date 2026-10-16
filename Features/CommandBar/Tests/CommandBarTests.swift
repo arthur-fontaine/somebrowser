@@ -137,4 +137,63 @@ struct CommandBarTests {
         model.moveSelection(-1, in: h.window)
         #expect(model.session(h.window)?.selection == count - 1)
     }
+
+    /// Inline (the default): ⌘T opens the new tab, then its address is typed in the sidebar's field.
+    @Test func newTabOpensFirstThenItsAddressIsTyped() throws {
+        let (h, model) = try harness()
+        h.openTab("https://a.example/")
+        let before = h.runtime.tabs.allTabs.count
+        try h.run("command-bar.open")
+        #expect(h.runtime.tabs.allTabs.count == before + 1)
+        #expect(h.selectedTab?.url == nil)
+        #expect(model.session(h.window)?.style == .inline)
+        model.setQuery("example.com", in: h.window)
+        model.execute(h.window)
+        #expect(h.selectedTab?.url?.absoluteString == "https://example.com")
+        #expect(h.runtime.tabs.allTabs.count == before + 1)  // the new tab was filled
+    }
+
+    /// Switching to an open tab from ⌘T leaves no untouched blank tab behind.
+    @Test func switchingFromANewTabClosesIt() throws {
+        let (h, model) = try harness()
+        let a = h.openTab("https://a.example/")
+        h.openTab("https://b.example/")
+        let before = h.runtime.tabs.allTabs.count
+        try h.run("command-bar.open")
+        let i = try #require(model.items(for: h.window).firstIndex { $0.id == "tab:\(a.id)" })
+        model.execute(h.window, index: i)
+        #expect(h.window.selectedTabID == a.id)
+        #expect(h.runtime.tabs.allTabs.count == before)
+    }
+
+    /// Esc first reverts what was typed, then closes; ⌥↩ opens in a new tab even while editing the address.
+    @Test func escapeRevertsThenClosesAndOptionReturnOpensANewTab() throws {
+        let (h, model) = try harness()
+        h.openTab("https://a.example/")
+        try h.run("command-bar.edit-url")
+        let initial = model.session(h.window)?.query
+        model.setQuery("b.example", in: h.window)
+        model.escape(h.window)
+        #expect(model.session(h.window)?.query == initial)
+        model.escape(h.window)
+        #expect(model.session(h.window) == nil)
+
+        try h.run("command-bar.edit-url")
+        model.setQuery("c.example", in: h.window)
+        let before = h.runtime.tabs.allTabs.count
+        model.execute(h.window, inNewTab: true)
+        #expect(h.runtime.tabs.allTabs.count == before + 1)
+        #expect(h.selectedTab?.url?.absoluteString == "https://c.example")
+    }
+
+    /// The palette style keeps Arc's: ⌘T opens nothing until something is chosen.
+    @Test func paletteStyleOpensNoTabFirst() throws {
+        let (h, model) = try harness()
+        h.runtime.settings.set("command-bar.style", .string("palette"))
+        let before = h.runtime.tabs.allTabs.count
+        try h.run("command-bar.open")
+        #expect(h.runtime.tabs.allTabs.count == before)
+        #expect(model.session(h.window)?.style == .palette)
+    }
 }
+

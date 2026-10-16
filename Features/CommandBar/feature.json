@@ -1,7 +1,7 @@
 {
   "id": "command-bar",
   "name": "Command Bar",
-  "summary": "Arc's centered command bar: open URLs, search, switch tabs, search history and run any action from the keyboard.",
+  "summary": "Open URLs, search, switch tabs, search history and run any action from the keyboard: in the sidebar's address field, or Arc's centered palette.",
   "entry": "CommandBarFeature",
   "provides": [
     "command-bar"
@@ -14,7 +14,7 @@
   "commands": [
     {
       "id": "command-bar.open",
-      "title": "New Tab\u2026",
+      "title": "New Tab…",
       "shortcut": "cmd+t",
       "menu": "File",
       "group": "new",
@@ -28,7 +28,7 @@
     },
     {
       "id": "command-bar.edit-url",
-      "title": "Open Location\u2026",
+      "title": "Open Location…",
       "shortcut": "cmd+l",
       "menu": "File",
       "group": "new",
@@ -49,6 +49,20 @@
     }
   ],
   "settings": [
+    {
+      "key": "command-bar.style",
+      "title": "Edit addresses in",
+      "type": "choice",
+      "default": "inline",
+      "options": [
+        "inline",
+        "palette"
+      ],
+      "optionTitles": [
+        "The sidebar's address field",
+        "A centered palette"
+      ]
+    },
     {
       "key": "command-bar.showActions",
       "title": "Show actions in the command bar",

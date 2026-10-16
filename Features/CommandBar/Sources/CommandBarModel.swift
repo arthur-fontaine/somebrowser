@@ -12,11 +12,19 @@ final class CommandBarModel {
         case editURL
     }
 
+    /// Where it's drawn: in the sidebar's address field (grown from it), or as a centered palette (Arc's).
+    enum Style: String {
+        case inline, palette
+    }
+
     struct Session {
         var mode: Mode
         var query: String
         var selection = 0
         var suggestions: [String] = []
+        var style: Style = .palette
+        /// The text it opened with: Esc first reverts to it.
+        var initialQuery = ""
     }
 
     @ObservationIgnored let runtime: BrowserRuntime
@@ -31,18 +39,43 @@ final class CommandBarModel {
 
     // MARK: Lifecycle
 
-    func open(_ window: BrowserWindowState, mode: Mode) {
+    /// The blank tab ⌘T opened for an inline session, closed again if the session switches to another tab instead.
+    @ObservationIgnored var openedBlankTab: [UUID: NodeID] = [:]
+    /// Windows whose floating sidebar the session showed (the sidebar was hidden), to put away on close.
+    @ObservationIgnored var peeked: Set<UUID> = []
+
+    func open(_ window: BrowserWindowState, mode: Mode, style: Style = .palette) {
         var query = ""
         if mode == .editURL, let tab = runtime.selectedTab(in: window) {
             query = (tab.live?.url ?? tab.url)?.absoluteString ?? ""
         }
-        sessions[window.id] = Session(mode: mode, query: query)
+        sessions[window.id] = Session(mode: mode, query: query, style: style, initialQuery: query)
         window.flags.insert(Self.flag)
     }
 
     func close(_ window: BrowserWindowState) {
         sessions[window.id] = nil
         window.flags.remove(Self.flag)
+        if peeked.remove(window.id) != nil {
+            window.titlebarRequests.remove(Self.flag)
+            // Put away unless the pointer is over it (then it hides as the pointer leaves, as a hover peek does).
+            let frame = runtime.shell?.nsWindow(for: window)?.frame ?? .zero
+            if !frame.contains(NSEvent.mouseLocation) || NSEvent.mouseLocation.x > frame.minX + window.sidebarWidth + 16 {
+                window.isSidebarPeeking = false
+            }
+        }
+    }
+
+    /// Esc: reverts what was typed, or closes if nothing was.
+    func escape(_ window: BrowserWindowState) {
+        guard var s = sessions[window.id] else { return }
+        if s.query != s.initialQuery {
+            s.query = s.initialQuery
+            s.selection = 0
+            sessions[window.id] = s
+        } else {
+            close(window)
+        }
     }
 
     func session(_ window: BrowserWindowState) -> Session? { sessions[window.id] }
@@ -116,7 +149,7 @@ final class CommandBarModel {
 
     private func tabItems(_ q: String, window: BrowserWindowState) -> [OmniboxItem] {
         runtime.tabs.allTabs.compactMap { tab in
-            guard tab.id != window.selectedTabID else { return nil }
+            guard tab.id != window.selectedTabID, tab.url != nil || tab.isLoaded else { return nil }
             let url = tab.live?.url ?? tab.url
             let score = max(FuzzyMatch.score(q, in: tab.displayTitle), FuzzyMatch.score(q, in: url?.host() ?? "") * 0.95)
             guard score > 0 else { return nil }
@@ -149,7 +182,8 @@ final class CommandBarModel {
                                      kind: "Open", score: 2) { [weak self] w in self?.open(url, in: w, mode: mode) })
         }
         for id in window.mru where id != window.selectedTabID {
-            guard let tab = runtime.tabs.tab(id) else { continue }
+            // A blank tab isn't somewhere to go back to.
+            guard let tab = runtime.tabs.tab(id), tab.url != nil || tab.isLoaded else { continue }
             let url = tab.live?.url ?? tab.url
             items.append(OmniboxItem(id: "tab:\(id)", title: tab.displayTitle, subtitle: url?.host(), icon: .favicon(url),
                                      kind: "Switch to Tab", score: 1) { [weak self] w in self?.runtime.select(id, in: w) })
@@ -160,13 +194,23 @@ final class CommandBarModel {
 
     // MARK: Execution
 
-    func execute(_ window: BrowserWindowState, index: Int? = nil) {
+    /// Runs the selected result (`index`, else the selection); `inNewTab` (⌥↩) opens an address or search in a new tab.
+    func execute(_ window: BrowserWindowState, index: Int? = nil, inNewTab: Bool = false) {
+        if inNewTab, var s = sessions[window.id], s.mode != .newTab {
+            s.mode = .newTab
+            sessions[window.id] = s
+        }
         let list = items(for: window)
         let i = index ?? sessions[window.id]?.selection ?? 0
         guard list.indices.contains(i) else { return }
         let item = list[i]
+        let blank = openedBlankTab.removeValue(forKey: window.id)
         close(window)
         item.action(window)
+        // ⌘T's blank tab, left untouched because the result switched to another tab.
+        if let blank, window.selectedTabID != blank, let tab = runtime.tabs.tab(blank), tab.url == nil, !tab.isLoaded {
+            runtime.close(blank)
+        }
         runtime.shell?.focusContent(in: window)
     }
 

@@ -6,6 +6,18 @@ public final class CommandBarFeature: BrowserFeature {
     let context: FeatureContext
     let model: CommandBarModel
 
+    var style: CommandBarModel.Style { CommandBarModel.Style(rawValue: context.settings.string("command-bar.style")) ?? .inline }
+
+    /// Edits in the sidebar's address field; with the sidebar hidden, it floats in for the occasion.
+    func openInline(_ w: BrowserWindowState, mode: CommandBarModel.Mode) {
+        if !w.isSidebarVisible && !w.isSidebarPeeking {
+            w.isSidebarPeeking = true
+            w.titlebarRequests.insert(CommandBarModel.flag)
+            model.peeked.insert(w.id)
+        }
+        model.open(w, mode: mode, style: .inline)
+    }
+
     public init(context: FeatureContext) {
         self.context = context
         model = CommandBarModel(runtime: context.runtime)
@@ -23,13 +35,24 @@ public final class CommandBarFeature: BrowserFeature {
             } else if let page = self.context.capabilities.newTabPage?.newTabPage(in: w) {
                 self.context.runtime.openTab(page, in: w)
                 self.context.shell?.focusContent(in: w)
+            } else if self.style == .inline {
+                // As Safari: the new tab first (its start page behind), then its address being typed.
+                let tab = self.context.runtime.openTab(nil, in: w)
+                self.openInline(w, mode: .newTab)
+                model.openedBlankTab[w.id] = tab.id
             } else {
                 model.open(w, mode: .newTab)
             }
         }
-        context.commands.handle("command-bar.edit-url") { inv in
-            guard let w = inv.window else { return }
-            if model.session(w)?.mode == .editURL { model.close(w) } else { model.open(w, mode: .editURL) }
+        context.commands.handle("command-bar.edit-url") { [weak self] inv in
+            guard let self, let w = inv.window else { return }
+            if model.session(w)?.mode == .editURL {
+                model.close(w)
+            } else if self.style == .inline {
+                self.openInline(w, mode: .editURL)
+            } else {
+                model.open(w, mode: .editURL)
+            }
         }
         context.commands.handle("command-bar.paste-and-go") { [weak self] inv in
             guard let self, let w = inv.window,
@@ -41,6 +64,19 @@ public final class CommandBarFeature: BrowserFeature {
 }
 
 struct CommandBarOverlay: View {
+    let window: BrowserWindowState
+    let model: CommandBarModel
+
+    var body: some View {
+        ZStack {
+            Palette(window: window, model: model)
+            InlineEditor(window: window, model: model)
+        }
+    }
+}
+
+/// Arc's centered palette (the `palette` style).
+struct Palette: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let window: BrowserWindowState
     let model: CommandBarModel
@@ -48,7 +84,7 @@ struct CommandBarOverlay: View {
     @State private var scale = Design.Motion.panelEnterScale
 
     var body: some View {
-        let shown = window.flags.contains(CommandBarModel.flag) && model.session(window) != nil
+        let shown = window.flags.contains(CommandBarModel.flag) && model.session(window)?.style == .palette
         let content = window.contentFrame
         // Always mounted, hidden: opening only changes opacity and scale. Building the glass and the field on each
         // open stalled the first frames of the arrival.
@@ -121,10 +157,10 @@ struct CommandBarPanel: View {
                     .font(.system(size: 22))
                     .disabled(!isShown)  // hidden, it never takes the keyboard
                     .focused($focused)
-                    .onSubmit { model.execute(window) }
+                    .onSubmit { model.execute(window, inNewTab: NSEvent.modifierFlags.contains(.option)) }
                     .onKeyPress(.downArrow) { model.moveSelection(1, in: window); return .handled }
                     .onKeyPress(.upArrow) { model.moveSelection(-1, in: window); return .handled }
-                    .onKeyPress(.escape) { model.close(window); return .handled }
+                    .onKeyPress(.escape) { model.escape(window); return .handled }
                     .onKeyPress(.tab) { completeKeyword(query); return .handled }
             }
             .padding(.leading, Self.iconX)
@@ -164,7 +200,6 @@ struct CommandBarPanel: View {
 }
 
 struct OmniboxRow: View {
-    @Environment(BrowserEnvironment.self) private var env
     let item: OmniboxItem
     let selected: Bool
     let isLast: Bool
@@ -175,7 +210,7 @@ struct OmniboxRow: View {
         let shape = UnevenRoundedRectangle(topLeadingRadius: Design.Radius.item, bottomLeadingRadius: bottom,
                                            bottomTrailingRadius: bottom, topTrailingRadius: Design.Radius.item, style: .continuous)
         HStack(spacing: CommandBarPanel.textX - CommandBarPanel.iconX - CommandBarPanel.iconWidth) {
-            icon.frame(width: 18, height: 18).frame(width: CommandBarPanel.iconWidth)
+            OmniboxIcon(item: item).frame(width: 18, height: 18).frame(width: CommandBarPanel.iconWidth)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
                 if let s = item.subtitle { Text(s).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1) }
@@ -189,15 +224,20 @@ struct OmniboxRow: View {
         .frame(height: item.subtitle == nil ? 36 : 44)
         .background(shape.fill(selected ? Design.Fill.selection : .clear))
     }
+}
 
-    @ViewBuilder private var icon: some View {
+/// A result's icon: a symbol, an image, or the icon a page of that site already showed (typing contacts no site).
+struct OmniboxIcon: View {
+    @Environment(BrowserEnvironment.self) private var env
+    let item: OmniboxItem
+
+    var body: some View {
         switch item.icon {
         case .system(let name):
             Image(systemName: name).foregroundStyle(.secondary)
         case .image(let image):
             Image(nsImage: image).resizable().scaledToFit()
         case .favicon(let url):
-            // Only an icon a page already showed: typing contacts no site.
             SiteIcon(env.runtime.favicons.image(for: url))
         }
     }
