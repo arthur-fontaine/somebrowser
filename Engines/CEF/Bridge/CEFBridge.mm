@@ -132,6 +132,24 @@ static void ChromeWindowsAnnounceThemselves() {
     class_replaceMethod(NSWindow.class, @selector(addChildWindow:ordered:), (IMP)AddChildWindow, method_getTypeEncoding(add));
 }
 
+/// The page and the browser window are one surface: the pointer entering a page in the browser window that has focus
+/// makes the page key, as a click would, so Chromium's cursor (a hand on links, a text beam) shows at once (AppKit
+/// applies cursors in the key window only). Not while text is being typed in the browser window (the sidebar's field),
+/// nor over another window (an overlay, the command bar, which are key then).
+@interface PageHoverFocus : NSResponder
+@property (weak) NSWindow *page;
+@end
+
+@implementation PageHoverFocus
+- (void)mouseEntered:(NSEvent *)event {
+    NSWindow *page = self.page;
+    NSWindow *browser = page.parentWindow;
+    if (!NSApp.isActive || !browser || !browser.isKeyWindow || page.isKeyWindow || !page.isVisible || !page.canBecomeKeyWindow) return;
+    if ([browser.firstResponder isKindOfClass:NSText.class]) return;
+    [page makeKeyWindow];
+}
+@end
+
 // MARK: - NSApplication
 
 @interface BrowserCEFApplication () <CefAppProtocol> {
@@ -830,6 +848,7 @@ public:
     CefRefPtr<CefPanel> _toolbarFull;
     CefRefPtr<CefView> _toolbarView;
     CefRefPtr<SizedPanelDelegate> _toolbarSize;
+    PageHoverFocus *_hoverFocus;
     NSMutableArray<void (^)(void)> *_pending;
     double _zoomLevel;
     BOOL _muted;
@@ -905,6 +924,12 @@ public:
     w.releasedWhenClosed = NO;
     w.animationBehavior = NSWindowAnimationBehaviorNone;
     w.collectionBehavior = NSWindowCollectionBehaviorFullScreenAuxiliary;
+    _hoverFocus = [PageHoverFocus new];
+    _hoverFocus.page = w;
+    NSView *root = w.contentView.superview ?: w.contentView;
+    [root addTrackingArea:[[NSTrackingArea alloc] initWithRect:NSZeroRect
+                                                       options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
+                                                         owner:_hoverFocus userInfo:nil]];
     if (view->GetBrowser()) [self browserCreated:view->GetBrowser()];
 }
 
