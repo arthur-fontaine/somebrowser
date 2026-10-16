@@ -2,6 +2,7 @@
 #import "CEFBridge.h"
 
 #include <crt_externs.h>
+#include <objc/runtime.h>
 
 #include <atomic>
 #include <cmath>
@@ -75,6 +76,26 @@ private:
     NSMutableArray *cookies_ = [NSMutableArray array];
     IMPLEMENT_REFCOUNTING(SiteCookieCollector);
 };
+
+// MARK: - Page windows
+
+static IMP gWindowIsMainWindow;
+
+/// Chromium's page view takes mouse moves (hover, the cursor) only in a main or key window, and a page window, a child
+/// of the browser window, is never main: after a click in the sidebar, the page showed no hover until clicked. A page
+/// window is main whenever its browser window is.
+static BOOL PageWindowIsMainWindow(NSWindow *self, SEL _cmd) {
+    if (((BOOL (*)(id, SEL))gWindowIsMainWindow)(self, _cmd)) return YES;
+    return self.parentWindow.isMainWindow;
+}
+
+static void PageWindowsFollowTheirBrowserWindow() {
+    Class page = NSClassFromString(@"CefNSWindow");
+    if (!page || gWindowIsMainWindow) return;
+    Method method = class_getInstanceMethod(page, @selector(isMainWindow));
+    gWindowIsMainWindow = method_getImplementation(method);
+    class_replaceMethod(page, @selector(isMainWindow), (IMP)PageWindowIsMainWindow, method_getTypeEncoding(method));
+}
 
 // MARK: - NSApplication
 
@@ -1180,6 +1201,7 @@ private:
         if (error) *error = [NSError errorWithDomain:@"CEF" code:CefGetExitCode() userInfo:@{NSLocalizedDescriptionKey: @"CefInitialize failed"}];
         return NO;
     }
+    PageWindowsFollowTheirBrowserWindow();
     return YES;
 }
 
