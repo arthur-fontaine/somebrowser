@@ -15,8 +15,9 @@ struct InlineEditor: View {
     @State private var rowsShown = false
     /// The expanded editor's denser tint, arriving with its growth.
     @State private var tinted = false
-    /// The last results, still drawn while the panel folds away.
+    /// The last results and text, still drawn while the panel folds away (the session is gone by then).
     @State private var shownItems: [OmniboxItem] = []
+    @State private var shownQuery = ""
     @FocusState private var focused: Bool
 
     static let width: CGFloat = 480
@@ -60,6 +61,7 @@ struct InlineEditor: View {
         .ignoresSafeArea()
         .overlayKeyboardFocus("command-bar.inline", in: window, isEnabled: editing)
         .onChange(of: editing) { present(editing) }
+        .onChange(of: model.session(window)?.query) { if let q = model.session(window)?.query { shownQuery = q } }
         .onChange(of: items.map(\.id)) {
             guard editing else { return }
             // The height follows the results on the same curve.
@@ -80,7 +82,7 @@ struct InlineEditor: View {
     /// Identical to the address field's, so the text doesn't move: icon on the sidebar's icon column, text on its title
     /// column.
     private var fieldRow: some View {
-        let query = Binding(get: { model.session(window)?.query ?? "" }, set: { model.setQuery($0, in: window) })
+        let query = Binding(get: { model.session(window)?.query ?? shownQuery }, set: { model.setQuery($0, in: window) })
         return HStack(spacing: Design.Grid.iconToText) {
             Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
                 .frame(width: Design.Size.favicon)
@@ -160,9 +162,8 @@ struct InlineEditor: View {
                 window.isEditingAddress = false
                 DispatchQueue.main.async {
                     guard !editing else { return }
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) { visible = false }
+                    // A short fade over the field, now back under it in its resting look.
+                    withAnimation(.easeOut(duration: 0.12)) { visible = false }
                 }
             }
         }
