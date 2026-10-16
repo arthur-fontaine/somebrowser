@@ -97,11 +97,17 @@ final class AutomationServer {
                 let start = DispatchTime.now()
                 try runtime.commands.run(id, window: window, arguments: args)
                 let ran = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6
-                DispatchQueue.main.async {
-                    NSApp.windows.forEach { $0.displayIfNeeded() }
-                    let total = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6
-                    reply(["ok": true, "ms": ran, "msUntilDrawn": total])
+                // Drawn on the run loop's next turn, as AppKit draws after an event. Not through the main dispatch queue:
+                // with Chromium 156, a main-queue block queued from inside another (as this request runs) waits ~16 ms
+                // after a page window is shown, while the run loop, which delivers input and draws, is free (2026-10-16).
+                CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) {
+                    MainActor.assumeIsolated {
+                        NSApp.windows.forEach { $0.displayIfNeeded() }
+                        let total = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6
+                        reply(["ok": true, "ms": ran, "msUntilDrawn": total])
+                    }
                 }
+                CFRunLoopWakeUp(CFRunLoopGetMain())
             } catch { reply(["ok": false, "error": "\(error)"]) }
         case "open":
             guard let s = req["url"] as? String, let url = URL(string: s), let window else { return reply(["ok": false, "error": "bad url or no window"]) }

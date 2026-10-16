@@ -27,7 +27,10 @@ Measured 2026-10-16, one page open, fresh profile:
 | Stock CEF 154 | 3 | 583 MB |
 | Ours | 2 | 433 MB |
 
-The app process is unchanged (~105 MB). All E2E (32) and unit (283) tests pass on it.
+The app process is unchanged (~105 MB). Switching tabs takes ~3 ms until drawn, as on 154. One difference: after a
+page window is shown, a block queued on the main dispatch queue from inside another can wait ~16 ms (Chromium 154:
+~4 ms), while the run loop, which delivers input and draws, is free; the E2E budget measures drawing on the run loop.
+All E2E and unit tests pass on it.
 
 ungoogled-chromium has no 156 patch set yet (its tags stop at 155), so de-googling comes from build flags, our run-time
 switches (`CEFEngine.privacySwitches`) and the net-log test. When ungoogled tags 156, its patches can be applied
