@@ -34,6 +34,9 @@ public final class HistoryFeature: BrowserFeature {
         context.ui.contribute(.overlay, id: "history.panel", order: 70) { window in
             HistoryPanelOverlay(window: window, store: store, runtime: runtime)
         }
+        context.ui.contribute("sidebar.footer", id: "history.button", order: 10) { window in
+            ChromeButton(systemImage: "clock", help: "History (⌘Y)") { window.toggle(flag: Self.panelFlag) }
+        }
         context.ui.contribute("start-page.extras", id: "history.frequent", order: 1) { window in
             FrequentSites(window: window, store: store, runtime: runtime)
         }
@@ -134,7 +137,7 @@ struct FrequentSites: View {
         let sites = window.isPrivate ? [] : store.frequentSites(limit: 14, excluding: favorites)
         if !sites.isEmpty {
             PageSection("Frequently Visited") {
-                LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 14) {
+                LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 16) {
                     ForEach(sites, id: \.url) { page in
                         SiteTile(icon: runtime.favicons.image(for: page.url), title: HistoryStore.site(page.url) ?? page.title,
                                  help: page.title.isEmpty ? page.url.absoluteString : page.title) {

@@ -103,6 +103,8 @@ struct SpaceSwitcher: View {
             .glassControl(in: Capsule())
             .animation(Design.Motion.selection, value: window.spaceID)
             .frame(maxWidth: .infinity)
+        } else {
+            Spacer(minLength: 0)  // the footer's other buttons keep their sides
         }
     }
 }

@@ -23,7 +23,11 @@ public final class ArchiveFeature: BrowserFeature {
         context.capabilities.contribute(OmniboxProvider.self, ArchiveOmnibox(feature: self))
         let store = self.store
         let runtime = context.runtime
-        context.ui.contribute("sidebar.top", id: "archive.row", order: 0) { window in ArchiveRow(window: window, store: store) }
+        context.ui.contribute("sidebar.footer", id: "archive.button", order: 20) { window in
+            if !store.items.isEmpty {
+                ChromeButton(systemImage: "archivebox", help: "Archive (\(store.items.count))") { window.toggle(flag: Self.panelFlag) }
+            }
+        }
         context.ui.contribute(.overlay, id: "archive.panel", order: 70) { window in ArchivePanel(window: window, store: store, runtime: runtime) }
         context.ui.contribute("start-page.extras", id: "archive.recent", order: 2) { [weak self] window in
             RecentlyArchived(window: window, store: store, runtime: runtime) { self?.restore($0, in: window) }
@@ -148,31 +152,6 @@ final class ArchiveOmnibox: OmniboxProvider {
             return OmniboxItem(id: "archive:\(item.id)", title: item.title, subtitle: item.url?.host(), icon: .favicon(item.url),
                                kind: "Archived", score: score * 0.6) { [weak feature] w in feature?.restore(item, in: w) }
         }.prefix(3).map { $0 }
-    }
-}
-
-struct ArchiveRow: View {
-    let window: BrowserWindowState
-    let store: ArchiveStore
-    @State private var hovering = false
-
-    var body: some View {
-        if !store.items.isEmpty {
-            Button { window.toggle(flag: ArchiveFeature.panelFlag) } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "archivebox.fill").font(.system(size: 12)).foregroundStyle(.blue).frame(width: 16)
-                    Text("Archive").font(.system(size: 13))
-                    Spacer()
-                    Text("\(store.items.count)").font(.system(size: 11, design: .rounded)).foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 8)
-                .frame(height: 30)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(hovering ? Color.primary.opacity(0.06) : .clear))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .onHover { hovering = $0 }
-        }
     }
 }
 
