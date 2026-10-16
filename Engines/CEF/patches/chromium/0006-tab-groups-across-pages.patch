@@ -1,0 +1,188 @@
+diff --git a/chrome/browser/extensions/api/tab_groups/tab_groups_api.cc b/chrome/browser/extensions/api/tab_groups/tab_groups_api.cc
+index 36cb957..940e3f7 100644
+--- a/chrome/browser/extensions/api/tab_groups/tab_groups_api.cc
++++ b/chrome/browser/extensions/api/tab_groups/tab_groups_api.cc
+@@ -4,11 +4,13 @@
+ 
+ #include "chrome/browser/extensions/api/tab_groups/tab_groups_api.h"
+ 
++#include <algorithm>
+ #include <memory>
+ #include <string>
+ #include <utility>
+ #include <vector>
+ 
++#include "base/command_line.h"
+ #include "base/strings/pattern.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "chrome/browser/extensions/api/tabs/windows_util.h"
+@@ -135,6 +137,9 @@ ExtensionFunction::ResponseAction TabGroupsQueryFunction::Run() {
+         Error(ExtensionTabUtil::kTabStripDoesNotSupportTabGroupsError));
+   }
+ 
++  // A group may span pages hosted one per browser (--views-hosted-new-tabs):
++  // listed once.
++  std::vector<tab_groups::TabGroupId> listed;
+   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+       [&](BrowserWindowInterface* browser_window_interface) {
+         if (!profile->IsSameOrParent(browser_window_interface->GetProfile())) {
+@@ -176,6 +181,10 @@ ExtensionFunction::ResponseAction TabGroupsQueryFunction::Run() {
+         }
+ 
+         for (const tab_groups::TabGroupId& id : tab_list->ListTabGroups()) {
++          if (std::ranges::contains(listed, id)) {
++            continue;
++          }
++          listed.push_back(id);
+           std::optional<tab_groups::TabGroupVisualData> visual_data =
+               tab_list->GetTabGroupVisualData(id);
+           if (!visual_data) {
+@@ -276,6 +285,19 @@ ExtensionFunction::ResponseAction TabGroupsUpdateFunction::Run() {
+   }
+   tab_groups::TabGroupVisualData new_visual_data(title, color, collapsed);
+   tab_list->SetTabGroupVisualData(id, new_visual_data);
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "views-hosted-new-tabs")) {
++    // A group spanning pages hosted one per browser looks the same in each.
++    ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
++        [&](BrowserWindowInterface* other) {
++          TabListInterface* other_list = TabListInterface::From(other);
++          if (other != browser && other_list &&
++              std::ranges::contains(other_list->ListTabGroups(), id)) {
++            other_list->SetTabGroupVisualData(id, new_visual_data);
++          }
++          return true;
++        });
++  }
+ 
+   if (!has_callback()) {
+     return RespondNow(NoArguments());
+diff --git a/chrome/browser/extensions/api/tabs/tabs_api.cc b/chrome/browser/extensions/api/tabs/tabs_api.cc
+index 7b12044..5480fb9 100644
+--- a/chrome/browser/extensions/api/tabs/tabs_api.cc
++++ b/chrome/browser/extensions/api/tabs/tabs_api.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/extensions/api/tabs/tabs_api.h"
+ 
++#include <algorithm>
++
+ #include "base/command_line.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
+@@ -44,6 +46,7 @@
+ #include "chrome/browser/ui/recently_audible_helper.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_muted_utils.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/web_applications/web_app_helpers.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/webui_url_constants.h"
+@@ -3406,6 +3409,18 @@ void TabsRemoveFunction::TabDestroyed() {
+   Release();
+ }
+ 
++#if BUILDFLAG(ENABLE_CEF)
++// A page an embedder hosts in its own views, one per browser, with
++// --views-hosted-new-tabs (see OpensInNewViewsHostedBrowser in
++// browser_navigator.cc).
++static bool IsViewsHostedPage(BrowserWindowInterface* browser) {
++  return browser && browser->GetType() == BrowserWindowInterface::TYPE_POPUP &&
++         browser->cef_delegate() && browser->cef_delegate()->IsViewsHosted() &&
++         base::CommandLine::ForCurrentProcess()->HasSwitch(
++             "views-hosted-new-tabs");
++}
++#endif
++
+ ExtensionFunction::ResponseAction TabsGroupFunction::Run() {
+   std::optional<tabs::Group::Params> params =
+       tabs::Group::Params::Create(args());
+@@ -3489,6 +3504,62 @@ ExtensionFunction::ResponseAction TabsGroupFunction::Run() {
+     }
+   }
+ 
++#if BUILDFLAG(ENABLE_CEF)
++  // Pages hosted one per browser: a group spans them, each tab joining the
++  // group (the same id) in its own window instead of moving into the group's
++  // window, which holds one page.
++  if (IsViewsHostedPage(target_browser) &&
++      std::ranges::all_of(tab_windows, [](WindowController* window) {
++        return IsViewsHostedPage(window->GetBrowserWindowInterface());
++      })) {
++    std::optional<tab_groups::TabGroupId> joined;
++    std::optional<tab_groups::TabGroupVisualData> visual_data;
++    if (!group.is_empty()) {
++      joined = group;
++      visual_data = tab_list->GetTabGroupVisualData(group);
++    }
++    for (int tab_id : tab_ids) {
++      ::tabs::TabHandle tab_handle;
++      if (!GetTabHandleById(tab_id, *browser_context(),
++                            include_incognito_information(), &tab_handle,
++                            &error)) {
++        return RespondNow(Error(std::move(error)));
++      }
++      ::tabs::TabInterface* tab = tab_handle.Get();
++      CHECK(tab);
++      BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
++      TabListInterface* list = TabListInterface::From(browser);
++      if (!list || !ExtensionTabUtil::SupportsTabGroups(browser)) {
++        return RespondNow(
++            Error(ExtensionTabUtil::kTabStripDoesNotSupportTabGroupsError));
++      }
++      if (joined && tab->GetGroup() == joined) {
++        continue;
++      }
++      if (!joined || std::ranges::contains(list->ListTabGroups(), *joined)) {
++        joined = list->AddTabsToGroup(joined, {tab_handle});
++        if (!joined) {
++          return RespondNow(
++              Error(ExtensionTabUtil::kTabStripDoesNotSupportTabGroupsError));
++        }
++        if (!visual_data) {
++          visual_data = list->GetTabGroupVisualData(*joined);
++        }
++      } else {
++        // The group of other pages: the same group here (restoring keeps the
++        // id), looking the same.
++        TabStripModel* strip = browser->GetTabStripModel();
++        strip->AddToGroupForRestore({strip->GetIndexOfTab(tab)}, *joined);
++        if (visual_data) {
++          list->SetTabGroupVisualData(*joined, *visual_data);
++        }
++      }
++    }
++    CHECK(joined);
++    return RespondNow(WithArguments(ExtensionTabUtil::GetGroupId(*joined)));
++  }
++#endif
++
+   // Move all tabs to the target browser, appending to the end each time. Only
+   // tabs that are not already in the target browser are moved.
+   for (size_t i = 0; i < tab_ids.size(); ++i) {
+diff --git a/chrome/browser/tab_group_sync/feature_utils.cc b/chrome/browser/tab_group_sync/feature_utils.cc
+index 94ddcd4..7d4fdcf 100644
+--- a/chrome/browser/tab_group_sync/feature_utils.cc
++++ b/chrome/browser/tab_group_sync/feature_utils.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/tab_group_sync/feature_utils.h"
+ 
++#include "base/command_line.h"
+ #include "build/build_config.h"
+ #include "components/prefs/pref_service.h"
+ #include "components/saved_tab_groups/public/features.h"
+@@ -28,6 +29,13 @@ static bool JNI_TabGroupSyncFeatures_IsTabGroupSyncEnabled(JNIEnv* env,
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
+ bool IsTabGroupSyncEnabled(PrefService* pref_service) {
++  // An embedder hosting pages one per browser (--views-hosted-new-tabs) has
++  // groups span pages; saved groups track a group in one tab strip, and the
++  // embedder shows none of them.
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "views-hosted-new-tabs")) {
++    return false;
++  }
+ #if BUILDFLAG(IS_ANDROID)
+   // Clear the legacy synced boolean pref to its default value (false) that
+   // enables syncing across devices even when the feature isn't enabled on the
