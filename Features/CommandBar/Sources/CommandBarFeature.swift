@@ -119,6 +119,7 @@ struct CommandBarPanel: View {
                 TextField(session?.mode == .editURL ? "Enter address" : "Search or enter address", text: query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 22))
+                    .disabled(!isShown)  // hidden, it never takes the keyboard
                     .focused($focused)
                     .onSubmit { model.execute(window) }
                     .onKeyPress(.downArrow) { model.moveSelection(1, in: window); return .handled }

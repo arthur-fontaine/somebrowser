@@ -95,6 +95,10 @@ public extension View {
     /// `isEnabled` is false.
     func overlayKeyboardFocus(_ id: String, in window: BrowserWindowState, isEnabled: Bool = true) -> some View {
         onAppear { if isEnabled { window.overlayFocusRequests.insert(id) } }
+            // An overlay that stays mounted while hidden (the command bar) asks and gives back as it shows and hides.
+            .onChange(of: isEnabled) {
+                if isEnabled { window.overlayFocusRequests.insert(id) } else { window.overlayFocusRequests.remove(id) }
+            }
             .onDisappear { window.overlayFocusRequests.remove(id) }
     }
 }
