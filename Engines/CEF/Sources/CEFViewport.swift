@@ -59,6 +59,9 @@ final class CEFViewport: EngineViewport {
 
     private func style(_ w: NSWindow) {
         guard let view = w.contentView, view.layer?.cornerRadius != Self.cornerRadius else { return }
+        // macOS rounds every window with its own radius (about 17 pt here), wider than the card's, so a crescent of
+        // the card's background showed in each corner (dark in Dark). The window's corner is set to the card's.
+        Self.setWindowCornerRadius(w, Self.cornerRadius)
         view.wantsLayer = true
         view.layer?.cornerRadius = Self.cornerRadius
         view.layer?.cornerCurve = .continuous
@@ -66,6 +69,14 @@ final class CEFViewport: EngineViewport {
         w.hasShadow = false
         w.isOpaque = false
         w.backgroundColor = .clear
+    }
+
+    /// AppKit's own (private) window corner: no public API sets it.
+    private static func setWindowCornerRadius(_ w: NSWindow, _ radius: CGFloat) {
+        let selector = NSSelectorFromString("_setCornerRadius:")
+        guard w.responds(to: selector) else { return }
+        typealias Setter = @convention(c) (AnyObject, Selector, CGFloat) -> Void
+        unsafeBitCast(w.method(for: selector), to: Setter.self)(w, selector, radius)
     }
 
     /// Shell overlay windows (command bar, toasts…) must stay above pages.
