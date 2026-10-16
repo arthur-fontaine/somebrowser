@@ -123,7 +123,7 @@ struct AddressPill: View {
             }
         }
         .padding(.leading, Design.Grid.iconInset)
-        .padding(.trailing, 6)
+        .padding(.trailing, hovering && url != nil ? 6 : Design.Capsule.trailing)  // the copy button sits in the end cap
         .frame(height: Design.Size.control)
         .glassControl(in: Capsule())
         .overlay(alignment: .bottom) {

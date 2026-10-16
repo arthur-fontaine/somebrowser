@@ -62,15 +62,18 @@ struct ToastStack: View {
         VStack(spacing: 8) {
             Spacer()
             ForEach(model.visible(in: window)) { toast in
-                HStack(spacing: 8) {
-                    if let icon = toast.request.systemImage { Image(systemName: icon).foregroundStyle(.secondary) }
+                HStack(spacing: Design.Capsule.iconToText) {
+                    if let icon = toast.request.systemImage {
+                        Image(systemName: icon).foregroundStyle(.secondary).frame(width: Design.Capsule.iconWidth)
+                    }
                     Text(toast.request.message).font(.system(size: 13, weight: .medium))
                     if let title = toast.request.actionTitle, let action = toast.request.action {
                         Button(title) { action(); model.dismiss(toast.id) }
                             .buttonStyle(.borderless).font(.system(size: 13, weight: .semibold))
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.leading, toast.request.systemImage == nil ? Design.Capsule.trailing : Design.Capsule.leading)
+                .padding(.trailing, Design.Capsule.trailing)
                 .frame(height: Design.Size.control)
                 .background(Design.Fill.glassScrim, in: Capsule())
                 .glassSurface(in: Capsule())

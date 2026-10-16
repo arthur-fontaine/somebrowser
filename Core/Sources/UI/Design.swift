@@ -48,6 +48,15 @@ public enum Design {
         public static let favicon: CGFloat = 4
     }
 
+    /// A capsule with a leading icon (the address field, toasts): the icon centered in its end cap (h/2 from the edge),
+    /// text 16 pt past that center, 16 pt trailing.
+    nonisolated public enum Capsule {
+        public static let iconWidth: CGFloat = 16
+        public static let leading = Size.control / 2 - iconWidth / 2
+        public static let iconToText = Size.control / 2 + 16 - leading - iconWidth
+        public static let trailing = Space.capsuleTrailing
+    }
+
     nonisolated public enum Size {
         /// A chrome control's height: header buttons, the address field, footer buttons, toasts.
         public static let control: CGFloat = 36
