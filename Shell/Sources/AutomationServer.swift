@@ -195,6 +195,21 @@ final class AutomationServer {
             var hit: NSView? = target
             while let view = hit, chain.count < 6 { chain.append(String(describing: type(of: view))); hit = view.superview }
             reply(["ok": true, "hit": chain])
+        case "clickTitle":
+            // A left click on the browser window's control titled `title` (a sidebar row…), found through accessibility,
+            // delivered as AppKit delivers one to a key window. Replies with the main-thread time of the click.
+            guard let title = req["title"] as? String, let shellWindow = window.flatMap({ shell?.nsWindow(for: $0) }),
+                  let frame = Self.accessibleFrame(titled: title, in: shellWindow) else { return reply(["ok": false, "error": "no such control"]) }
+            let center = shellWindow.convertPoint(fromScreen: NSPoint(x: frame.midX, y: frame.midY))
+            let start = DispatchTime.now()
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                guard let event = NSEvent.mouseEvent(with: type, location: center, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                                                     windowNumber: shellWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+                else { continue }
+                shellWindow.makeKey()
+                shellWindow.sendEvent(event)
+            }
+            reply(["ok": true, "ms": Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6])
         case "hit":
             // The browser window's child windows (front to back) under (x, y) of the content area, with the AppKit view
             // and the accessibility path there (mouse routing checks).
@@ -284,6 +299,22 @@ final class AutomationServer {
         return engine.installedExtensions.map {
             ["id": $0.id, "name": $0.name, "pinned": $0.isPinned, "badge": badges[$0.id] ?? ""]
         }
+    }
+
+    /// Screen frame of the first accessibility element under `window` labelled, titled or valued `title` (SwiftUI text
+    /// is a value).
+    static func accessibleFrame(titled title: String, in window: NSWindow) -> NSRect? {
+        var queue: [Any] = [window]
+        var seen = 0
+        while !queue.isEmpty, seen < 5000 {
+            guard let e = queue.removeFirst() as? NSObject else { continue }
+            seen += 1
+            func get(_ key: String) -> Any? { e.responds(to: NSSelectorFromString(key)) ? e.value(forKey: key) : nil }
+            if ["accessibilityLabel", "accessibilityTitle", "accessibilityValue"].contains(where: { get($0) as? String == title }),
+               let frame = (get("accessibilityFrame") as? NSValue)?.rectValue { return frame }
+            queue += get("accessibilityChildren") as? [Any] ?? []
+        }
+        return nil
     }
 
     static func firstView(named name: String, in view: NSView) -> NSView? {

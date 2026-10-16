@@ -80,7 +80,8 @@ newline-delimited JSON: `{"op":"open","url":…}`, `{"op":"navigate","url":…}`
 `{"op":"state"}` (tabs, windows, the app's memory footprint), `{"op":"eval","js":…}`, `{"op":"setting","key":…,"value":…}`,
 `{"op":"views"}`, `{"op":"documentStart","js":…,"prefix":…}`, `{"op":"key","key":"f","modifiers":["cmd"],"keyCode":3,"page":true}`
 (key windows only exist when the app is frontmost), `{"op":"click","x":…,"y":…}` (to the view hit-tested there),
-`{"op":"hit","x":…,"y":…}` (which windows and views, Chromium's included, are under a point), `{"op":"quit"}`. `run` replies with the command's main-thread time.
+`{"op":"hit","x":…,"y":…}` (which windows and views, Chromium's included, are under a point), `{"op":"clickTitle","title":…}` (clicks the
+window's control showing that text, a sidebar row…), `{"op":"quit"}`. `run` replies with the command's main-thread time.
 Any request may add `"private": true` (or `false`) to act on the first private (or normal) window. Socket paths must be short (< 104 bytes): use a relative path and launch from that
 directory.
 
