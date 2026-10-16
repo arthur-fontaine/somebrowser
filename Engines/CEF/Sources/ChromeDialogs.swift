@@ -53,9 +53,9 @@ final class ChromeDialogs {
             hide(window)  // in case Chrome showed it again
             return
         }
-        // Chrome's views windows; the hidden toolbar's 1×1 window and pages' windows aren't dialogs, nor Chrome's
-        // extensions menu (a child of that toolbar) while the browser runs an action through it.
-        guard hooks.pageDialog != nil, window.isVisible, window.alphaValue > 0, window.frame.width > 40,
+        // Chrome's views windows (bubbles fade in from transparent); the hidden toolbar's 1×1 window and pages' windows
+        // aren't dialogs, nor Chrome's extensions menu (a child of that toolbar) while the browser runs an action through it.
+        guard hooks.pageDialog != nil, window.isVisible, window.frame.width > 40,
               NSStringFromClass(type(of: window)) == "NativeWidgetMacNSWindow",
               !(CEFRuntime.shared().operatingChromeMenu && (window.parent?.frame.width ?? 2) <= 1) else { return }
         switch Self.read(window) {
