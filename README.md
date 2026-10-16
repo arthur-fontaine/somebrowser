@@ -1,4 +1,4 @@
-# Somebrowser
+# Some Browser
 
 A native macOS browser — SwiftUI shell, Chromium (CEF) or WebKit engine — built to be **forked and
 customized**, by you or by an agent.

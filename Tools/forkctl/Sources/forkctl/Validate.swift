@@ -10,7 +10,7 @@ enum Validator {
         var description: String { "\(level.rawValue): \(message)" }
     }
 
-    static let upstreamBrandName = "Somebrowser"
+    static let upstreamBrandName = "Some Browser"
 
     static func run(_ p: Project) -> [Issue] {
         var issues: [Issue] = []

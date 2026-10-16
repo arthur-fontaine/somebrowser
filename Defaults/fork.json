@@ -1,9 +1,10 @@
 {
   "brand": {
-    "name": "Somebrowser",
+    "name": "Some Browser",
+    "formerNames": ["Somebrowser"],
     "bundleId": "dev.somebrowser.browser",
     "urlScheme": "somebrowser",
-    "userAgentBrand": "Somebrowser",
+    "userAgentBrand": "SomeBrowser",
     "homepage": "https://github.com/arthur-fontaine/somebrowser",
     "repository": "arthur-fontaine/somebrowser",
     "copyright": "Open source. Fork it."
