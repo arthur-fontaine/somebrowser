@@ -18,6 +18,7 @@ an idle browser contacts no one, whichever build runs.
   | `chromium/0001` | Extension badges exposed to accessibility, so they show on the sidebar's pinned actions |
   | `chromium/0002` | `--disable-webui-omnibox`: no hidden AI-mode omnibox popup (one renderer per tab) |
   | `chromium/0003` | `--widevine-only-components`: the component updater registers only Widevine |
+  | `chromium/0004` | `--disable-download-ui`: no animation flying to Chrome's (hidden) downloads button; not built yet |
   | `cef/0001` | `downloads.download` from an extension's service worker or popup goes to the client instead of being canceled |
 
 Measured 2026-10-16, one page open, fresh profile:
@@ -73,7 +74,8 @@ First build on an M1 Pro (8 cores, 16 GB): checkout about 7 minutes (shallow), b
    ```
    With `--fork`, a fork pins its own build in `Fork/Engines/CEF/vendor.json`. For a local try before publishing, a
    `file://` URL in `Fork/Engines/CEF/vendor.json` works. Then run `./forkctl vendor cef`, `./forkctl build` and
-   `./forkctl test --e2e`.
+   `./forkctl test --e2e`
+   (with `BROWSER_E2E_CEF_PATCHES=0004` once a build has that patch, its E2E check runs too).
 
 ## Gotchas met
 

@@ -1,0 +1,24 @@
+diff --git a/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc b/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc
+--- a/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc
++++ b/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc
+@@ -11,6 +11,7 @@
+ #include <optional>
+ #include <string>
+ 
++#include "base/command_line.h"
+ #include "base/functional/bind.h"
+ #include "base/i18n/number_formatting.h"
+ #include "base/location.h"
+@@ -851,6 +852,12 @@
+   if (!gfx::Animation::ShouldRenderRichAnimation()) {
+     return;
+   }
++  // Embedders with downloads UI of their own (the toolbar stays hidden) skip
++  // the animation flying to Chrome's downloads button.
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "disable-download-ui")) {
++    return;
++  }
+   tabs::TabInterface* const tab =
+       browser_view_->browser()->GetActiveTabInterface();
+   content::WebContents* const web_contents = tab ? tab->GetContents() : nullptr;

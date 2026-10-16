@@ -91,9 +91,11 @@ struct EngineConformanceTests {
         var bubbles: [String] = []
         for _ in 0..<25 {
             let windows = try app.call(["op": "views"])["windows"] as? [[String: Any]] ?? []
-            // Chrome's bubble: a views widget of its own, 320 points wide, shown.
-            bubbles += windows.filter { $0["class"] as? String == "NativeWidgetMacNSWindow" && $0["visible"] as? Bool == true
-                && ($0["frame"] as? String ?? "").contains("{320,") }.compactMap { $0["frame"] as? String }
+            // Chrome's bubble: a views widget of its own, 320 points wide, shown; with our patch chromium/0004 built in
+            // (BROWSER_E2E_CEF_PATCHES lists it), also its 64-point animation flying to the downloads button.
+            let sizes = ProcessInfo.processInfo.environment["BROWSER_E2E_CEF_PATCHES"]?.contains("0004") == true ? ["{320,", "{64, 64}"] : ["{320,"]
+            bubbles += windows.filter { w in w["class"] as? String == "NativeWidgetMacNSWindow" && w["visible"] as? Bool == true
+                && sizes.contains { (w["frame"] as? String ?? "").contains($0) } }.compactMap { $0["frame"] as? String }
             Thread.sleep(forTimeInterval: 0.1)
         }
         let downloads = app.directory.appendingPathComponent("data/Downloads/file.bin")

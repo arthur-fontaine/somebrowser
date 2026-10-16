@@ -76,6 +76,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         // Our Chromium build (Engines/CEF/patches): the hidden toolbar's omnibox makes no WebUI popups (a renderer
         // each). Stock CEF ignores the switch.
         "disable-webui-omnibox": "",
+        // Our Chromium (patch chromium/0004): no animation flying to Chrome's hidden downloads button.
+        "disable-download-ui": "",
         "allow-browser-signin": "false",
         // Chromium's own Google endpoints (account checks, AI-mode eligibility, Optimization Guide's component,
         // which ignores disable-component-update) point at a closed local port. Pages on Google sites and
