@@ -39,6 +39,12 @@ struct FaviconStoreTests {
         #expect(d.title(ofOption: "x") == "X")  // no title given
     }
 
+    @Test func blankTabsAndSitesAreNamedAlike() {
+        #expect(BrowserTab(url: nil).displayTitle == "Start Page")
+        #expect(SiteTile.name(for: URL(string: "https://www.github.com/x")) == "github.com")
+        #expect(SiteTile.name(for: nil) == nil)
+    }
+
     private func waitUntil(_ condition: () -> Bool) -> Bool {
         let end = Date().addingTimeInterval(5)
         while Date() < end {
