@@ -96,14 +96,15 @@ struct ExtensionAPITests {
         try s.finish()
     }
 
-    /// Our Chromium with `chromium/0005` and `cef/0002` (`--views-hosted-new-tabs`): an extension's new tab is the
-    /// browser's from the start, so its id lasts, and pages are normal windows that hold a tab group: what Claude in
-    /// Chrome does for a session (ADR-0005). Runs when BROWSER_E2E_CEF_PATCHES lists 0005.
+    /// Our Chromium with `chromium/0005`, `chromium/0006` and `cef/0002` (`--views-hosted-new-tabs`): an extension's new
+    /// tab is the browser's from the start, so its id lasts, pages are normal windows that hold a tab group, and a group
+    /// spans pages: what Claude in Chrome does for a session of several tabs (ADR-0005). Runs when
+    /// BROWSER_E2E_CEF_PATCHES lists 0006.
     @Test func extensionTabsKeepTheirIds() throws {
-        guard ProcessInfo.processInfo.environment["BROWSER_E2E_CEF_PATCHES"]?.contains("0005") == true, let s = try launch() else { return }
+        guard ProcessInfo.processInfo.environment["BROWSER_E2E_CEF_PATCHES"]?.contains("0006") == true, let s = try launch() else { return }
         try s.openProbePage()
         #expect(try s.probe("claude") == "\"ok\"")
-        try s.app.waitUntil(timeout: 15) { try s.app.tabs().contains { $0.title == "Two" } }
+        try s.app.waitUntil(timeout: 15) { try s.app.tabs().filter { $0.title == "Two" }.count == 2 }
         #expect(try s.probe("window") == "\"ok\"")
         try s.app.waitUntil(timeout: 15) { try s.app.tabs().contains { $0.title == "Three" } }
         #expect(try s.app.tabs().first?.title == "One")  // both opened in the background
