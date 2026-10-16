@@ -172,21 +172,21 @@ final class CommandBarModel {
         }
     }
 
-    /// Empty query: paste-and-go, then recently used tabs (Arc).
+    /// Empty query: paste-and-go (a URL on the clipboard), then recent pages that aren't open (the sidebar lists those).
     private func recentItems(_ window: BrowserWindowState) -> [OmniboxItem] {
         var items: [OmniboxItem] = []
+        let mode = sessions[window.id]?.mode ?? .newTab
         if let s = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
            s.count < 2048, search?.looksLikeURL(s) == true, let url = search?.url(for: s) {
-            let mode = sessions[window.id]?.mode ?? .newTab
             items.append(OmniboxItem(id: "paste", title: "Paste and Go", subtitle: url.absoluteString, icon: .system("doc.on.clipboard"),
                                      kind: "Open", score: 2) { [weak self] w in self?.open(url, in: w, mode: mode) })
         }
-        for id in window.mru where id != window.selectedTabID {
-            // A blank tab isn't somewhere to go back to.
-            guard let tab = runtime.tabs.tab(id), tab.url != nil || tab.isLoaded else { continue }
-            let url = tab.live?.url ?? tab.url
-            items.append(OmniboxItem(id: "tab:\(id)", title: tab.displayTitle, subtitle: url?.host(), icon: .favicon(url),
-                                     kind: "Switch to Tab", score: 1) { [weak self] w in self?.runtime.select(id, in: w) })
+        let open = Set(runtime.tabs.allTabs.compactMap { ($0.live?.url ?? $0.url).map(URLNormalizer.key(for:)) })
+        for entry in runtime.capabilities.history?.recent(limit: 40) ?? [] where !open.contains(URLNormalizer.key(for: entry.url)) {
+            items.append(OmniboxItem(id: "recent:\(entry.url.absoluteString)", title: entry.title.isEmpty ? entry.url.absoluteString : entry.title,
+                                     subtitle: entry.url.host(), icon: .favicon(entry.url), kind: "History", score: 1) { [weak self] w in
+                self?.open(entry.url, in: w, mode: mode)
+            })
             if items.count >= 6 { break }
         }
         return items

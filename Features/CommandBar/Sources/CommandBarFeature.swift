@@ -11,7 +11,7 @@ public final class CommandBarFeature: BrowserFeature {
     /// Edits in the sidebar's address field; with the sidebar hidden, it floats in for the occasion.
     func openInline(_ w: BrowserWindowState, mode: CommandBarModel.Mode) {
         if !w.isSidebarVisible && !w.isSidebarPeeking {
-            w.isSidebarPeeking = true
+            withAnimation(.spring(duration: 0.28, bounce: 0.1)) { w.isSidebarPeeking = true }  // the peek's own slide
             w.titlebarRequests.insert(CommandBarModel.flag)
             model.peeked.insert(w.id)
         }
@@ -36,10 +36,15 @@ public final class CommandBarFeature: BrowserFeature {
                 self.context.runtime.openTab(page, in: w)
                 self.context.shell?.focusContent(in: w)
             } else if self.style == .inline {
-                // As Safari: the new tab first (its start page behind), then its address being typed.
-                let tab = self.context.runtime.openTab(nil, in: w)
-                self.openInline(w, mode: .newTab)
-                model.openedBlankTab[w.id] = tab.id
+                // As Safari: the new tab first (its start page behind), then its address being typed; an untouched blank
+                // tab is reused rather than joined by another.
+                if let current = self.context.runtime.selectedTab(in: w), current.url == nil, !current.isLoaded {
+                    self.openInline(w, mode: .newTab)
+                } else {
+                    let tab = self.context.runtime.openTab(nil, in: w)
+                    self.openInline(w, mode: .newTab)
+                    model.openedBlankTab[w.id] = tab.id
+                }
             } else {
                 model.open(w, mode: .newTab)
             }

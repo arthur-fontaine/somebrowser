@@ -36,25 +36,33 @@ struct InlineEditor: View {
             let field = window.addressFieldFrame
             let width = expanded ? min(max(field.width, Self.width), geo.size.width - Design.windowInset - field.minX) : field.width
             let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+            // One rectangle, width and height together; the results are laid out at full size and revealed by the clip.
+            let height = Design.Size.control + (expanded ? Self.resultsHeight(items) : 0)
             VStack(spacing: 0) {
                 fieldRow
-                if expanded && !items.isEmpty { results(items) }
+                if !items.isEmpty { results(items) }
             }
-            .frame(width: max(width, 0), height: Design.Size.control + (expanded ? Self.resultsHeight(items) : 0), alignment: .top)
+            .frame(width: max(width, 0), height: height, alignment: .top)
             .clipShape(shape)
+            // Expanded, a menu's denser material, so it reads as one surface over the sidebar and the page alike.
+            .background(Color(nsColor: .windowBackgroundColor).opacity(rowsShown ? 0.65 : 0), in: shape)
             .background(Design.Fill.glassScrim, in: shape)
             .glassSurface(in: shape)
             .background { if editing { ClickOutside { model.close(window) } } }
             .shadow(color: .black.opacity(expanded ? 0.22 : 0), radius: 24, y: 10)
-            .animation(Self.curve(0.2), value: items.count)  // the height follows the results
             .offset(x: field.minX, y: field.minY)
+            // Whole from its first frame (on the field, which hides a frame later): no hole, no see-through.
             .opacity(visible ? 1 : 0)
             .allowsHitTesting(editing)
         }
         .ignoresSafeArea()
         .overlayKeyboardFocus("command-bar.inline", in: window, isEnabled: editing)
         .onChange(of: editing) { present(editing) }
-        .onChange(of: items.map(\.id)) { if editing { shownItems = items } }
+        .onChange(of: items.map(\.id)) {
+            guard editing else { return }
+            // The height follows the results on the same curve.
+            withAnimation(Self.curve(0.2)) { shownItems = items }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             if editing { model.close(window) }
         }
@@ -120,12 +128,15 @@ struct InlineEditor: View {
     /// back in 0.22 s, the results gone first, then hands back to the field. Under Reduce Motion, a cross-fade.
     private func present(_ on: Bool) {
         if on {
-            window.isEditingAddress = true
-            // From the floating sidebar, once it has mostly slid in.
-            let delay = model.peeked.contains(window.id) ? 0.2 : 0
+            // From the floating sidebar, a beat into its slide.
+            let delay = model.peeked.contains(window.id) ? 0.12 : 0
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 guard editing else { return }
-                withAnimation(.easeOut(duration: 0.12)) { visible = true }
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { visible = true }
+                // The field hides once the editor has drawn over it.
+                DispatchQueue.main.async { window.isEditingAddress = true }
                 if reduceMotion {
                     expanded = true
                     withAnimation(.easeOut(duration: 0.15)) { rowsShown = true }
@@ -140,8 +151,14 @@ struct InlineEditor: View {
             withAnimation(.easeOut(duration: 0.08)) { rowsShown = false }
             withAnimation(reduceMotion ? .easeOut(duration: 0.1) : Self.curve(0.22)) { expanded = false } completion: {
                 guard !editing else { return }
-                visible = false
+                // The field back under it first, then the editor goes.
                 window.isEditingAddress = false
+                DispatchQueue.main.async {
+                    guard !editing else { return }
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { visible = false }
+                }
             }
         }
     }

@@ -99,7 +99,8 @@ struct AddressPill: View {
         // On the sidebar's grid: the leading symbol in the rows' icon column, the address on their title column.
         HStack(spacing: Design.Grid.iconToText) {
             Button { try? runtime.commands.run("site-controls.show", window: window) } label: {
-                Image(systemName: developer ? "hammer.fill" : warning ?? "slider.horizontal.3")
+                // A blank tab has no site to control: the magnifier, as the editor that opens from here shows.
+                Image(systemName: url == nil ? "magnifyingglass" : developer ? "hammer.fill" : warning ?? "slider.horizontal.3")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(warning != nil && !developer ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                     .frame(width: Design.Size.favicon, height: Design.Size.control)
@@ -123,7 +124,6 @@ struct AddressPill: View {
         .glassControl(in: Capsule())
         // Edited in place by an editor drawn over it (the command bar's inline style), which grows from this frame.
         .opacity(window.isEditingAddress ? 0 : 1)
-        .animation(.easeOut(duration: 0.12), value: window.isEditingAddress)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
             published = frame
             if window.addressFieldFrame != frame { window.addressFieldFrame = frame }

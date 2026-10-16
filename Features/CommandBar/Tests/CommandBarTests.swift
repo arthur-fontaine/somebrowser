@@ -160,6 +160,7 @@ struct CommandBarTests {
         h.openTab("https://b.example/")
         let before = h.runtime.tabs.allTabs.count
         try h.run("command-bar.open")
+        model.setQuery("a.example", in: h.window)  // open tabs are offered once typing matches them
         let i = try #require(model.items(for: h.window).firstIndex { $0.id == "tab:\(a.id)" })
         model.execute(h.window, index: i)
         #expect(h.window.selectedTabID == a.id)
