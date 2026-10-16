@@ -11,6 +11,9 @@ final class ProtectedMedia {
     let mode: Mode
     private(set) var sites: Set<String>
     private let file: URL?
+    /// Sites whose Chromium cookies went to WebKit (see `takeCookies`).
+    private var cookiesTaken: Set<String>
+    private let cookiesFile: URL?
 
     /// Streaming services known to need protected media: their pages open in WebKit from the first one, so signing in
     /// happens there and no page ever moves. Hosts, matched with their subdomains.
@@ -22,10 +25,12 @@ final class ProtectedMedia {
     init(mode: Mode, file: URL?) {
         self.mode = mode
         self.file = file
+        cookiesFile = file.map { $0.deletingPathExtension().appendingPathExtension("cookies.json") }
         func load(_ file: URL?) -> Set<String> {
             Set(file.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? [])
         }
         sites = load(file)
+        cookiesTaken = load(cookiesFile)
     }
 
     /// Pages of this URL's site play in WebKit.
@@ -41,9 +46,36 @@ final class ProtectedMedia {
         save(sites, to: file)
     }
 
+    /// Whether a WebKit page of this URL's site should first get the site's Chromium cookies, so it stays signed in.
+    /// Once per site: afterwards WebKit's own cookies are the newer ones (the site no longer runs in Chromium), and
+    /// copying again would bring back a session the user signed out of. Private sessions are new each time.
+    func takeCookies(for url: URL, isPrivate: Bool) -> Bool {
+        guard let site = Self.site(of: url) else { return false }
+        if isPrivate { return true }
+        guard cookiesTaken.insert(site).inserted else { return false }
+        save(cookiesTaken, to: cookiesFile)
+        return true
+    }
+
     private func save(_ set: Set<String>, to file: URL?) {
         guard let file else { return }
         try? JSONEncoder().encode(set.sorted()).write(to: file, options: .atomic)
+    }
+
+    /// A cookie as the bridge reads it from Chromium (`CEFRuntime cookiesOfSite:`), for WebKit's store.
+    nonisolated static func httpCookie(_ c: [String: Any]) -> HTTPCookie? {
+        guard let name = c["name"] as? String, let value = c["value"] as? String, let domain = c["domain"] as? String else { return nil }
+        var properties: [HTTPCookiePropertyKey: Any] = [.name: name, .value: value, .domain: domain,
+                                                        .path: (c["path"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "/"]
+        if c["secure"] as? Bool == true { properties[.secure] = "TRUE" }
+        if c["httpOnly"] as? Bool == true { properties[HTTPCookiePropertyKey("HttpOnly")] = "TRUE" }
+        if let expires = c["expires"] as? Date { properties[.expires] = expires } else { properties[.discard] = "TRUE" }
+        switch c["sameSite"] as? String {
+        case "lax": properties[.sameSitePolicy] = HTTPCookieStringPolicy.sameSiteLax
+        case "strict": properties[.sameSitePolicy] = HTTPCookieStringPolicy.sameSiteStrict
+        default: break
+        }
+        return HTTPCookie(properties: properties)
     }
 
     /// The registrable part of a host, roughly (www.netflix.com → netflix.com; bbc.co.uk stays whole).

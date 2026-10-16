@@ -48,6 +48,17 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         return engine
     }
 
+    /// A WebKit page that first gets its site's Chromium cookies (HttpOnly ones too), so it stays signed in.
+    private func webKitPage(at url: URL, opener: EngineTab?, isPrivate: Bool) -> EngineTab {
+        let webKit = protectedMediaEngine()
+        let page = webKit.makeTab(EngineTabRequest(url: nil, opener: opener, isPrivate: isPrivate))
+        guard let site = ProtectedMedia.site(of: url) else { page.load(url); return page }
+        runtime.cookies(ofSite: site, private: isPrivate) { [weak page] list in
+            webKit.setCookies(list.compactMap(ProtectedMedia.httpCookie), isPrivate: isPrivate) { page?.load(url) }
+        }
+        return page
+    }
+
     /// A Chromium page asked for a DRM key system: it plays in WebKit from now on, and so does its site.
     func protectedMediaRequested(by page: CEFPage) {
         guard protectedMedia.mode == .webkit, let url = page.state.url else { return }
@@ -198,9 +209,12 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         let url = restored?.current.url ?? request.url
         // A WebKit page's history (it isn't ours) or a page of a protected-media site: WebKit.
         if protectedMedia.mode == .webkit, (request.restorationData != nil && restored == nil) || protectedMedia.needsWebKit(url) {
+            let webKitHistory = restored == nil ? request.restorationData : nil
+            if webKitHistory == nil, let url, protectedMedia.takeCookies(for: url, isPrivate: request.isPrivate) {
+                return webKitPage(at: url, opener: request.opener, isPrivate: request.isPrivate)
+            }
             return protectedMediaEngine().makeTab(EngineTabRequest(url: restored == nil ? request.url : url, opener: request.opener,
-                                                                   restorationData: restored == nil ? request.restorationData : nil,
-                                                                   isPrivate: request.isPrivate))
+                                                                   restorationData: webKitHistory, isPrivate: request.isPrivate))
         }
         let page = CEFPage(engine: self)
         if let restored {

@@ -46,6 +46,34 @@ struct ProtectedMediaTests {
     }
 }
 
+extension ProtectedMediaTests {
+    /// A page moving to WebKit stays signed in: the site's Chromium cookies, HttpOnly ones included, go with it.
+    @Test func signInCarriesOverToWebKit() throws {
+        let server = try TestHTTPServer(pages: [:], responders: [
+            "/login": { _ in (["Set-Cookie: session=s3cret; Path=/; HttpOnly"], "<!doctype html><title>Signed in</title>") },
+            "/account": { request in
+                let cookie = request.components(separatedBy: "\r\n").first { $0.lowercased().hasPrefix("cookie:") }?.dropFirst(7)
+                    .trimmingCharacters(in: .whitespaces) ?? "none"
+                return ([], "<!doctype html><title>Account \(cookie)</title><script>"
+                    + "navigator.requestMediaKeySystemAccess('com.widevine.alpha', [{ initDataTypes: ['cenc'], "
+                    + "videoCapabilities: [{ contentType: 'video/mp4; codecs=\"avc1.42E01E\"' }] }]).then(() => {}, () => {});</script>")
+            },
+        ])
+        let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-drm-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: data) }
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path])
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+
+        try app.open(server.url("/login"))
+        try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.title == "Signed in" } }
+        #expect(try !inWebKit(app))
+        try app.open(server.url("/account"))
+        try app.waitUntil(timeout: 20) { try inWebKit(app) }
+        try app.waitUntil(timeout: 10) { try app.eval("document.title") as? String == "Account session=s3cret" }
+        try app.quit()
+    }
+}
+
 /// Netflix's way of playing, end to end without Netflix: MediaSource segments (fMP4, cbcs) with the modern EME API
 /// (`com.apple.fps`), licensed by EZDRM's public FairPlay demo (Shaka's "Big Buck Bunny (FairPlay)"). The page asks for
 /// FairPlay in Chromium, moves to WebKit, and plays. Reaches the internet: opt-in with BROWSER_E2E_NETWORK=1.

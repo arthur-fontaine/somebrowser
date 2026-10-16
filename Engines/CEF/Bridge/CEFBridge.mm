@@ -14,6 +14,7 @@
 #include "include/cef_app.h"
 #include "include/cef_application_mac.h"
 #include "include/cef_client.h"
+#include "include/cef_cookie.h"
 #include "include/cef_parser.h"
 #include "include/cef_color_ids.h"
 #include "include/cef_command_ids.h"
@@ -34,6 +35,46 @@
 
 static NSString *NS(const CefString &s) { return [NSString stringWithUTF8String:s.ToString().c_str()] ?: @""; }
 static CefString CS(NSString *s) { return CefString(s ? s.UTF8String : ""); }
+
+// MARK: - Cookies
+
+/// Collects one site's cookies; CEF releases the visitor once it has seen every cookie (or none could be read), and
+/// the collected list goes to `completion` then.
+class SiteCookieCollector : public CefCookieVisitor {
+public:
+    SiteCookieCollector(std::string site, void (^completion)(NSArray *)) : site_(site), completion_(completion) {}
+    ~SiteCookieCollector() override {
+        NSArray *cookies = [cookies_ copy];
+        void (^completion)(NSArray *) = completion_;
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(cookies); });
+    }
+    bool Visit(const CefCookie &cookie, int, int, bool &) override {
+        std::string domain = CefString(&cookie.domain).ToString();
+        std::string host = !domain.empty() && domain[0] == '.' ? domain.substr(1) : domain;
+        bool matches = host == site_ || (host.size() > site_.size() && host.compare(host.size() - site_.size() - 1, std::string::npos, "." + site_) == 0);
+        if (!matches) return true;
+        NSMutableDictionary *c = [@{@"name": NS(CefString(&cookie.name)), @"value": NS(CefString(&cookie.value)), @"domain": NS(domain),
+                                    @"path": NS(CefString(&cookie.path)), @"secure": @(cookie.secure != 0), @"httpOnly": @(cookie.httponly != 0)} mutableCopy];
+        cef_time_t expires;
+        double seconds = 0;
+        if (cookie.has_expires && cef_time_from_basetime(cookie.expires, &expires) && cef_time_to_doublet(&expires, &seconds))
+            c[@"expires"] = [NSDate dateWithTimeIntervalSince1970:seconds];
+        switch (cookie.same_site) {
+            case CEF_COOKIE_SAME_SITE_LAX_MODE: c[@"sameSite"] = @"lax"; break;
+            case CEF_COOKIE_SAME_SITE_STRICT_MODE: c[@"sameSite"] = @"strict"; break;
+            case CEF_COOKIE_SAME_SITE_NO_RESTRICTION: c[@"sameSite"] = @"none"; break;
+            default: break;
+        }
+        [cookies_ addObject:c];
+        return true;
+    }
+
+private:
+    std::string site_;
+    void (^completion_)(NSArray *);
+    NSMutableArray *cookies_ = [NSMutableArray array];
+    IMPLEMENT_REFCOUNTING(SiteCookieCollector);
+};
 
 // MARK: - NSApplication
 
@@ -1272,5 +1313,12 @@ private:
 - (void)cancelDownload:(uint32_t)identifier {
     auto it = _downloadCallbacks.find(identifier);
     if (it != _downloadCallbacks.end()) it->second->Cancel();
+}
+
+- (void)cookiesOfSite:(NSString *)site private:(BOOL)isPrivate completion:(void (^)(NSArray<NSDictionary<NSString *, id> *> *))completion {
+    CefRefPtr<CefRequestContext> context = isPrivate ? _privateContext : CefRequestContext::GetGlobalContext();
+    CefRefPtr<CefCookieManager> manager = context ? context->GetCookieManager(nullptr) : nullptr;
+    CefRefPtr<SiteCookieCollector> collector = new SiteCookieCollector(site.lowercaseString.UTF8String, completion);
+    if (manager) manager->VisitAllCookies(collector);
 }
 @end

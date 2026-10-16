@@ -38,4 +38,34 @@ struct ProtectedMediaTests {
         }
         #expect(!ProtectedMedia(mode: .chromium, file: nil).needsWebKit(URL(string: "https://www.netflix.com/")))
     }
+
+    /// Chromium's cookies go to WebKit once per site (kept between launches); private sessions take them each time.
+    @Test func cookiesGoToWebKitOncePerSite() {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("pm-\(UUID().uuidString).json")
+        defer {
+            try? FileManager.default.removeItem(at: file)
+            try? FileManager.default.removeItem(at: file.deletingPathExtension().appendingPathExtension("cookies.json"))
+        }
+        let media = ProtectedMedia(mode: .webkit, file: file)
+        #expect(media.takeCookies(for: URL(string: "https://www.netflix.com/watch/1")!, isPrivate: false))
+        #expect(!media.takeCookies(for: URL(string: "https://netflix.com/browse")!, isPrivate: false))
+        #expect(media.takeCookies(for: URL(string: "https://www.netflix.com/")!, isPrivate: true))
+        #expect(media.takeCookies(for: URL(string: "https://www.disneyplus.com/")!, isPrivate: false))
+        #expect(!ProtectedMedia(mode: .webkit, file: file).takeCookies(for: URL(string: "https://netflix.com/")!, isPrivate: false))
+    }
+
+    /// Chromium's cookies keep their attributes in WebKit: HttpOnly, Secure, SameSite, expiry or session.
+    @Test func chromiumCookiesKeepTheirAttributes() throws {
+        let expires = Date(timeIntervalSinceNow: 3600)
+        let signedIn = try #require(ProtectedMedia.httpCookie(["name": "NetflixId", "value": "v", "domain": ".netflix.com", "path": "/",
+                                                                "secure": true, "httpOnly": true, "expires": expires, "sameSite": "lax"]))
+        #expect(signedIn.isHTTPOnly && signedIn.isSecure && !signedIn.isSessionOnly)
+        #expect(signedIn.domain == ".netflix.com")
+        #expect(abs((signedIn.expiresDate ?? .distantPast).timeIntervalSince(expires)) < 1)
+        #expect(signedIn.sameSitePolicy == .sameSiteLax)
+        let session = try #require(ProtectedMedia.httpCookie(["name": "s", "value": "1", "domain": "www.netflix.com", "path": "",
+                                                              "secure": false, "httpOnly": false]))
+        #expect(session.isSessionOnly && !session.isHTTPOnly && session.path == "/")
+        #expect(ProtectedMedia.httpCookie(["value": "no name"]) == nil)
+    }
 }

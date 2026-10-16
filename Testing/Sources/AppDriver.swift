@@ -166,11 +166,16 @@ nonisolated public final class AppDriver: @unchecked Sendable {
 nonisolated public final class TestHTTPServer: @unchecked Sendable {
     private let listener: NWListener
     private let pages: [String: String]
+    private let responders: [String: Responder]
     public private(set) var port: UInt16 = 0
     private let queue = DispatchQueue(label: "test-http")
 
-    public init(pages: [String: String]) throws {
+    /// Answers a path from the raw request (headers included): extra response headers and the HTML body.
+    public typealias Responder = @Sendable (_ request: String) -> (headers: [String], body: String)
+
+    public init(pages: [String: String], responders: [String: Responder] = [:]) throws {
         self.pages = pages
+        self.responders = responders
         listener = try NWListener(using: .tcp, on: .any)
         let ready = DispatchSemaphore(value: 0)
         listener.stateUpdateHandler = { [weak self] state in
@@ -190,10 +195,13 @@ nonisolated public final class TestHTTPServer: @unchecked Sendable {
         c.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, _, _ in
             guard let self, let data, let request = String(data: data, encoding: .utf8) else { c.cancel(); return }
             let path = request.split(separator: " ").dropFirst().first.map(String.init) ?? "/"
-            let body = self.pages[path.components(separatedBy: "?")[0]]
+            let route = path.components(separatedBy: "?")[0]
+            let answer = self.responders[route]?(request)
+            let body = answer?.body ?? self.pages[route]
             let status = body == nil ? "404 Not Found" : "200 OK"
             let payload = Data((body ?? "not found").utf8)
-            var head = "HTTP/1.1 \(status)\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(payload.count)\r\nConnection: close\r\n\r\n"
+            let extra = answer?.headers.map { $0 + "\r\n" }.joined() ?? ""
+            var head = "HTTP/1.1 \(status)\r\nContent-Type: text/html; charset=utf-8\r\n\(extra)Content-Length: \(payload.count)\r\nConnection: close\r\n\r\n"
             if path == "/favicon.ico" { head = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n" }
             c.send(content: Data(head.utf8) + (path == "/favicon.ico" ? Data() : payload), completion: .contentProcessed { _ in c.cancel() })
         }

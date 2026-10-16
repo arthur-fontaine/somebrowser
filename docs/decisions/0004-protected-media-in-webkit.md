@@ -38,6 +38,13 @@ and Safari sets no media preferences of its own.
   (`EngineHooks.onRecreateTab`). The new page is a WebKit tab with a Safari user agent, the installed Safari's version.
 - Pages of remembered sites open in WebKit directly, from a link, a typed URL or a restored session. A link the user
   follows from a WebKit page to another site goes back to Chromium. Clear Key stays in Chromium.
+- Well-known streaming services (`ProtectedMedia.knownHosts`: Netflix, Disney+, Prime Video, Max…) count as
+  remembered from the start: their first page, sign-in included, is already in WebKit, so nothing moves.
+- A page that does move stays signed in: the first time a site goes to WebKit, its Chromium cookies (HttpOnly ones
+  included) are copied into WebKit's store before the page loads. Only once per site, since WebKit's cookies are the
+  newer ones afterwards (copying again would bring back a session the user signed out of); private sessions each time.
+- The move isn't seen: the runtime keeps the Chromium page on screen until the WebKit page has loaded (at most 4 s),
+  then swaps them (`BrowserRuntime.recreate`).
 - `CEFViewport` shows WebKit tabs through the WebKit engine's viewport in the same container. Picture in picture
   delegates to the WebKit engine.
 - Engine option `protectedMedia`: `webkit` (default), `chromium` (a Widevine build: Chrome's updater fetches only the
@@ -48,5 +55,5 @@ and Safari sets no media preferences of its own.
 - Netflix, Disney+, Prime Video and the like run on WebKit, with FairPlay quality, Apple's hardware decode and no
   Google component download.
 - Those tabs don't run Chrome extensions. Ad blocking uses the WebKit content rule lists the AdBlock feature already
-  produces. Their cookies live in WebKit's data store: you sign in once there.
+  produces. Their cookies live in WebKit's data store, seeded once from Chromium's.
 - A fork with VMP certification sets `protectedMedia: chromium`.

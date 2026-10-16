@@ -51,6 +51,19 @@ public final class WebKitEngine: BrowserEngine {
         return tab
     }
 
+    /// Sets cookies in the store of the normal (or private) pages, then calls `completion`: a page another engine hands
+    /// over keeps its sign-in.
+    public func setCookies(_ cookies: [HTTPCookie], isPrivate: Bool, completion: @escaping () -> Void) {
+        if isPrivate, privateStore == nil { privateStore = .nonPersistent() }
+        let store = (isPrivate ? privateStore! : dataStore).httpCookieStore
+        let group = DispatchGroup()
+        for cookie in cookies {
+            group.enter()
+            store.setCookie(cookie) { group.leave() }
+        }
+        group.notify(queue: .main, execute: completion)
+    }
+
     /// Popups must use the configuration WebKit hands us (it carries the opener relationship).
     func adoptPopup(configuration: WKWebViewConfiguration) -> WebKitTab {
         let tab = WebKitTab(engine: self, configuration: configuration)

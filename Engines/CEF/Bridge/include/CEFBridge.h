@@ -96,6 +96,10 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 - (void)closeAllBrowsers:(void (^)(void))completion;
 - (void)shutdown;
 - (void)cancelDownload:(uint32_t)identifier;
+/// Cookies of `site` and its subdomains in the normal (or private) profile, HttpOnly ones included, as
+/// {name, value, domain, path, secure, httpOnly (NSNumber), expires (NSDate, absent for session cookies), sameSite
+/// ("lax", "strict", "none" or absent)}. On the main thread.
+- (void)cookiesOfSite:(NSString *)site private:(BOOL)isPrivate completion:(void (NS_SWIFT_UI_ACTOR ^)(NSArray<NSDictionary<NSString *, id> *> *cookies))completion;
 @end
 
 @interface CEFTab : NSObject
