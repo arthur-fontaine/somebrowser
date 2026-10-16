@@ -47,7 +47,26 @@ static CefString CS(NSString *s) { return CefString(s ? s.UTF8String : ""); }
 - (void)setHandlingSendEvent:(BOOL)value { _handlingSendEvent = value; }
 - (void)sendEvent:(NSEvent *)event {
     CefScopedSendingEvent scoped;
+    [self focusPageForMouseDown:event];
     [super sendEvent:event];
+}
+
+/// Pages are child windows of the browser window, so a click going from the sidebar (or an overlay) to the page is
+/// a first click in a window that isn't key, which Chromium's page view refuses: the page window takes key first.
+/// Only within the browser window that has focus: a click that activates the app still only activates it, as in Safari.
+- (void)focusPageForMouseDown:(NSEvent *)event {
+    NSEventType type = event.type;
+    if (type != NSEventTypeLeftMouseDown && type != NSEventTypeRightMouseDown && type != NSEventTypeOtherMouseDown) return;
+    NSWindow *page = event.window;
+    NSWindow *browser = page.parentWindow;
+    static Class pageClass = NSClassFromString(@"CefNSWindow");
+    if (!browser || page.isKeyWindow || ![page isKindOfClass:pageClass] || !page.canBecomeKeyWindow) return;
+    for (NSWindow *w = self.keyWindow; w; w = w.parentWindow) {
+        if (w == browser) {
+            [page makeKeyWindow];
+            return;
+        }
+    }
 }
 @end
 
