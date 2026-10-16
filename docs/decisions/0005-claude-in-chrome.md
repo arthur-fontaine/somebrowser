@@ -48,7 +48,11 @@ nothing).
    same popup steps with the page's main frame as opener, then loads the URL. `windows.create({type: "normal"})` opens
    its URLs that way from the frontmost page and answers with the first new window. The app adopts the tab as it does
    a page's popups; from the page-less anchor (`CEFRuntime updateAnchor`), it adopts it as a tab of its own
-   (`onEngineOpenedPage`).
+   (`onEngineOpenedPage`). The new Browser is complete when `tabs.create` answers (CEF runs its window features'
+   setup, the extension window controller included, while making it), and the anchor has a frame to stand as opener
+   (CEF registers a page's main frame when it attaches, loaded or not). If the app declines the tab before anything
+   is made of it (`OnBeforePopup` cancels, as when the opener is closing), it opens the old way: a stock window,
+   adopted by URL.
 2. **Pages are `normal` windows to extensions** (`chromium/0005`, written). CEF makes a views-hosted page's Browser
    `TYPE_POPUP` on purpose (`TYPE_NORMAL` would bring back Chrome's tab strip and toolbar features), so only the
    extension API's view changes: `GetTabsWindowType` reports such a Browser as `normal`. `windows.getLastFocused(

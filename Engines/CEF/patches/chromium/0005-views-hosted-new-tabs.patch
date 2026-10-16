@@ -98,7 +98,7 @@ index b48c045..070b34c 100644
      case BrowserWindowInterface::TYPE_APP:
        return api::tabs::WindowType::kApp;
 diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
-index b95a279..31a9e58 100644
+index b95a279..a1acb6e 100644
 --- a/chrome/browser/ui/navigator/browser_navigator.cc
 +++ b/chrome/browser/ui/navigator/browser_navigator.cc
 @@ -11,6 +11,7 @@
@@ -109,7 +109,7 @@ index b95a279..31a9e58 100644
  #include "base/feature_list.h"
  #include "base/memory/raw_ptr.h"
  #include "base/notimplemented.h"
-@@ -139,6 +140,56 @@ bool WindowCanOpenTabs(const NavigateParams& params) {
+@@ -139,6 +140,60 @@ bool WindowCanOpenTabs(const NavigateParams& params) {
           params.browser->tab_strip_model()->empty();
  }
  
@@ -135,8 +135,10 @@ index b95a279..31a9e58 100644
 +      "views-hosted-new-tabs");
 +}
 +
-+base::WeakPtr<content::NavigationHandle> OpenInNewViewsHostedBrowser(
-+    NavigateParams* params) {
++// Returns nullopt to open the tab the default way (the embedder declined it
++// before making anything of it).
++std::optional<base::WeakPtr<content::NavigationHandle>>
++OpenInNewViewsHostedBrowser(NavigateParams* params) {
 +  Profile* const profile = params->browser->GetProfile();
 +  WebContents::CreateParams create_params(
 +      profile, tab_util::GetSiteInstanceForNewTab(profile, params->url));
@@ -150,13 +152,15 @@ index b95a279..31a9e58 100644
 +          params->source_contents, params->url, params->disposition,
 +          params->user_gesture, new_contents);
 +  if (!browser) {
-+    // The embedder cancelled it, as it may cancel a popup.
-+    return nullptr;
++    if (new_contents) {
++      return std::nullopt;
++    }
++    return base::WeakPtr<content::NavigationHandle>();
 +  }
 +  params->browser = browser;
 +  params->navigated_or_inserted_contents = contents;
 +  if (HandleNonNavigationAboutURL(params->url, contents->GetBrowserContext())) {
-+    return nullptr;
++    return base::WeakPtr<content::NavigationHandle>();
 +  }
 +  return contents->GetController().LoadURLWithParams(
 +      LoadURLParamsFromNavigateParams(contents, params));
@@ -166,13 +170,15 @@ index b95a279..31a9e58 100644
  // Finds an existing Browser compatible with |profile|, making a new one if no
  // such Browser is located.
  BrowserWindowInterface* GetOrCreateBrowser(
-@@ -766,6 +817,12 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -766,6 +821,14 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
          params->source_contents, contents_to_navigate_or_insert);
    }
  
 +#if BUILDFLAG(ENABLE_CEF)
 +  if (OpensInNewViewsHostedBrowser(*params)) {
-+    return OpenInNewViewsHostedBrowser(params);
++    if (auto handle = OpenInNewViewsHostedBrowser(params)) {
++      return *handle;
++    }
 +  }
 +#endif
 +
