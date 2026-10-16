@@ -287,33 +287,20 @@ struct RenameField: View {
 }
 
 struct FaviconView: View {
+    @Environment(BrowserEnvironment.self) private var env
     let tab: BrowserTab
 
     var body: some View {
         let live = tab.live
-        ZStack {
-            if let image = live?.favicon {
-                Image(nsImage: image).resizable().interpolation(.high).scaledToFit()
-            } else if let url = live?.faviconURL ?? tab.faviconURL {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image { image.resizable().scaledToFit() } else { placeholder }
+        // The page's icon, or the one it showed last time (a tab not loaded yet): never fetched from here.
+        SiteIcon(live?.favicon ?? env.runtime.favicons.image(for: live?.url ?? tab.url),
+                 placeholder: tab.url == nil ? "plus.square.dashed" : "globe")
+            .overlay {
+                if live?.isLoading == true {
+                    ProgressView().controlSize(.mini).scaleEffect(0.8)
+                        .background(Circle().fill(.background).padding(-1))
                 }
-            } else {
-                placeholder
             }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: Design.Radius.favicon, style: .continuous))
-        .overlay {
-            if live?.isLoading == true {
-                ProgressView().controlSize(.mini).scaleEffect(0.8)
-                    .background(Circle().fill(.background).padding(-1))
-            }
-        }
-    }
-
-    private var placeholder: some View {
-        Image(systemName: tab.url == nil ? "plus.square.dashed" : "globe")
-            .resizable().scaledToFit().foregroundStyle(.tertiary)
     }
 }
 

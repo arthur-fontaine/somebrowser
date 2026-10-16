@@ -137,14 +137,9 @@ struct SwitcherOverlay: View {
 }
 
 struct SwitcherFavicon: View {
+    @Environment(BrowserEnvironment.self) private var env
     let tab: BrowserTab
     var body: some View {
-        if let image = tab.live?.favicon {
-            Image(nsImage: image).resizable().scaledToFit()
-        } else if let url = tab.live?.faviconURL ?? tab.faviconURL {
-            AsyncImage(url: url) { p in p.image?.resizable().scaledToFit() ?? Image(systemName: "globe").resizable().scaledToFit() }
-        } else {
-            Image(systemName: "globe").resizable().scaledToFit().foregroundStyle(.secondary)
-        }
+        SiteIcon(tab.live?.favicon ?? env.runtime.favicons.image(for: tab.live?.url ?? tab.url))
     }
 }

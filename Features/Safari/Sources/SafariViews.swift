@@ -59,6 +59,7 @@ struct SafariStartSection: View {
 }
 
 struct FavoriteTile: View {
+    @Environment(BrowserEnvironment.self) private var env
     let favorite: SafariBookmark
     let action: () -> Void
     @State private var hovering = false
@@ -66,10 +67,13 @@ struct FavoriteTile: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
-                AsyncImage(url: URL(string: "/favicon.ico", relativeTo: favorite.url)) { image in
-                    image.resizable().interpolation(.high)
-                } placeholder: {
-                    Text(String(favorite.title.prefix(1)).uppercased()).font(.system(size: 18, weight: .semibold)).foregroundStyle(.secondary)
+                Group {
+                    // Only an icon a page already showed: a start page contacts no site.
+                    if let icon = env.runtime.favicons.image(for: favorite.url) {
+                        SiteIcon(icon)
+                    } else {
+                        Text(String(favorite.title.prefix(1)).uppercased()).font(.system(size: 18, weight: .semibold)).foregroundStyle(.secondary)
+                    }
                 }
                 .frame(width: 26, height: 26)
                 .frame(width: 56, height: 56)

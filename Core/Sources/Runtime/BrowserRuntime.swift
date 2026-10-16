@@ -31,6 +31,8 @@ public final class BrowserRuntime {
     @ObservationIgnored public let outbound: OutboundConnections
     /// Undo for sidebar changes (⌘Z when no text field has the keyboard).
     @ObservationIgnored public let sidebarHistory = SidebarHistory()
+    /// Icons of the sites pages have shown, for everything that lists a site without loading it.
+    @ObservationIgnored public let favicons: FaviconStore
     @ObservationIgnored public let manifests: [FeatureManifest]
     public private(set) var windows: [BrowserWindowState] = []
     @ObservationIgnored public weak var shell: ShellServices?
@@ -56,6 +58,7 @@ public final class BrowserRuntime {
         }
         try? FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
         siteSettings = SiteSettingsStore(url: persistSession ? dataDirectory.appendingPathComponent("site-settings.json") : nil)
+        favicons = FaviconStore(directory: persistSession ? dataDirectory.appendingPathComponent("Favicons", isDirectory: true) : nil)
         let outbound = OutboundConnections(file: persistSession ? dataDirectory.appendingPathComponent("Security/connections.json") : nil)
         self.outbound = outbound
         engine.hooks.fetch = { request, purpose, isPrivate in
@@ -344,6 +347,20 @@ public final class BrowserRuntime {
         tab.engineTab = e
         events.publish(TabLiveChanged(tabID: tab.id, isLive: true))
         e.delegate = binding
+        keepFavicon(of: e, for: tab)
+    }
+
+    /// Each icon the page shows goes to `favicons` (never a private page's).
+    private func keepFavicon(of page: EngineTab, for tab: BrowserTab) {
+        guard !tab.isPrivate else { return }
+        let id = tab.id, pageID = ObjectIdentifier(page)
+        withObservationTracking { _ = page.state.favicon } onChange: { [weak self] in
+            DispatchQueue.main.async {
+                guard let self, let tab = self.tabs.tab(id), let page = tab.engineTab, ObjectIdentifier(page) == pageID else { return }
+                if let image = page.state.favicon, let url = page.state.url ?? tab.url { self.favicons.store(image, for: url) }
+                self.keepFavicon(of: page, for: tab)
+            }
+        }
     }
 
     /// Replaces a tab's page with a new one loading `url`; the engine may make another kind of page for it. Windows
