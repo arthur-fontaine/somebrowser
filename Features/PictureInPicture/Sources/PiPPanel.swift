@@ -100,6 +100,7 @@ final class PiPPanel: NSPanel {
             alphaValue = 0
         }
         orderFrontRegardless()
+        watchPinches()
         if case .window(let w) = content { w.setFrame(frame, display: false); w.orderFront(nil) }
         NSAnimationContext.animate(.spring(duration: 0.55, bounce: 0.18)) {
             animator().setFrame(target, display: true)
@@ -109,6 +110,7 @@ final class PiPPanel: NSPanel {
     }
 
     func dismiss() {
+        stopWatchingPinches()
         NSAnimationContext.animate(.easeIn(duration: 0.18)) {
             animator().alphaValue = 0
         } completion: { [weak self] in
@@ -145,6 +147,34 @@ final class PiPPanel: NSPanel {
         resting = .corner(left ? (top ? .topLeft : .bottomLeft) : (top ? .topRight : .bottomRight))
         model.stashed = false
         settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame))
+    }
+
+    /// A pinch over the panel. AppKit sends pinches to the key window, and the panel never becomes key (it never takes
+    /// focus): monitors catch them over it, in this app (active) and in others (it floats over them).
+    private var pinchMonitors: [Any] = []
+
+    func watchPinches() {
+        guard pinchMonitors.isEmpty else { return }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: .magnify, handler: { [weak self] event in
+            guard let self, self.isVisible, self.frame.contains(NSEvent.mouseLocation) else { return event }
+            self.pinch(event)
+            return nil
+        }) { pinchMonitors.append(local) }
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: .magnify, handler: { [weak self] event in
+            guard let self, self.isVisible, self.frame.contains(NSEvent.mouseLocation) else { return }
+            self.pinch(event)
+        }) { pinchMonitors.append(global) }
+    }
+
+    func stopWatchingPinches() {
+        pinchMonitors.forEach(NSEvent.removeMonitor)
+        pinchMonitors.removeAll()
+    }
+
+    func pinch(_ event: NSEvent) {
+        magnify(by: event.magnification)
+        // Once the fingers lift, it settles back into its corner at the new size.
+        if event.phase == .ended || event.phase == .cancelled { settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame)) }
     }
 
     func magnify(by amount: CGFloat) {
@@ -215,7 +245,8 @@ final class PiPRootView: NSView {
         guard event.hasPreciseScrollingDeltas else { return }
         if !event.momentumPhase.isEmpty { return }  // our spring replaces system momentum
         if event.phase == .began { samples = [] }
-        let d = CGVector(dx: event.scrollingDeltaX, dy: -event.scrollingDeltaY)
+        let d = PiPPhysics.fingerMove(scrollX: event.scrollingDeltaX, scrollY: event.scrollingDeltaY,
+                                      natural: event.isDirectionInvertedFromDevice)
         if event.phase == .changed || event.phase == .began {
             record(d, at: event.timestamp)
             panel?.moveBy(d.dx, d.dy)
@@ -224,7 +255,7 @@ final class PiPRootView: NSView {
         }
     }
 
-    override func magnify(with event: NSEvent) { panel?.magnify(by: event.magnification) }
+    override func magnify(with event: NSEvent) { panel?.pinch(event) }
 
     private func record(_ d: CGVector, at t: TimeInterval) {
         samples.append((t, d))

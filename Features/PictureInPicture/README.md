@@ -9,7 +9,9 @@
 - The page content comes from the engine through `EngineFloating` (WebKit moves the `WKWebView`; CEF
   hands over the tab's own window), so playback never restarts.
 - `PiPPhysics` (pure, tested): throw projection `p + v·d/(1−d)`, nearest-corner snap, edge stash,
-  aspect-preserving pinch resize. Mouse drag, two-finger trackpad moves and pinch all feed it.
+  aspect-preserving pinch resize. Mouse drag, two-finger trackpad moves and pinch all feed it. Trackpad moves follow
+  the fingers whatever the scroll direction setting; pinches are caught over the panel by event monitors (AppKit sends
+  them to the key window, and the panel never takes focus), in this app and over others.
 - Controls: close, mute, expand back to the tab, −10s/play/+10s, scrubber.
 - Selecting the tab again closes the panel; a "Pop-out View" toggle appears in Site Controls.
 

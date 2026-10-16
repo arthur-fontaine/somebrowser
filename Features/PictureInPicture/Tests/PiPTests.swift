@@ -87,4 +87,11 @@ struct PiPFeatureTests {
         h.runtime.settings.set("pip.calls", false)
         #expect(!feature.shouldPopOut(meet))
     }
+
+    /// Two fingers moving right and up move the panel right and up, with "natural" scrolling on or off.
+    @Test func trackpadMovesFollowTheFingers() {
+        // Fingers right and up: natural scrolling reports +x, -y; the other setting -x, +y.
+        #expect(PiPPhysics.fingerMove(scrollX: 10, scrollY: -6, natural: true) == CGVector(dx: 10, dy: 6))
+        #expect(PiPPhysics.fingerMove(scrollX: -10, scrollY: 6, natural: false) == CGVector(dx: 10, dy: 6))
+    }
 }

@@ -61,6 +61,13 @@ enum PiPPhysics {
     }
 
     /// Keeps a size within limits and the video's aspect ratio (pinch to resize).
+    /// How far the fingers moved on the trackpad (screen points, y up), from a scroll event: the panel follows them
+    /// whatever the scroll direction setting ("natural" scrolling inverts the deltas).
+    static func fingerMove(scrollX: CGFloat, scrollY: CGFloat, natural: Bool) -> CGVector {
+        let sign: CGFloat = natural ? 1 : -1
+        return CGVector(dx: sign * scrollX, dy: -sign * scrollY)
+    }
+
     static func resized(_ size: CGSize, by magnification: CGFloat, aspect: CGFloat, limits: ClosedRange<CGFloat> = 240...960) -> CGSize {
         let width = min(max(size.width * (1 + magnification), limits.lowerBound), limits.upperBound)
         return CGSize(width: width.rounded(), height: (width / max(aspect, 0.2)).rounded())
