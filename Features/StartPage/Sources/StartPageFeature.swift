@@ -72,11 +72,18 @@ struct StartPage: View {
         HStack(spacing: PageGrid.iconToText) {
             Image(systemName: "magnifyingglass").font(.system(size: 15, weight: .medium)).foregroundStyle(.secondary)
                 .frame(width: PageGrid.iconWidth)
-            TextField("Search or type a URL", text: $text)
+            // A placeholder of our own, in a fixed line: the field's own moved its text 3 pt with focus and key state.
+            TextField("", text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 17))
                 .focused($focused)
                 .onSubmit { StartPageFeature.submit(text, window: window, runtime: runtime); text = "" }
+                .frame(height: 22)
+                .background(alignment: .leading) {
+                    if text.isEmpty {
+                        Text("Search or type a URL").font(.system(size: 17)).foregroundStyle(.tertiary).allowsHitTesting(false)
+                    }
+                }
         }
         .padding(.leading, PageGrid.leading)
         .padding(.trailing, Design.Space.capsuleTrailing)
