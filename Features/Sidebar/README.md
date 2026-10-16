@@ -11,6 +11,14 @@ Hiding it (⌘S) gives an almost full-screen page; the left window edge reveals 
   in a `LazyVStack`; each row observes only its own `Tab`, so title/favicon changes re-render one row.
 - Hover uses one `onContinuousHover` per list and the *target* layout (Radian's instant hitbox),
   so highlight is correct while rows spring.
+- The selection is one Liquid Glass lens drawn behind all rows (`SelectionLens`) at the selected row's frame, which
+  rows report as an anchor preference; it slides between rows. Rows themselves are washes, never glass (a lens per
+  row smeared both titles while the glass re-formed).
+- Everything is on one grid (`Design.Grid` in Core): shapes start 8 pt in, icons are centered on the red traffic
+  light (x 26), titles start at x 42; a child's icon sits under its parent's title.
+- Showing or hiding (`SidebarModel.toggle`) changes the window's state at once; the docked sidebar then slides in its
+  own column while the page (a child window under Chromium) changes size once: before the slide when showing, after
+  it when hiding (`isSidebarLeaving` keeps the column meanwhile). Switching spaces slides the same way.
 - `SwipeCatcher` turns two-finger horizontal scrolls into an interactive space pager with a spring.
 
 **Slots it hosts** — `sidebar.header`, `sidebar.address`, `sidebar.top`, `sidebar.footer`: other
