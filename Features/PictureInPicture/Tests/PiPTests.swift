@@ -88,10 +88,39 @@ struct PiPFeatureTests {
         #expect(!feature.shouldPopOut(meet))
     }
 
-    /// Two fingers moving right and up move the panel right and up, with "natural" scrolling on or off.
+    /// Two fingers moving right and up move the panel right and up, with "natural" scrolling on or off, as far as a
+    /// drag would.
     @Test func trackpadMovesFollowTheFingers() {
+        let g = PiPPhysics.trackpadGain
         // Fingers right and up: natural scrolling reports +x, -y; the other setting -x, +y.
-        #expect(PiPPhysics.fingerMove(scrollX: 10, scrollY: -6, natural: true) == CGVector(dx: 10, dy: 6))
-        #expect(PiPPhysics.fingerMove(scrollX: -10, scrollY: 6, natural: false) == CGVector(dx: 10, dy: 6))
+        #expect(PiPPhysics.fingerMove(scrollX: 10, scrollY: -6, natural: true) == CGVector(dx: 10 * g, dy: 6 * g))
+        #expect(PiPPhysics.fingerMove(scrollX: -10, scrollY: 6, natural: false) == CGVector(dx: 10 * g, dy: 6 * g))
+        #expect(g > 1)
+    }
+
+    /// A release throws at the speed of the last moves; fingers that stopped before lifting throw nothing.
+    @Test func releaseVelocityIsTheLastMoves() {
+        let moving: [(t: TimeInterval, d: CGVector)] = (0...6).map { (t: 10 + Double($0) * 0.01, d: CGVector(dx: 20, dy: 0)) }
+        let v = PiPPhysics.velocity(of: moving, at: 10.07)
+        #expect(abs(v.dx - 2000) < 1 && v.dy == 0)
+        #expect(PiPPhysics.velocity(of: moving, at: 10.5) == .zero)
+    }
+
+    /// Thrown toward its corner, the panel keeps going at the throw's speed, then settles exactly there.
+    @Test func settlingCarriesTheThrow() {
+        let start = CGRect(x: 100, y: 100, width: 320, height: 180)
+        let target = CGRect(x: 900, y: 100, width: 320, height: 180)
+        var thrown = PiPPhysics.FrameSpring(from: start, velocity: CGVector(dx: 3000, dy: 0), to: target)
+        var still = PiPPhysics.FrameSpring(from: start, velocity: .zero, to: target)
+        thrown.advance(by: 1.0 / 60)
+        still.advance(by: 1.0 / 60)
+        #expect(thrown.frame.minX - start.minX > 40 && thrown.frame.minX > still.frame.minX)
+        for _ in 0..<120 { thrown.advance(by: 1.0 / 60) }
+        #expect(thrown.isSettled && abs(thrown.frame.minX - target.minX) < 0.5)
+    }
+
+    /// The pointer carried with the panel: AppKit's y-up screen points become the display's y-down ones.
+    @Test func pointerPointsAreFlipped() {
+        #expect(PiPPhysics.displayPoint(CGPoint(x: 10, y: 900), primaryHeight: 1000) == CGPoint(x: 10, y: 100))
     }
 }

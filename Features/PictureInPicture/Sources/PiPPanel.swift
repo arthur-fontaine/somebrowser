@@ -102,15 +102,13 @@ final class PiPPanel: NSPanel {
         orderFrontRegardless()
         watchPinches()
         if case .window(let w) = content { w.setFrame(frame, display: false); w.orderFront(nil) }
-        NSAnimationContext.animate(.spring(duration: 0.55, bounce: 0.18)) {
-            animator().setFrame(target, display: true)
-            animator().alphaValue = 1
-            if case .window(let w) = content { w.animator().setFrame(target, display: true) }
-        }
+        settle(target)
+        NSAnimationContext.animate(.easeOut(duration: 0.3)) { animator().alphaValue = 1 }
     }
 
     func dismiss() {
         stopWatchingPinches()
+        stopSpring()
         NSAnimationContext.animate(.easeIn(duration: 0.18)) {
             animator().alphaValue = 0
         } completion: { [weak self] in
@@ -120,14 +118,48 @@ final class PiPPanel: NSPanel {
         }
     }
 
-    func settle(_ target: CGRect) {
-        NSAnimationContext.animate(.spring(duration: 0.45, bounce: 0.22)) {
-            animator().setFrame(target, display: true)
-            if case .window(let w) = content { w.animator().setFrame(target, display: true) }
+    // Our own spring, not AppKit's animations: it starts at the throw's velocity, and fingers can catch the panel
+    // mid-flight.
+    private var spring: PiPPhysics.FrameSpring?
+    private var springLink: CADisplayLink?
+    private var lastStep: CFTimeInterval = 0
+
+    func settle(_ target: CGRect, velocity: CGVector = .zero) {
+        spring = PiPPhysics.FrameSpring(from: frame, velocity: velocity, to: target)
+        lastStep = CACurrentMediaTime()
+        guard springLink == nil else { return }
+        let link = displayLink(target: self, selector: #selector(stepSpring(_:)))
+        link.add(to: .main, forMode: .common)
+        springLink = link
+    }
+
+    @objc private func stepSpring(_ link: CADisplayLink) {
+        guard var spring else { return stopSpring() }
+        let now = CACurrentMediaTime()
+        spring.advance(by: now - lastStep)
+        lastStep = now
+        if spring.isSettled {
+            place(spring.target)
+            stopSpring()
+        } else {
+            self.spring = spring
+            place(spring.frame)
         }
     }
 
+    private func stopSpring() {
+        springLink?.invalidate()
+        springLink = nil
+        spring = nil
+    }
+
+    private func place(_ f: CGRect) {
+        setFrame(f, display: true)
+        if case .window(let w) = content { w.setFrame(f, display: true) }
+    }
+
     func moveBy(_ dx: CGFloat, _ dy: CGFloat) {
+        stopSpring()
         let o = frame.origin
         setFrameOrigin(CGPoint(x: o.x + dx, y: o.y + dy))
         if case .window(let w) = content { w.setFrameOrigin(frame.origin) }
@@ -138,7 +170,7 @@ final class PiPPanel: NSPanel {
     func release(velocity: CGVector) {
         resting = PiPPhysics.rest(frame: frame, velocity: velocity, in: screenFrame)
         if case .stashed = resting { model.stashed = true } else { model.stashed = false }
-        settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame))
+        settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame), velocity: velocity)
     }
 
     func unstash() {
@@ -178,12 +210,11 @@ final class PiPPanel: NSPanel {
     }
 
     func magnify(by amount: CGFloat) {
+        stopSpring()
         let size = PiPPhysics.resized(frame.size, by: amount, aspect: aspect)
         targetSize = size
         let center = CGPoint(x: frame.midX, y: frame.midY)
-        let f = CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height)
-        setFrame(f, display: true)
-        if case .window(let w) = content { w.setFrame(f, display: true) }
+        place(CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height))
     }
 }
 
@@ -237,7 +268,7 @@ final class PiPRootView: NSView {
     override func mouseUp(with event: NSEvent) {
         guard dragStart != nil else { return }
         dragStart = nil
-        panel?.release(velocity: velocity())
+        panel?.release(velocity: PiPPhysics.velocity(of: samples, at: event.timestamp))
     }
 
     // Two-finger trackpad moves without clicking (Radian: "controllable with trackpad").
@@ -250,23 +281,26 @@ final class PiPRootView: NSView {
         if event.phase == .changed || event.phase == .began {
             record(d, at: event.timestamp)
             panel?.moveBy(d.dx, d.dy)
+            carryPointer(by: d)
         } else if event.phase == .ended || event.phase == .cancelled {
-            panel?.release(velocity: velocity())
+            panel?.release(velocity: PiPPhysics.velocity(of: samples, at: event.timestamp))
         }
+    }
+
+    /// The pointer stays still while two fingers scroll, so the panel would slide out from under it and the next moves
+    /// go to whatever is below: it travels with the panel, as in a drag.
+    private func carryPointer(by d: CGVector) {
+        guard let primary = NSScreen.screens.first else { return }
+        let p = NSEvent.mouseLocation
+        CGWarpMouseCursorPosition(PiPPhysics.displayPoint(CGPoint(x: p.x + d.dx, y: p.y + d.dy), primaryHeight: primary.frame.maxY))
+        CGAssociateMouseAndMouseCursorPosition(1)  // else the mouse can't move the pointer for a moment after
     }
 
     override func magnify(with event: NSEvent) { panel?.pinch(event) }
 
     private func record(_ d: CGVector, at t: TimeInterval) {
         samples.append((t, d))
-        if samples.count > 8 { samples.removeFirst() }
-    }
-
-    private func velocity() -> CGVector {
-        guard let first = samples.first, let last = samples.last, last.t > first.t else { return .zero }
-        let dt = last.t - first.t
-        let sum = samples.dropFirst().reduce(CGVector.zero) { CGVector(dx: $0.dx + $1.d.dx, dy: $0.dy + $1.d.dy) }
-        return CGVector(dx: sum.dx / dt, dy: sum.dy / dt)
+        if samples.count > 16 { samples.removeFirst() }
     }
 }
 
