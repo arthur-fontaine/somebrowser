@@ -64,6 +64,11 @@ final class PendingDialog: Identifiable {
         self.reply = reply
     }
 
+    var isEngineDialog: Bool {
+        if case .engine = dialog.kind { return true }
+        return false
+    }
+
     var defaultText: String? {
         if case .prompt(let text) = dialog.kind { return text }
         return nil
@@ -111,7 +116,9 @@ struct PageDialogView: View {
                 DialogCard(pending: pending) { model.answer(pending, $0) }
                     .id(pending.id)
                     .padding(.top, 48)
-                    .overlayKeyboardFocus("dialogs.page", in: window)
+                    // Not for the engine's own dialogs: Chrome's bubbles close (cancelled) when focus leaves them, and
+                    // Return or Escape there answers as the card would.
+                    .overlayKeyboardFocus("dialogs.page", in: window, isEnabled: !pending.isEngineDialog)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             .animation(.spring(duration: 0.28, bounce: 0.1), value: pending.id)

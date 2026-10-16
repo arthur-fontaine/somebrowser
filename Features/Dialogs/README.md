@@ -12,6 +12,8 @@ authentication challenges. A page that goes away answers its dialogs no. Chrome'
 a title, lines, buttons in Chrome's order) come from the engine's `ChromeDialogs`, which reads Chrome's views dialogs
 through in-process accessibility, keeps their window invisible, and presses the chosen button; it can take a dialog
 back (`DialogWithdrawal`) when Chrome closes it. Dialogs with fields, check boxes or web content keep Chrome's UI.
+The card of an engine dialog doesn't take keyboard focus: Chrome's bubbles close, cancelled, when focus leaves them,
+and Return or Escape in Chrome's (invisible) dialog answers as the card would.
 
 **Without it** — on Chromium a site's sign-in is cancelled (the engine always hands sign-ins to the browser
 rather than Chrome's prompt); JavaScript dialogs and extension prompts fall back to Chrome's.

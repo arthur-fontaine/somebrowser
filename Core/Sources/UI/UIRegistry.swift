@@ -91,9 +91,10 @@ public final class BrowserEnvironment {
 }
 
 public extension View {
-    /// Declares that this overlay takes keyboard input while it is on screen (command bar, find bar…).
-    func overlayKeyboardFocus(_ id: String, in window: BrowserWindowState) -> some View {
-        onAppear { window.overlayFocusRequests.insert(id) }
+    /// Declares that this overlay takes keyboard input while it is on screen (command bar, find bar…); not when
+    /// `isEnabled` is false.
+    func overlayKeyboardFocus(_ id: String, in window: BrowserWindowState, isEnabled: Bool = true) -> some View {
+        onAppear { if isEnabled { window.overlayFocusRequests.insert(id) } }
             .onDisappear { window.overlayFocusRequests.remove(id) }
     }
 }
