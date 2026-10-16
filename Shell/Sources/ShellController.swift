@@ -11,7 +11,9 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
     private var pendingURLs: [URL] = []
     private var savedWindows: [SessionSnapshot.WindowRecord] = []
     private var menuBuilder: MenuBuilder?
-    private var settingsWindow: SettingsWindow?
+    private(set) var settingsWindow: SettingsWindow?
+    /// The app's key window. Tests set it: no window becomes key in a process that isn't the frontmost app.
+    var keyWindow: () -> NSWindow? = { NSApp.keyWindow }
     private var automation: AutomationServer?
 
     init(runtime: BrowserRuntime) {
@@ -156,7 +158,7 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
     }
 
     /// Settings has the keyboard: the browser's shortcuts don't reach the browser behind it.
-    var settingsHasKeyboard: Bool { settingsWindow.map { $0.isKeyWindow } ?? false }
+    var settingsHasKeyboard: Bool { settingsWindow.map { keyWindow() === $0 } ?? false }
 }
 
 /// The Settings window. The browser's commands are off while it has the keyboard (`MenuBuilder`), so ⌘W, which is
