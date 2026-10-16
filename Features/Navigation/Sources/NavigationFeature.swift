@@ -64,6 +64,10 @@ public final class NavigationFeature: BrowserFeature {
         context.ui.contribute("sidebar.header", id: "navigation.buttons", order: 0) { window in
             NavigationButtons(window: window, commands: commands)
         }
+        // In the address field's end, as Safari's (the header has no room once extensions are pinned).
+        context.ui.contribute("address-bar.trailing", id: "navigation.reload", order: 300) { window in
+            ReloadButton(window: window, commands: commands)
+        }
     }
 
     func zoom(_ tab: EngineTab?, by direction: Int) {
@@ -116,7 +120,8 @@ struct NavigationButtons: View {
 
     var body: some View {
         let live = env.runtime.selectedTab(in: window)?.live
-        // One piece of glass for the three, as the system groups a toolbar's single-action buttons.
+        // One piece of glass for the two, as the system groups a toolbar's single-action buttons. Forward stays when
+        // it can't go forward, so the header never shifts.
         HStack(spacing: 0) {
             NavButton(systemImage: "chevron.left", help: "Back (⌘[)", enabled: live?.canGoBack ?? false) {
                 try? commands.run("navigation.back", window: window)
@@ -124,12 +129,29 @@ struct NavigationButtons: View {
             NavButton(systemImage: "chevron.right", help: "Forward (⌘])", enabled: live?.canGoForward ?? false) {
                 try? commands.run("navigation.forward", window: window)
             }
-            NavButton(systemImage: live?.isLoading == true ? "xmark" : "arrow.clockwise",
-                      help: live?.isLoading == true ? "Stop" : "Reload (⌘R)", enabled: live != nil) {
-                try? commands.run(live?.isLoading == true ? "navigation.stop" : "navigation.reload", window: window)
-            }
         }
         .glassControl(in: Capsule())
+    }
+}
+
+/// Reload, or Stop while the page loads.
+struct ReloadButton: View {
+    @Environment(BrowserEnvironment.self) private var env
+    let window: BrowserWindowState
+    let commands: CommandRegistry
+
+    var body: some View {
+        let live = env.runtime.selectedTab(in: window)?.live
+        if let live {
+            FieldButton(help: live.isLoading ? "Stop" : "Reload (⌘R)") {
+                try? commands.run(live.isLoading ? "navigation.stop" : "navigation.reload", window: window)
+            } label: {
+                Image(systemName: live.isLoading ? "xmark" : "arrow.clockwise")
+                    .font(.system(size: 13, weight: .semibold))
+                    .contentTransition(.symbolEffect(.replace))
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 

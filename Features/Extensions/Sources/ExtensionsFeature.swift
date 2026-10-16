@@ -68,8 +68,9 @@ public final class ExtensionsFeature: BrowserFeature {
                                 remove: { id in window.flags.remove(Self.panelFlag); self?.engine?.remove(id) }),
                             close: { window.flags.remove(Self.panelFlag); model.shownDetails = nil })
         }
-        context.ui.contribute("sidebar.header", id: "extensions.buttons", order: 200) { [weak self] window in
-            ExtensionButtons(model: model, windowID: window.id, showPinned: settings.bool("extensions.showPinned"),
+        // In the address field's end, left of reload: the header can't hold them (it overflowed with one).
+        context.ui.contribute("address-bar.trailing", id: "extensions.buttons", order: 200) { [weak self] window in
+            ExtensionButtons(model: model, window: window, showPinned: settings.bool("extensions.showPinned"),
                              run: { self?.run($0, in: window) }, menu: { self?.showMenu(in: window) })
         }
         let timer = Timer(timeInterval: badgeInterval, repeats: true) { [weak self] _ in
@@ -205,24 +206,37 @@ final class ExtensionsModel {
 }
 
 /// Pinned actions and the extensions menu, next to the navigation buttons; Chrome opens popups beside them.
+/// Pinned actions and the extensions menu, in the address field's end. As many pinned ones as fit beside the address
+/// show; the others head the extensions panel, and a badge among them puts a dot on the puzzle.
 struct ExtensionButtons: View {
     let model: ExtensionsModel
-    let windowID: UUID
+    let window: BrowserWindowState
     let showPinned: Bool
     let run: (String) -> Void
     let menu: () -> Void
 
+    /// Pinned extensions with room in a sidebar this wide: the field's width less the address's minimum, reload and the
+    /// puzzle.
+    static func visibleCount(sidebarWidth: CGFloat) -> Int {
+        let field = sidebarWidth - 2 * Design.Grid.edge
+        let taken = Design.Grid.textColumn - Design.Grid.edge + Design.AddressField.minimumText
+            + 2 * Design.AddressField.control + Design.AddressField.trailingInset
+        return max(0, Int((field - taken) / Design.AddressField.control))
+    }
+
     var body: some View {
         if !model.extensions.isEmpty {
+            let pinned = showPinned ? model.pinned : []
+            let shown = pinned.prefix(Self.visibleCount(sidebarWidth: window.sidebarWidth))
+            let hiddenBadge = pinned.dropFirst(shown.count).contains { !(model.badges[window.id]?[$0.id] ?? "").isEmpty }
             HStack(spacing: 0) {
-                if showPinned {
-                    ForEach(model.pinned) { ext in
-                        ExtensionIcon(title: ext.name, image: model.icons[ext.id], badge: model.badges[windowID]?[ext.id]) { run(ext.id) }
-                    }
+                ForEach(shown) { ext in
+                    ExtensionIcon(title: ext.name, image: model.icons[ext.id], badge: model.badges[window.id]?[ext.id]) { run(ext.id) }
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
                 }
-                ExtensionIcon(title: "Extensions", image: nil, help: "Extensions (⌘⇧E)", action: menu)
+                ExtensionIcon(title: "Extensions", image: nil, help: "Extensions (⌘⇧E)", dot: hiddenBadge, action: menu)
             }
-            .glassControl(in: Capsule())
+            .animation(Design.Motion.selection, value: shown.map(\.id))
         }
     }
 }
@@ -232,18 +246,20 @@ struct ExtensionIcon: View {
     let image: NSImage?
     var badge: String?
     var help: String?
+    /// A badge on an extension that isn't shown.
+    var dot = false
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        FieldButton(help: help ?? title, action: action) {
             Group {
                 if let image {
                     Image(nsImage: image).resizable().interpolation(.high).frame(width: 16, height: 16)
                 } else {
-                    Image(systemName: "puzzlepiece.extension").font(.system(size: 15, weight: .medium))
+                    Image(systemName: "puzzlepiece.extension").font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
                 }
             }
-            .frame(width: Design.Size.control, height: Design.Size.control)
+            .frame(width: Design.AddressField.control, height: Design.AddressField.control)
             .overlay(alignment: .bottomTrailing) {
                 if let badge, !badge.isEmpty {
                     Text(badge.prefix(4))
@@ -252,16 +268,14 @@ struct ExtensionIcon: View {
                         .padding(.horizontal, 3)
                         .frame(minWidth: 12, minHeight: 11)
                         .background(Capsule().fill(Color.red))
-                        .offset(x: -1, y: -2)
+                        .offset(x: -1, y: -1)
                         .accessibilityHidden(true)
                 }
             }
-            .contentShape(Rectangle())
+            .overlay(alignment: .topTrailing) {
+                if dot { Circle().fill(Color.red).frame(width: 6, height: 6).offset(x: -5, y: 5).accessibilityHidden(true) }
+            }
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(.primary)
-        .help(help ?? title)
-        .accessibilityLabel(title)
         .accessibilityValue(badge ?? "")
     }
 }
@@ -302,8 +316,9 @@ struct ExtensionsPanel: View {
                 .padding(6)
                 .frame(width: 320)
                 .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .padding(.top, 52)
-                .padding(.leading, 8)
+                // Under the address field, whose end holds the puzzle.
+                .padding(.top, Design.Size.header + Design.Size.control + Design.Space.block)
+                .padding(.leading, Design.Grid.edge)
                 .transition(.scale(scale: 0.96, anchor: .topLeading).combined(with: .opacity))
             }
             .onExitCommand { if model.shownDetails != nil { manage.show(nil) } else { close() } }
@@ -311,8 +326,22 @@ struct ExtensionsPanel: View {
     }
 
     private var list: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        let overflow = model.pinned.dropFirst(ExtensionButtons.visibleCount(sidebarWidth: window.sidebarWidth))
+        return VStack(alignment: .leading, spacing: 2) {
             Text("Extensions").font(.headline).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
+            if !overflow.isEmpty {
+                // Pinned, with no room in the address field.
+                HStack(spacing: 0) {
+                    ForEach(overflow) { ext in
+                        ExtensionIcon(title: ext.name, image: model.icons[ext.id], badge: model.badges[window.id]?[ext.id]) {
+                            close()
+                            run(ext.id)
+                        }
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.bottom, 4)
+            }
             if model.extensions.isEmpty {
                 Text("No extensions yet").foregroundStyle(.secondary).padding(10)
             }

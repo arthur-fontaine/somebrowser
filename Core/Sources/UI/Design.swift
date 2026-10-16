@@ -57,6 +57,15 @@ public enum Design {
         public static let trailing = Space.capsuleTrailing
     }
 
+    /// The address field's trailing controls (reload, extensions): 28 pt circles side by side, the last centered in the
+    /// field's end cap (18 pt from its edge), on the tab rows' close-button column.
+    nonisolated public enum AddressField {
+        public static let control: CGFloat = 28
+        public static let trailingInset = Size.control / 2 - control / 2
+        /// The address text keeps at least this much.
+        public static let minimumText: CGFloat = 80
+    }
+
     nonisolated public enum Size {
         /// A chrome control's height: header buttons, the address field, footer buttons, toasts.
         public static let control: CGFloat = 36

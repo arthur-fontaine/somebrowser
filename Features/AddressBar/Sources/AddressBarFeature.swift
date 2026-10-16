@@ -82,7 +82,9 @@ struct AddressPill: View {
     @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
     let showFullURL: Bool
-    @State private var hovering = false
+
+    /// Controls other features put in the field's trailing end, right to left by descending order.
+    static let trailingSlot: SlotID = "address-bar.trailing"
 
     var body: some View {
         let runtime = env.runtime
@@ -110,20 +112,11 @@ struct AddressPill: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if hovering, let url {
-                Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(url.absoluteString, forType: .string)
-                    if runtime.commands.isHandled("navigation.copy-url") { try? runtime.commands.run("navigation.copy-url", window: window) }
-                } label: {
-                    Image(systemName: "link").font(.system(size: 12, weight: .semibold)).frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain).foregroundStyle(.secondary).help("Copy URL (⌘⇧C)")
-                .transition(.opacity)
-            }
+            // Its trailing end: extensions, then reload (Navigation), as Safari puts them in its address field.
+            HStack(spacing: 0) { SlotHost(Self.trailingSlot, window: window) }
         }
         .padding(.leading, Design.Grid.iconInset)
-        .padding(.trailing, hovering && url != nil ? 6 : Design.Capsule.trailing)  // the copy button sits in the end cap
+        .padding(.trailing, Design.AddressField.trailingInset)
         .frame(height: Design.Size.control)
         .glassControl(in: Capsule())
         .overlay(alignment: .bottom) {
@@ -139,7 +132,6 @@ struct AddressPill: View {
             }
         }
         .contentShape(Rectangle())
-        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
         .onTapGesture {
             if runtime.commands.isHandled("command-bar.edit-url") { try? runtime.commands.run("command-bar.edit-url", window: window) }
         }

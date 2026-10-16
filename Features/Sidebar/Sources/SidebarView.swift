@@ -419,7 +419,8 @@ struct SidebarResizeHandle: View {
                         startWidth = start
                         let w = start + v.translation.width
                         if w < 120 { window.isSidebarVisible = false; return }
-                        window.sidebarWidth = min(480, max(190, w))
+                        // At least the header's controls clear of the traffic lights.
+                        window.sidebarWidth = min(480, max(216, w))
                     }
                     .onEnded { _ in startWidth = nil }
             )

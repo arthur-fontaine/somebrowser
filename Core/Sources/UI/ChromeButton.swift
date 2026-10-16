@@ -25,3 +25,30 @@ public struct ChromeButton: View {
         .help(help)
     }
 }
+
+/// A control inside the address field's end: a 28 pt circle, washed under the pointer (the field is glass already).
+public struct FieldButton<Label: View>: View {
+    let help: String
+    let action: () -> Void
+    let label: Label
+    @State private var hovering = false
+
+    public init(help: String, action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
+        self.help = help
+        self.action = action
+        self.label = label()
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            label
+                .frame(width: Design.AddressField.control, height: Design.AddressField.control)
+                .background(Circle().fill(hovering ? Design.Fill.hover : .clear))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
