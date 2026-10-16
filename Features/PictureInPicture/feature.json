@@ -1,7 +1,7 @@
 {
   "id": "pip",
   "name": "Picture in Picture",
-  "summary": "Radian's system-wide PiP: leave a playing video and it floats over every app; fling it to a corner with the trackpad, tuck it into an edge, control it without coming back.",
+  "summary": "Radian's system-wide PiP: leave a playing video and it floats over every app; move it with the trackpad, tuck it into an edge, control it without coming back.",
   "entry": "PictureInPictureFeature",
   "provides": ["pip"],
   "commands": [

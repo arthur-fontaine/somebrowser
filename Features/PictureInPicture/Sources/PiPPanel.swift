@@ -26,7 +26,7 @@ final class PiPPanel: NSPanel {
     private var aspect: CGFloat = 16 / 9
     /// Size the panel settles to (the live frame may be mid-animation).
     private var targetSize: CGSize
-    private(set) var resting: PiPPhysics.Resting = .corner(.bottomRight)
+    private(set) var resting: PiPPhysics.Resting = .placed(.zero)
 
     init(content: FloatingContent, size: CGSize, model: PiPControlsModel) {
         self.model = model
@@ -98,7 +98,8 @@ final class PiPPanel: NSPanel {
 
     /// Grows out of the browser window into the bottom-right corner (Radian).
     func present(from start: CGRect?) {
-        let target = PiPPhysics.frame(for: .corner(.bottomRight), size: targetSize, in: screenFrame)
+        resting = .placed(PiPPhysics.cornerOrigin(size: targetSize, in: screenFrame))
+        let target = PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame)
         if let start {
             setFrame(start.insetBy(dx: start.width * 0.08, dy: start.height * 0.08), display: false)
             alphaValue = 0.85
@@ -116,6 +117,7 @@ final class PiPPanel: NSPanel {
     func dismiss() {
         stopWatchingPinches()
         stopSpring()
+        releaseSwipes()
         NSAnimationContext.animate(.easeIn(duration: 0.18)) {
             animator().alphaValue = 0
         } completion: { [weak self] in
@@ -165,35 +167,80 @@ final class PiPPanel: NSPanel {
     }
 
     private func place(_ f: CGRect) {
+        let f = PiPPhysics.neverLost(f, in: screenFrame)
         setFrame(f, display: true)
         pageWindow?.setFrame(f, display: true)
     }
 
-    /// Moves with the pointer or the fingers, stopping at the screen's edges; returns how far it went.
-    @discardableResult
-    func moveBy(_ dx: CGFloat, _ dy: CGFloat) -> CGVector {
+    /// Moves with the pointer or the fingers. Past a side edge it goes as far as tucked in, no further.
+    func moveBy(_ dx: CGFloat, _ dy: CGFloat) {
         stopSpring()
-        let o = frame.origin
-        let to = PiPPhysics.keptOnScreen(o, movedBy: CGVector(dx: dx, dy: dy), size: frame.size, in: screenFrame)
-        setFrameOrigin(to)
+        let moved = PiPPhysics.neverLost(frame.offsetBy(dx: dx, dy: dy), in: screenFrame)
+        setFrameOrigin(moved.origin)
         pageWindow?.setFrameOrigin(frame.origin)
         if model.stashed { model.stashed = false }
-        return CGVector(dx: to.x - o.x, dy: to.y - o.y)
     }
 
-    /// Release with a velocity (points/second): fling to a corner or tuck into an edge.
+    /// Released with a velocity (points/second): it glides on to where the throw ends, or tucks into the edge it's
+    /// thrown past. Still fingers leave it where it is.
     func release(velocity: CGVector) {
-        resting = PiPPhysics.rest(frame: frame, velocity: velocity, in: screenFrame)
+        resting = PiPPhysics.rest(frame: CGRect(origin: frame.origin, size: targetSize), velocity: velocity, in: screenFrame)
         if case .stashed = resting { model.stashed = true } else { model.stashed = false }
         settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame), velocity: velocity)
     }
 
+    /// Back out of the edge it's tucked into.
     func unstash() {
         guard case .stashed(let left, let y) = resting else { return }
-        let top = y + frame.height / 2 > screenFrame.midY
-        resting = .corner(left ? (top ? .topLeft : .bottomLeft) : (top ? .topRight : .bottomRight))
+        let x = left ? screenFrame.minX + PiPPhysics.margin : screenFrame.maxX - targetSize.width - PiPPhysics.margin
+        resting = .placed(CGPoint(x: x, y: y))
         model.stashed = false
         settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame))
+    }
+
+    // MARK: Two-finger moves
+
+    private var swipeMoves: [(t: TimeInterval, d: CGVector)] = []
+    private(set) var catcher: SwipeCatcher?
+    /// Where the pointer is (tests set it).
+    var pointerLocation: () -> CGPoint = { NSEvent.mouseLocation }
+
+    /// Two fingers on the trackpad move the panel (Radian: "controllable with trackpad"), the pointer staying where it
+    /// is. Swipes go to what's under the pointer, which the panel leaves as it moves: a catcher stays there and hands
+    /// them to the panel, swipe after swipe, until the pointer moves.
+    func scroll(_ event: NSEvent) {
+        guard event.hasPreciseScrollingDeltas, event.momentumPhase.isEmpty else { return }  // our spring replaces momentum
+        switch event.phase {
+        case .began, .changed:
+            if event.phase == .began { swipeMoves = [] }
+            let d = PiPPhysics.fingerMove(scrollX: event.scrollingDeltaX, scrollY: event.scrollingDeltaY,
+                                          natural: event.isDirectionInvertedFromDevice)
+            swipeMoves.append((event.timestamp, d))
+            if swipeMoves.count > 16 { swipeMoves.removeFirst() }
+            moveBy(d.dx, d.dy)
+            holdSwipes()
+        case .ended, .cancelled:
+            release(velocity: PiPPhysics.velocity(of: swipeMoves, at: event.timestamp))
+            holdSwipes()
+        default:
+            break
+        }
+    }
+
+    /// Over the panel the swipes reach it anyway (and clicks too); off it, the catcher takes them.
+    private func holdSwipes() {
+        let pointer = pointerLocation()
+        if frame.contains(pointer) { return releaseSwipes() }
+        let catcher = catcher ?? SwipeCatcher(panel: self)
+        self.catcher = catcher
+        catcher.hold(at: pointer)
+    }
+
+    func releaseSwipes() { catcher?.orderOut(nil) }
+
+    /// Pinches over the panel, or where the catcher holds its swipes.
+    private func isUnder(_ pointer: CGPoint) -> Bool {
+        frame.contains(pointer) || catcher.map { $0.isVisible && $0.frame.contains(pointer) } == true
     }
 
     /// A pinch over the panel. AppKit sends pinches to the key window, and the panel never becomes key (it never takes
@@ -203,12 +250,12 @@ final class PiPPanel: NSPanel {
     func watchPinches() {
         guard pinchMonitors.isEmpty else { return }
         if let local = NSEvent.addLocalMonitorForEvents(matching: .magnify, handler: { [weak self] event in
-            guard let self, self.isVisible, self.frame.contains(NSEvent.mouseLocation) else { return event }
+            guard let self, self.isVisible, self.isUnder(self.pointerLocation()) else { return event }
             self.pinch(event)
             return nil
         }) { pinchMonitors.append(local) }
         if let global = NSEvent.addGlobalMonitorForEvents(matching: .magnify, handler: { [weak self] event in
-            guard let self, self.isVisible, self.frame.contains(NSEvent.mouseLocation) else { return }
+            guard let self, self.isVisible, self.isUnder(self.pointerLocation()) else { return }
             self.pinch(event)
         }) { pinchMonitors.append(global) }
     }
@@ -220,8 +267,10 @@ final class PiPPanel: NSPanel {
 
     func pinch(_ event: NSEvent) {
         magnify(by: event.magnification)
-        // Once the fingers lift, it settles back into its corner at the new size.
-        if event.phase == .ended || event.phase == .cancelled { settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame)) }
+        // Once the fingers lift, it settles where it is at the new size (on screen, or tucked in still).
+        guard event.phase == .ended || event.phase == .cancelled else { return }
+        if case .placed = resting { resting = .placed(frame.origin) }
+        settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame))
     }
 
     func magnify(by amount: CGFloat) {
@@ -286,29 +335,7 @@ final class PiPRootView: NSView {
         panel?.release(velocity: PiPPhysics.velocity(of: samples, at: event.timestamp))
     }
 
-    // Two-finger trackpad moves without clicking (Radian: "controllable with trackpad").
-    override func scrollWheel(with event: NSEvent) {
-        guard event.hasPreciseScrollingDeltas else { return }
-        if !event.momentumPhase.isEmpty { return }  // our spring replaces system momentum
-        if event.phase == .began { samples = [] }
-        let d = PiPPhysics.fingerMove(scrollX: event.scrollingDeltaX, scrollY: event.scrollingDeltaY,
-                                      natural: event.isDirectionInvertedFromDevice)
-        if event.phase == .changed || event.phase == .began {
-            record(d, at: event.timestamp)  // the fingers' speed: a throw past an edge still tucks the panel in
-            if let moved = panel?.moveBy(d.dx, d.dy) { carryPointer(by: moved) }
-        } else if event.phase == .ended || event.phase == .cancelled {
-            panel?.release(velocity: PiPPhysics.velocity(of: samples, at: event.timestamp))
-        }
-    }
-
-    /// The pointer stays still while two fingers scroll, so the panel would slide out from under it and the next moves
-    /// go to whatever is below: it travels with the panel, as in a drag.
-    private func carryPointer(by d: CGVector) {
-        guard let primary = NSScreen.screens.first else { return }
-        let p = NSEvent.mouseLocation
-        CGWarpMouseCursorPosition(PiPPhysics.displayPoint(CGPoint(x: p.x + d.dx, y: p.y + d.dy), primaryHeight: primary.frame.maxY))
-        CGAssociateMouseAndMouseCursorPosition(1)  // else the mouse can't move the pointer for a moment after
-    }
+    override func scrollWheel(with event: NSEvent) { panel?.scroll(event) }
 
     override func magnify(with event: NSEvent) { panel?.pinch(event) }
 
@@ -316,6 +343,74 @@ final class PiPRootView: NSView {
         samples.append((t, d))
         if samples.count > 16 { samples.removeFirst() }
     }
+}
+
+/// A small invisible window under a still pointer that hands two-finger moves to the panel once the panel has left from
+/// under it. Gone once the pointer moves (or clicks: the click is its, not what's below).
+final class SwipeCatcher: NSPanel {
+    private weak var panel: PiPPanel?
+    private var pointer = CGPoint.zero
+    static let size: CGFloat = 48
+
+    init(panel: PiPPanel) {
+        self.panel = panel
+        super.init(contentRect: CGRect(x: 0, y: 0, width: Self.size, height: Self.size), styleMask: [.borderless, .nonactivatingPanel],
+                   backing: .buffered, defer: false)
+        level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)  // over the panel
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        backgroundColor = .clear
+        isOpaque = false
+        hasShadow = false
+        hidesOnDeactivate = false
+        isReleasedWhenClosed = false
+        animationBehavior = .none
+        ignoresMouseEvents = false
+        acceptsMouseMovedEvents = true
+        contentView = SwipeCatcherView(catcher: self)
+    }
+
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+
+    func hold(at pointer: CGPoint) {
+        self.pointer = pointer
+        setFrameOrigin(CGPoint(x: pointer.x - Self.size / 2, y: pointer.y - Self.size / 2))
+        if !isVisible { orderFrontRegardless() }
+    }
+
+    func scroll(_ event: NSEvent) { panel?.scroll(event) }
+    func pinch(_ event: NSEvent) { panel?.pinch(event) }
+
+    func pointerMoved() {
+        guard let now = panel?.pointerLocation() else { return orderOut(nil) }
+        if hypot(now.x - pointer.x, now.y - pointer.y) > 2 { orderOut(nil) }
+    }
+}
+
+final class SwipeCatcherView: NSView {
+    private weak var catcher: SwipeCatcher?
+
+    init(catcher: SwipeCatcher) {
+        self.catcher = catcher
+        super.init(frame: CGRect(x: 0, y: 0, width: SwipeCatcher.size, height: SwipeCatcher.size))
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.01).cgColor  // takes the events, shows nothing
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func scrollWheel(with event: NSEvent) { catcher?.scroll(event) }
+    override func magnify(with event: NSEvent) { catcher?.pinch(event) }
+    override func mouseMoved(with event: NSEvent) { catcher?.pointerMoved() }
+    override func mouseExited(with event: NSEvent) { catcher?.orderOut(nil) }
+    override func mouseDown(with event: NSEvent) { catcher?.orderOut(nil) }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 struct PiPControls: View {

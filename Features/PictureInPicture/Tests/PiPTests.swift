@@ -9,11 +9,17 @@ struct PiPPhysicsTests {
     let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
     let size = CGSize(width: 400, height: 225)
 
-    @Test func flingProjectsToTheNearestCorner() {
+    /// Fingers that stopped leave the panel where it is; a throw glides on, and stops at the screen's edges.
+    @Test func throwsGlideAndStopOnScreen() {
         let frame = CGRect(origin: CGPoint(x: 600, y: 300), size: size)
-        #expect(PiPPhysics.rest(frame: frame, velocity: .zero, in: screen) == .corner(.bottomRight))
-        #expect(PiPPhysics.rest(frame: frame, velocity: CGVector(dx: 900, dy: 900), in: screen) == .corner(.topRight))
-        #expect(PiPPhysics.rest(frame: frame, velocity: CGVector(dx: 300, dy: -600), in: screen) == .corner(.bottomRight))
+        #expect(PiPPhysics.rest(frame: frame, velocity: .zero, in: screen) == .placed(frame.origin))
+        guard case .placed(let glided) = PiPPhysics.rest(frame: frame, velocity: CGVector(dx: 0, dy: 400), in: screen) else {
+            Issue.record("expected a placement")
+            return
+        }
+        #expect(glided.x == 600 && glided.y > 400)
+        let up = PiPPhysics.rest(frame: frame, velocity: CGVector(dx: 0, dy: 4000), in: screen)
+        #expect(PiPPhysics.frame(for: up, size: size, in: screen).maxY == screen.maxY)
     }
 
     @Test func throwingPastAnEdgeStashes() {
@@ -27,10 +33,10 @@ struct PiPPhysicsTests {
         #expect(stashed.minX == screen.maxX - PiPPhysics.stashVisible)
     }
 
-    @Test func cornerFramesRespectMargins() {
-        let f = PiPPhysics.frame(for: .corner(.topRight), size: size, in: screen)
-        #expect(f.maxX == screen.maxX - PiPPhysics.margin)
-        #expect(f.maxY == screen.maxY - PiPPhysics.margin)
+    @Test func aNewPanelAppearsInTheBottomRightCorner() {
+        let o = PiPPhysics.cornerOrigin(size: size, in: screen)
+        #expect(o.x + size.width == screen.maxX - PiPPhysics.margin)
+        #expect(o.y == screen.minY + PiPPhysics.margin)
     }
 
     @Test func pinchKeepsAspectWithinLimits() {
@@ -67,6 +73,52 @@ struct PiPPanelTests {
         #expect(page.parent === browser && page.isVisible)
         #expect(!panel.isVisible)
         browser.orderOut(nil)
+    }
+}
+
+@MainActor
+struct PiPSwipeTests {
+    func swipe(_ phase: Int64, dx: Int32 = 0) -> NSEvent {
+        let cg = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2, wheel1: 0, wheel2: dx, wheel3: 0)!
+        cg.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+        cg.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)  // 1 began, 2 changed, 4 ended
+        cg.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: Int64(dx))
+        return NSEvent(cgEvent: cg)!
+    }
+
+    /// The pointer stays where it is: once the panel has slid from under it, the swipes there still move the panel,
+    /// swipe after swipe, until the pointer moves.
+    @Test func swipesKeepMovingThePanelWhileThePointerStays() throws {
+        _ = NSApplication.shared
+        let panel = PiPPanel(content: .view(NSView()), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.present(from: nil)
+        let screen = panel.screenFrame
+        panel.moveBy(screen.midX - panel.frame.midX, screen.midY - panel.frame.midY)  // in the middle, settled
+        var pointer = CGPoint(x: panel.frame.midX, y: panel.frame.midY)
+        panel.pointerLocation = { pointer }
+
+        panel.scroll(swipe(1))
+        panel.scroll(swipe(2, dx: -10))  // fingers right a little: still under the pointer, no catcher
+        #expect(panel.catcher?.isVisible != true)
+        let before = panel.frame.minX
+        panel.scroll(swipe(2, dx: -200))  // right, away from under the pointer
+        #expect(panel.frame.minX > before + 200)
+        let catcher = try #require(panel.catcher)
+        #expect(catcher.isVisible && catcher.frame.contains(pointer))
+        panel.scroll(swipe(4))
+
+        // A second swipe where the pointer still is: it reaches the panel through the catcher.
+        let moved = panel.frame.minX
+        catcher.scroll(swipe(1))
+        catcher.scroll(swipe(2, dx: 40))  // fingers left
+        #expect(panel.frame.minX < moved)
+        catcher.scroll(swipe(4))
+        #expect(catcher.isVisible)
+
+        pointer.x += 10
+        catcher.pointerMoved()
+        #expect(!catcher.isVisible)
+        panel.orderOut(nil)
     }
 }
 
@@ -112,8 +164,8 @@ struct PiPFeatureTests {
         #expect(!feature.shouldPopOut(meet))
     }
 
-    /// Two fingers moving right and up move the panel right and up, with "natural" scrolling on or off, as far as a
-    /// drag would.
+    /// Two fingers moving right and up move the panel right and up, with "natural" scrolling on or off, a little
+    /// further than they travel.
     @Test func trackpadMovesFollowTheFingers() {
         let g = PiPPhysics.trackpadGain
         // Fingers right and up: natural scrolling reports +x, -y; the other setting -x, +y.
@@ -122,16 +174,20 @@ struct PiPFeatureTests {
         #expect(g > 1)
     }
 
-    /// Moves stop at the screen's edges; a panel tucked into one comes back out, never further in.
-    @Test func movesStayOnScreen() {
+    /// Never fully off screen: sideways a strip always shows (as tucked in), vertically all of it; anything inside is
+    /// left as it is.
+    @Test func neverFullyOffScreen() {
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900), size = CGSize(width: 400, height: 225)
-        let inside = CGPoint(x: 1000, y: 600)
-        #expect(PiPPhysics.keptOnScreen(inside, movedBy: CGVector(dx: 500, dy: 500), size: size, in: screen) == CGPoint(x: 1040, y: 675))
-        #expect(PiPPhysics.keptOnScreen(inside, movedBy: CGVector(dx: -1500, dy: -900), size: size, in: screen) == .zero)
-        #expect(PiPPhysics.keptOnScreen(inside, movedBy: CGVector(dx: -10, dy: 20), size: size, in: screen) == CGPoint(x: 990, y: 620))
-        let tucked = CGPoint(x: 1440 - 28, y: 300)  // past the right edge
-        #expect(PiPPhysics.keptOnScreen(tucked, movedBy: CGVector(dx: 40, dy: 0), size: size, in: screen) == tucked)
-        #expect(PiPPhysics.keptOnScreen(tucked, movedBy: CGVector(dx: -100, dy: 0), size: size, in: screen).x == CGFloat(1440 - 28 - 100))
+        let visible = PiPPhysics.stashVisible
+        let right = PiPPhysics.neverLost(CGRect(origin: CGPoint(x: 5000, y: 300), size: size), in: screen)
+        #expect(right.minX == screen.maxX - visible && right.minY == 300)
+        let left = PiPPhysics.neverLost(CGRect(origin: CGPoint(x: -5000, y: 2000), size: size), in: screen)
+        #expect(left.maxX == screen.minX + visible && left.maxY == screen.maxY)
+        let inside = CGRect(origin: CGPoint(x: 600, y: 300), size: size)
+        #expect(PiPPhysics.neverLost(inside, in: screen) == inside)
+        // Partly past an edge is fine (it tucks in once released there).
+        let partly = CGRect(origin: CGPoint(x: 1300, y: 300), size: size)
+        #expect(PiPPhysics.neverLost(partly, in: screen) == partly)
     }
 
     /// A release throws at the speed of the last moves; fingers that stopped before lifting throw nothing.
@@ -153,10 +209,5 @@ struct PiPFeatureTests {
         #expect(thrown.frame.minX - start.minX > 40 && thrown.frame.minX > still.frame.minX)
         for _ in 0..<120 { thrown.advance(by: 1.0 / 60) }
         #expect(thrown.isSettled && abs(thrown.frame.minX - target.minX) < 0.5)
-    }
-
-    /// The pointer carried with the panel: AppKit's y-up screen points become the display's y-down ones.
-    @Test func pointerPointsAreFlipped() {
-        #expect(PiPPhysics.displayPoint(CGPoint(x: 10, y: 900), primaryHeight: 1000) == CGPoint(x: 10, y: 100))
     }
 }

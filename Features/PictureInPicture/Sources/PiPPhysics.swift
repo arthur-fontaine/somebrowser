@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Fling, snap and stash math for the floating panel (pure, unit-tested).
+/// Throw, glide and tuck math for the floating panel (pure, unit-tested).
 /// Coordinates are AppKit screen coordinates (origin bottom-left).
 enum PiPPhysics {
     /// Deceleration rate per millisecond (UIScrollView "normal").
@@ -10,10 +10,9 @@ enum PiPPhysics {
     /// Width left visible when the panel is tucked into a screen edge.
     static let stashVisible: CGFloat = 28
 
-    enum Corner: CaseIterable { case topLeft, topRight, bottomLeft, bottomRight }
-
+    /// Where the panel rests: placed anywhere on screen, or tucked into a side edge, a strip still showing.
     enum Resting: Equatable {
-        case corner(Corner)
+        case placed(CGPoint)  // origin
         case stashed(left: Bool, y: CGFloat)
     }
 
@@ -23,41 +22,41 @@ enum PiPPhysics {
         return CGPoint(x: position.x + velocity.dx * factor, y: position.y + velocity.dy * factor)
     }
 
-    /// Panel origin for a corner of `screen`.
-    static func origin(for corner: Corner, size: CGSize, in screen: CGRect) -> CGPoint {
-        let left = screen.minX + margin, right = screen.maxX - size.width - margin
-        let bottom = screen.minY + margin, top = screen.maxY - size.height - margin
-        switch corner {
-        case .topLeft: return CGPoint(x: left, y: top)
-        case .topRight: return CGPoint(x: right, y: top)
-        case .bottomLeft: return CGPoint(x: left, y: bottom)
-        case .bottomRight: return CGPoint(x: right, y: bottom)
-        }
+    /// Where a new panel appears: the screen's bottom-right corner.
+    static func cornerOrigin(size: CGSize, in screen: CGRect) -> CGPoint {
+        CGPoint(x: screen.maxX - size.width - margin, y: screen.minY + margin)
     }
 
-    /// Decides the resting place for a panel released at `frame` with `velocity`.
-    /// Thrown past a side edge → stashed there; otherwise the corner nearest to the projected center.
+    /// Where a panel released at `frame` with `velocity` comes to rest. Its center past a side edge once the throw
+    /// ends: tucked into it. Otherwise where the throw ends, on screen; fingers that had stopped leave it where it is.
     static func rest(frame: CGRect, velocity: CGVector, in screen: CGRect) -> Resting {
-        let center = CGPoint(x: frame.midX, y: frame.midY)
-        let projected = projection(of: center, velocity: velocity)
+        let projected = projection(of: CGPoint(x: frame.midX, y: frame.midY), velocity: velocity)
         if projected.x < screen.minX || projected.x > screen.maxX {
             let y = min(max(projected.y - frame.height / 2, screen.minY + margin), screen.maxY - frame.height - margin)
             return .stashed(left: projected.x < screen.minX, y: y)
         }
-        let corner = Corner.allCases.min { a, b in
-            distance(projected, centerOf(a, size: frame.size, in: screen)) < distance(projected, centerOf(b, size: frame.size, in: screen))
-        }!
-        return .corner(corner)
+        return .placed(CGPoint(x: projected.x - frame.width / 2, y: projected.y - frame.height / 2))
     }
 
     static func frame(for resting: Resting, size: CGSize, in screen: CGRect) -> CGRect {
         switch resting {
-        case .corner(let c):
-            return CGRect(origin: origin(for: c, size: size, in: screen), size: size)
+        case .placed(let origin):
+            let x = min(max(origin.x, screen.minX), screen.maxX - size.width)
+            let y = min(max(origin.y, screen.minY), screen.maxY - size.height)
+            return CGRect(x: x, y: y, width: size.width, height: size.height)
         case .stashed(let left, let y):
             let x = left ? screen.minX - size.width + stashVisible : screen.maxX - stashVisible
             return CGRect(x: x, y: y, width: size.width, height: size.height)
         }
+    }
+
+    /// The panel is never further off screen than tucked in: a strip stays on screen sideways, all of it vertically.
+    /// Moves stop there, and so does a spring's overshoot.
+    static func neverLost(_ frame: CGRect, in screen: CGRect) -> CGRect {
+        var f = frame
+        f.origin.x = min(max(f.minX, screen.minX - f.width + stashVisible), screen.maxX - stashVisible)
+        f.origin.y = min(max(f.minY, screen.minY), screen.maxY - f.height)
+        return f
     }
 
     /// Scroll points to screen points: two fingers carry the panel a little further than they travel (1 felt slow, 2
@@ -71,16 +70,6 @@ enum PiPPhysics {
         return CGVector(dx: sign * scrollX, dy: -sign * scrollY)
     }
 
-    /// Where a move by `delta` from `origin` leaves the panel, kept on `screen`: it stops at an edge. One already past
-    /// an edge (tucked in) can come back, not go further. Tucking is a throw's doing (`rest`), not a move's.
-    static func keptOnScreen(_ origin: CGPoint, movedBy delta: CGVector, size: CGSize, in screen: CGRect) -> CGPoint {
-        func axis(_ o: CGFloat, _ d: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat {
-            min(max(o + d, min(o, lo)), max(o, hi))
-        }
-        return CGPoint(x: axis(origin.x, delta.dx, screen.minX, screen.maxX - size.width),
-                       y: axis(origin.y, delta.dy, screen.minY, screen.maxY - size.height))
-    }
-
     /// Points per second over the moves of the last 100 ms before `time` (older ones: the fingers had stopped).
     static func velocity(of moves: [(t: TimeInterval, d: CGVector)], at time: TimeInterval) -> CGVector {
         let recent = moves.filter { $0.t >= time - 0.1 }
@@ -89,9 +78,6 @@ enum PiPPhysics {
         let dt = last.t - first.t
         return CGVector(dx: sum.dx / dt, dy: sum.dy / dt)
     }
-
-    /// An AppKit screen point (origin bottom-left of the primary display) as a display point (origin top-left).
-    static func displayPoint(_ p: CGPoint, primaryHeight: CGFloat) -> CGPoint { CGPoint(x: p.x, y: primaryHeight - p.y) }
 
     /// The panel going to `target` on a spring that starts at the release's velocity (points/second): a throw carries
     /// on into its corner instead of stopping and starting again.
@@ -139,11 +125,4 @@ enum PiPPhysics {
         let width = min(max(size.width * (1 + magnification), limits.lowerBound), limits.upperBound)
         return CGSize(width: width.rounded(), height: (width / max(aspect, 0.2)).rounded())
     }
-
-    private static func centerOf(_ c: Corner, size: CGSize, in screen: CGRect) -> CGPoint {
-        let o = origin(for: c, size: size, in: screen)
-        return CGPoint(x: o.x + size.width / 2, y: o.y + size.height / 2)
-    }
-
-    private static func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat { hypot(a.x - b.x, a.y - b.y) }
 }
