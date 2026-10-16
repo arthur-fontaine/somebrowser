@@ -81,6 +81,34 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// A click on a tab puts its page on screen within a frame or two: the page turns visible and paints (two animation
+    /// frames: one presented) right after the click, Chromium's side included.
+    @Test func clickedTabsPaintAtOnce() throws {
+        // Each page notes when it turns visible and when it has painted since.
+        let script = "<script>window.__shown=[];document.addEventListener('visibilitychange',()=>{if(!document.hidden){const t=performance.timeOrigin+performance.now();requestAnimationFrame(()=>requestAnimationFrame(()=>__shown.push(performance.timeOrigin+performance.now())));}});</script>"
+        let server = try TestHTTPServer(pages: ["/a": "<!doctype html><title>A</title>\(script)<body>a", "/b": "<!doctype html><title>B</title>\(script)<body>b"])
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
+        try app.open(server.url("/a"))
+        try app.open(server.url("/b"))
+        try app.waitUntil(timeout: 15) { Set(try app.tabs().map(\.title)).isSuperset(of: ["A", "B"]) }
+        var delays: [Double] = []
+        for target in ["A", "B", "A", "B", "A", "B", "A", "B"] {
+            Thread.sleep(forTimeInterval: 0.4)
+            let clicked = Date().timeIntervalSince1970 * 1000
+            #expect(try app.call(["op": "clickTitle", "title": target])["ok"] as? Bool == true)
+            var painted: Double?
+            try app.waitUntil(timeout: 3) {
+                painted = Double(try app.eval("String(__shown[__shown.length - 1] || '')") as? String ?? "")
+                return try app.eval("document.title") as? String == target && painted.map { $0 > clicked } == true
+            }
+            delays.append(painted! - clicked)
+        }
+        delays.sort()
+        print("click to painted ms:", delays.map { Int($0) })
+        #expect(delays[delays.count / 2] < 33)
+        try app.quit()
+    }
+
     /// With the sidebar hidden there's no top bar: the page reaches the window's top edge (but for the content inset),
     /// as it reaches its left edge. Everything lives in the sidebar.
     @Test func hiddenSidebarLeavesNoTopBar() throws {
