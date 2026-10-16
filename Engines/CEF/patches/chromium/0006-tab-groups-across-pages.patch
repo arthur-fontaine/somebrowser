@@ -161,7 +161,7 @@ index 7b12044..5480fb9 100644
    // tabs that are not already in the target browser are moved.
    for (size_t i = 0; i < tab_ids.size(); ++i) {
 diff --git a/chrome/browser/tab_group_sync/feature_utils.cc b/chrome/browser/tab_group_sync/feature_utils.cc
-index 94ddcd4..7d4fdcf 100644
+index 94ddcd4..258b0b4 100644
 --- a/chrome/browser/tab_group_sync/feature_utils.cc
 +++ b/chrome/browser/tab_group_sync/feature_utils.cc
 @@ -4,6 +4,7 @@
@@ -172,13 +172,14 @@ index 94ddcd4..7d4fdcf 100644
  #include "build/build_config.h"
  #include "components/prefs/pref_service.h"
  #include "components/saved_tab_groups/public/features.h"
-@@ -28,6 +29,13 @@ static bool JNI_TabGroupSyncFeatures_IsTabGroupSyncEnabled(JNIEnv* env,
+@@ -28,6 +29,14 @@ static bool JNI_TabGroupSyncFeatures_IsTabGroupSyncEnabled(JNIEnv* env,
  #endif  // BUILDFLAG(IS_ANDROID)
  
  bool IsTabGroupSyncEnabled(PrefService* pref_service) {
 +  // An embedder hosting pages one per browser (--views-hosted-new-tabs) has
 +  // groups span pages; saved groups track a group in one tab strip, and the
-+  // embedder shows none of them.
++  // embedder shows none of them. (Its sync must be off too, --disable-sync:
++  // the sync service reads this one unguarded on desktop.)
 +  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
 +          "views-hosted-new-tabs")) {
 +    return false;
@@ -186,3 +187,56 @@ index 94ddcd4..7d4fdcf 100644
  #if BUILDFLAG(IS_ANDROID)
    // Clear the legacy synced boolean pref to its default value (false) that
    // enables syncing across devices even when the feature isn't enabled on the
+diff --git a/chrome/browser/ui/browser_live_tab_context.cc b/chrome/browser/ui/browser_live_tab_context.cc
+index d48ee3c..9ff9223 100644
+--- a/chrome/browser/ui/browser_live_tab_context.cc
++++ b/chrome/browser/ui/browser_live_tab_context.cc
+@@ -263,7 +263,11 @@ BrowserLiveTabContext::GetSavedTabGroupIdForGroup(
+     const tab_groups::TabGroupId& group) const {
+   tab_groups::TabGroupSyncService* tab_group_service =
+       tab_groups::TabGroupSyncServiceFactory::GetForProfile(&profile_.get());
+-  CHECK(tab_group_service);
++  // None with --views-hosted-new-tabs (see IsTabGroupSyncEnabled): no saved
++  // group.
++  if (!tab_group_service) {
++    return std::nullopt;
++  }
+ 
+   const std::optional<tab_groups::SavedTabGroup> saved_group =
+       tab_group_service->GetGroup(group);
+@@ -276,7 +280,11 @@ const std::optional<tab_groups::TabGroupId>
+ BrowserLiveTabContext::GetGroupIdForSavedGroup(const base::Uuid& saved) const {
+   tab_groups::TabGroupSyncService* tab_group_service =
+       tab_groups::TabGroupSyncServiceFactory::GetForProfile(&profile_.get());
+-  CHECK(tab_group_service);
++  // None with --views-hosted-new-tabs (see IsTabGroupSyncEnabled): no saved
++  // group.
++  if (!tab_group_service) {
++    return std::nullopt;
++  }
+ 
+   const std::optional<tab_groups::SavedTabGroup> saved_group =
+       tab_group_service->GetGroup(saved);
+@@ -350,7 +358,6 @@ sessions::LiveTab* BrowserLiveTabContext::AddRestoredTab(
+     sessions::tab_restore::Type original_session_type) {
+   tab_groups::TabGroupSyncService* tab_group_service =
+       tab_groups::TabGroupSyncServiceFactory::GetForProfile(&profile_.get());
+-  CHECK(tab_group_service);
+ 
+   SessionStorageNamespaceHandle* storage_namespace =
+       tab.platform_data
+@@ -360,9 +367,12 @@ sessions::LiveTab* BrowserLiveTabContext::AddRestoredTab(
+           : nullptr;
+ 
+   // If the browser does not support tabs groups, restore the grouped tab as a
+-  // normal tab instead. See crbug.com/368139715.
++  // normal tab instead. See crbug.com/368139715. So too without saved groups
++  // (--views-hosted-new-tabs, see IsTabGroupSyncEnabled).
+   std::optional<tab_groups::TabGroupId> group_id =
+-      tab_strip_model_->SupportsTabGroups() ? tab.group : std::nullopt;
++      tab_strip_model_->SupportsTabGroups() && tab_group_service
++          ? tab.group
++          : std::nullopt;
+   std::optional<base::Uuid> saved_group_id = tab.saved_group_id;
+   content::WebContents* web_contents = nullptr;
+ 
