@@ -157,6 +157,7 @@ final class AutomationServer {
                 default: break
                 }
             }
+            if (123...126).contains(req["keyCode"] as? Int ?? 0) { flags.formUnion([.function, .numericPad]) }  // as the arrow keys report
             for type in [NSEvent.EventType.keyDown, .keyUp] {
                 guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime,
                                                    windowNumber: target.windowNumber, context: nil, characters: chars,
