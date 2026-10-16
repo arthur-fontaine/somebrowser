@@ -308,6 +308,14 @@ final class AutomationServer {
             }
             reply(["ok": true, "views": dump(root, 0), "children": ns.childWindows?.map { NSStringFromRect($0.frame) } ?? [],
                    "windows": windows, "keyWindow": key.map { "\(type(of: $0))#\($0.identifier?.rawValue ?? "")" } ?? NSNull()])
+        case "appearance":
+            // `dark`, `light` or `system`: the app's appearance, whatever the Mac's (design screenshots).
+            NSApp.appearance = switch req["value"] as? String {
+            case "dark": NSAppearance(named: .darkAqua)
+            case "light": NSAppearance(named: .aqua)
+            default: nil
+            }
+            reply(["ok": true])
         case "quit":
             reply(["ok": true])
             NSApp.terminate(nil)
