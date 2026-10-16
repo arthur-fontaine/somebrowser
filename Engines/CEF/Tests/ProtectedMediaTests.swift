@@ -19,11 +19,23 @@ struct ProtectedMediaTests {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("pm-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: file) }
         let media = ProtectedMedia(mode: .webkit, file: file)
-        #expect(!media.needsWebKit(URL(string: "https://www.netflix.com/browse")))
-        media.remember(URL(string: "https://www.netflix.com/watch/1")!)
-        #expect(media.needsWebKit(URL(string: "https://www.netflix.com/browse")))
+        #expect(!media.needsWebKit(URL(string: "https://www.streamer.example/browse")))
+        media.remember(URL(string: "https://www.streamer.example/watch/1")!)
+        #expect(media.needsWebKit(URL(string: "https://www.streamer.example/browse")))
         #expect(!media.needsWebKit(URL(string: "https://example.com/")))
-        #expect(ProtectedMedia(mode: .webkit, file: file).needsWebKit(URL(string: "https://netflix.com/")))
-        #expect(!ProtectedMedia(mode: .chromium, file: file).needsWebKit(URL(string: "https://netflix.com/")))
+        #expect(ProtectedMedia(mode: .webkit, file: file).needsWebKit(URL(string: "https://streamer.example/")))
+        #expect(!ProtectedMedia(mode: .chromium, file: file).needsWebKit(URL(string: "https://streamer.example/")))
+    }
+
+    /// Streaming services open in WebKit from their first page (signing in happens there), subdomains included.
+    @Test func knownStreamingSitesOpenInWebKit() {
+        let media = ProtectedMedia(mode: .webkit, file: nil)
+        for url in ["https://www.netflix.com/", "https://netflix.com/login", "https://www.disneyplus.com/", "https://tv.apple.com/"] {
+            #expect(media.needsWebKit(URL(string: url)), "\(url)")
+        }
+        for url in ["https://www.apple.com/", "https://notnetflix.com/", "https://example.com/"] {
+            #expect(!media.needsWebKit(URL(string: url)), "\(url)")
+        }
+        #expect(!ProtectedMedia(mode: .chromium, file: nil).needsWebKit(URL(string: "https://www.netflix.com/")))
     }
 }

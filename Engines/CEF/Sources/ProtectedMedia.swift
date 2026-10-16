@@ -12,22 +12,38 @@ final class ProtectedMedia {
     private(set) var sites: Set<String>
     private let file: URL?
 
+    /// Streaming services known to need protected media: their pages open in WebKit from the first one, so signing in
+    /// happens there and no page ever moves. Hosts, matched with their subdomains.
+    static let knownHosts: Set<String> = [
+        "netflix.com", "disneyplus.com", "primevideo.com", "max.com", "hbomax.com", "hulu.com", "paramountplus.com",
+        "peacocktv.com", "crunchyroll.com", "canalplus.com", "tv.apple.com", "music.apple.com", "open.spotify.com",
+    ]
+
     init(mode: Mode, file: URL?) {
         self.mode = mode
         self.file = file
-        let saved = file.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? []
-        sites = Set(saved)
+        func load(_ file: URL?) -> Set<String> {
+            Set(file.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? [])
+        }
+        sites = load(file)
     }
 
     /// Pages of this URL's site play in WebKit.
     func needsWebKit(_ url: URL?) -> Bool {
-        guard mode == .webkit, let site = url.flatMap(Self.site) else { return false }
-        return sites.contains(site)
+        guard mode == .webkit, let url, let site = Self.site(of: url) else { return false }
+        if sites.contains(site) { return true }
+        let host = url.host()?.lowercased() ?? ""
+        return Self.knownHosts.contains { host == $0 || host.hasSuffix("." + $0) }
     }
 
     func remember(_ url: URL) {
-        guard let site = Self.site(of: url), sites.insert(site).inserted, let file else { return }
-        try? JSONEncoder().encode(sites.sorted()).write(to: file, options: .atomic)
+        guard let site = Self.site(of: url), sites.insert(site).inserted else { return }
+        save(sites, to: file)
+    }
+
+    private func save(_ set: Set<String>, to file: URL?) {
+        guard let file else { return }
+        try? JSONEncoder().encode(set.sorted()).write(to: file, options: .atomic)
     }
 
     /// The registrable part of a host, roughly (www.netflix.com → netflix.com; bbc.co.uk stays whole).
