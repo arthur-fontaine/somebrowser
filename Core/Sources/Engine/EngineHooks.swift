@@ -334,29 +334,51 @@ public struct PageDialog {
         case leavePage(isReload: Bool)
         /// HTTP authentication for `host` (a proxy when `isProxy`), in `realm`.
         case signIn(host: String, realm: String, isProxy: Bool)
+        /// One of the engine's own dialogs (an extension asking for a permission, to be added or removed…), shown by
+        /// the browser instead: its lines in `message`, its buttons in order (the last one accepts, the first cancels).
+        case engine(title: String, buttons: [String])
     }
     public struct Answer: Equatable {
         public var accepted: Bool
         /// The prompt's text, or the sign-in's username.
         public var text: String?
         public var password: String?
-        public init(accepted: Bool, text: String? = nil, password: String? = nil) {
+        /// The button chosen, for `.engine` dialogs (nil: the last one if accepted, else the first).
+        public var button: Int?
+        public init(accepted: Bool, text: String? = nil, password: String? = nil, button: Int? = nil) {
             self.accepted = accepted
             self.text = text
             self.password = password
+            self.button = button
         }
     }
     public var kind: Kind
     public var message: String
     /// The page's origin, as shown to the user.
     public var origin: URL?
+    /// The page the dialog is over; nil for the selected page of the key window.
     public var tab: EngineTab?
+    /// Lets the engine take the dialog back unanswered (it closed on its own).
+    public var withdrawal: DialogWithdrawal?
 
-    public init(kind: Kind, message: String, origin: URL?, tab: EngineTab?) {
+    public init(kind: Kind, message: String, origin: URL?, tab: EngineTab?, withdrawal: DialogWithdrawal? = nil) {
         self.kind = kind
         self.message = message
         self.origin = origin
         self.tab = tab
+        self.withdrawal = withdrawal
+    }
+}
+
+/// Handed to the browser with a dialog the engine may take back.
+public final class DialogWithdrawal {
+    public var onWithdraw: (() -> Void)?
+    public private(set) var isWithdrawn = false
+    public init() {}
+    public func withdraw() {
+        guard !isWithdrawn else { return }
+        isWithdrawn = true
+        onWithdraw?()
     }
 }
 

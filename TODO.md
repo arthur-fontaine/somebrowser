@@ -170,8 +170,10 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Error and certificate pages are the browser's own (Error Pages feature), Visit Anyway included
 - [x] Context menu without Chrome's own UI items; Open Link in Private Tab
 - [x] No Chrome password, AutoFill, translate offers or debugger bar
-- [ ] Chrome's extension install and permission prompts, and `chrome://extensions` (site access, removal): need
-      Chromium patches (management through the browser's own panel)
+- [x] Chrome's extension prompts (a permission asked for, an extension removing itself) are the browser's own dialogs,
+      without a rebuild: read through in-process accessibility, Chrome's window kept invisible, the answer pressed (E2E
+      `extensionPromptsAreTheBrowsers`); the Web Store's install prompt has the same shape, not checked end to end
+- [ ] `chrome://extensions` (site access, removal, errors) still Chrome's page
 - [~] Claude in Chrome: native messaging hosts mirrored, Claude space from the extension's page marks; Claude's own
       tabs: ADR-0005 patches 1–2 written, not built; groups across windows (patch 3) for multi-tab sessions not written.
       Chrome's new-tab page, which Claude's tabs start on, shows the browser's own (E2E `chromesNewTabPageIsTheBrowsers`)

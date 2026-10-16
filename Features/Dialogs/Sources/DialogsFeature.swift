@@ -1,8 +1,9 @@
 import BrowserCore
 import SwiftUI
 
-/// Pages' dialogs (alert, confirm, prompt, leaving the page, a site's sign-in) in the browser's own UI, over their tab
-/// (Chrome's and WebKit's own dialogs never show). A dialog waits for its tab to be shown; one at a time per tab.
+/// Pages' dialogs (alert, confirm, prompt, leaving the page, a site's sign-in) and the engine's own (Chrome's extension
+/// prompts) in the browser's own UI, over their tab (Chrome's and WebKit's own dialogs never show). A dialog waits for
+/// its tab to be shown; one at a time per tab. The engine's go over the page in front when they come.
 public final class DialogsFeature: BrowserFeature {
     let context: FeatureContext
     let model = DialogsModel()
@@ -10,12 +11,16 @@ public final class DialogsFeature: BrowserFeature {
     public init(context: FeatureContext) { self.context = context }
 
     public func activate() {
-        context.hooks.pageDialog = { [weak self] dialog, answer in self?.model.enqueue(dialog, answer) }
+        context.hooks.pageDialog = { [weak self] dialog, answer in
+            guard let self else { return }
+            let page = dialog.tab ?? context.runtime.keyWindow.flatMap { context.runtime.selectedTab(in: $0)?.engineTab }
+            self.model.enqueue(dialog, over: page, answer)
+        }
         context.commands.handle("dialogs.accept", isEnabled: { [weak self] in self?.shown(in: $0.window) != nil }) { [weak self] inv in
             guard let self, let pending = self.shown(in: inv.window) else { return }
             let a = inv.arguments
             self.model.answer(pending, PageDialog.Answer(accepted: true, text: a["text"] ?? a["username"] ?? pending.defaultText,
-                                                         password: a["password"]))
+                                                         password: a["password"], button: a["button"].flatMap { Int($0) }))
         }
         context.commands.handle("dialogs.cancel", isEnabled: { [weak self] in self?.shown(in: $0.window) != nil }) { [weak self] inv in
             guard let self, let pending = self.shown(in: inv.window) else { return }
@@ -33,13 +38,14 @@ public final class DialogsFeature: BrowserFeature {
 
     /// The dialog over the window's selected page, if it has one.
     func shown(in window: BrowserWindowState?) -> PendingDialog? {
-        guard let window, let page = context.runtime.selectedTab(in: window)?.engineTab else { return nil }
-        return model.first(for: page)
+        guard let window else { return nil }
+        return model.first(for: context.runtime.selectedTab(in: window)?.engineTab)
     }
 
     private func dropOrphans() {
         let live = Set(context.tabs.allTabs.compactMap { $0.engineTab.map(ObjectIdentifier.init) })
-        for pending in model.pending where pending.dialog.tab.map({ !live.contains(ObjectIdentifier($0)) }) ?? true {
+        for pending in model.pending {
+            guard let page = pending.page, !live.contains(ObjectIdentifier(page)) else { continue }
             model.answer(pending, PageDialog.Answer(accepted: false))
         }
     }
@@ -48,10 +54,13 @@ public final class DialogsFeature: BrowserFeature {
 final class PendingDialog: Identifiable {
     let id = UUID()
     let dialog: PageDialog
+    /// The page it's over; nil when no page was open (it shows in a window without one).
+    weak var page: EngineTab?
     let reply: (PageDialog.Answer) -> Void
 
-    init(_ dialog: PageDialog, _ reply: @escaping (PageDialog.Answer) -> Void) {
+    init(_ dialog: PageDialog, over page: EngineTab?, _ reply: @escaping (PageDialog.Answer) -> Void) {
         self.dialog = dialog
+        self.page = page
         self.reply = reply
     }
 
@@ -65,12 +74,19 @@ final class PendingDialog: Identifiable {
 final class DialogsModel {
     private(set) var pending: [PendingDialog] = []
 
-    func enqueue(_ dialog: PageDialog, _ reply: @escaping (PageDialog.Answer) -> Void) {
-        pending.append(PendingDialog(dialog, reply))
+    func enqueue(_ dialog: PageDialog, over page: EngineTab?, _ reply: @escaping (PageDialog.Answer) -> Void) {
+        guard dialog.withdrawal?.isWithdrawn != true else { return }
+        let new = PendingDialog(dialog, over: page, reply)
+        dialog.withdrawal?.onWithdraw = { [weak self, weak new] in
+            guard let self, let new else { return }
+            self.pending.removeAll { $0 === new }
+        }
+        pending.append(new)
     }
 
-    func first(for page: EngineTab) -> PendingDialog? {
-        pending.first { $0.dialog.tab === page }
+    /// The first dialog over `page`; with no page, the first one over none.
+    func first(for page: EngineTab?) -> PendingDialog? {
+        pending.first { $0.page === page }
     }
 
     func answer(_ dialog: PendingDialog, _ answer: PageDialog.Answer) {
@@ -89,7 +105,7 @@ struct PageDialogView: View {
     let runtime: BrowserRuntime
 
     var body: some View {
-        if let page = runtime.selectedTab(in: window)?.engineTab, let pending = model.first(for: page) {
+        if let pending = model.first(for: runtime.selectedTab(in: window)?.engineTab) {
             ZStack(alignment: .top) {
                 Color.black.opacity(0.12).contentShape(Rectangle())
                 DialogCard(pending: pending) { model.answer(pending, $0) }
@@ -131,13 +147,25 @@ struct DialogCard: View {
             }
             HStack {
                 Spacer()
-                if dialog.kind != .alert {
-                    Button(cancelTitle) { answer(PageDialog.Answer(accepted: false)) }
-                        .keyboardShortcut(.cancelAction)
+                if case .engine(_, let buttons) = dialog.kind {
+                    // In the engine's order: the last one accepts, the first cancels.
+                    ForEach(Array(buttons.enumerated()), id: \.offset) { i, title in
+                        let button = Button(title) { answer(PageDialog.Answer(accepted: i == buttons.count - 1, button: i)) }
+                        if i == buttons.count - 1 {
+                            button.keyboardShortcut(.defaultAction).buttonStyle(.glassProminent)
+                        } else {
+                            button.keyboardShortcut(i == 0 ? .cancelAction : nil)
+                        }
+                    }
+                } else {
+                    if dialog.kind != .alert {
+                        Button(cancelTitle) { answer(PageDialog.Answer(accepted: false)) }
+                            .keyboardShortcut(.cancelAction)
+                    }
+                    Button(acceptTitle) { answer(PageDialog.Answer(accepted: true, text: text, password: password)) }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.glassProminent)
                 }
-                Button(acceptTitle) { answer(PageDialog.Answer(accepted: true, text: text, password: password)) }
-                    .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.glassProminent)
             }
         }
         .padding(18)
@@ -147,11 +175,17 @@ struct DialogCard: View {
             text = pending.defaultText ?? ""
             focused = true
         }
-        .onExitCommand { if dialog.kind != .alert { answer(PageDialog.Answer(accepted: false)) } else { answer(PageDialog.Answer(accepted: true)) } }
+        .onExitCommand { answer(PageDialog.Answer(accepted: dialog.kind == .alert || isSingleButton)) }
+    }
+
+    private var isSingleButton: Bool {
+        if case .engine(_, let buttons) = dialog.kind { return buttons.count < 2 }
+        return false
     }
 
     private var title: String {
         switch dialog.kind {
+        case .engine(let title, _): title
         case .leavePage(let isReload): isReload ? "Reload this page?" : "Leave this page?"
         case .signIn(let host, _, let isProxy): isProxy ? "Sign in to the proxy \\(host)" : "Sign in to \\(host)"
         default: "\\(site) says"

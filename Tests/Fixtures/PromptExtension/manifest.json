@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "E2E Prompt",
+  "version": "1.0",
+  "description": "Test fixture: its action asks for Chrome's own prompts (a permission, or removing itself) and shows the answer in its badge.",
+  "background": { "service_worker": "worker.js" },
+  "action": { "default_title": "E2E Prompt" },
+  "optional_permissions": ["bookmarks"]
+}

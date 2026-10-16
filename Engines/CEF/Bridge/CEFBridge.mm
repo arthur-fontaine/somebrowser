@@ -99,6 +99,39 @@ static void PageWindowsFollowTheirBrowserWindow() {
     class_replaceMethod(page, @selector(isMainWindow), (IMP)PageWindowIsMainWindow, method_getTypeEncoding(method));
 }
 
+/// Chrome's views windows announce themselves when shown (`CEFChromeWindowShownNotification`), child windows included,
+/// for which AppKit posts nothing: the engine shows Chrome's dialogs in the browser's own UI.
+NSNotificationName const CEFChromeWindowShownNotification = @"CEFChromeWindowShownNotification";
+static IMP gOrderWindow = nullptr, gAddChildWindow = nullptr;
+
+static void AnnounceIfChromeWindow(NSWindow *window) {
+    if (![NSStringFromClass(window.class) isEqualToString:@"NativeWidgetMacNSWindow"]) return;
+    // After Chrome is done showing it.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSNotificationCenter.defaultCenter postNotificationName:CEFChromeWindowShownNotification object:window];
+    });
+}
+
+static void OrderWindow(NSWindow *self, SEL _cmd, NSWindowOrderingMode place, NSInteger other) {
+    ((void (*)(id, SEL, NSWindowOrderingMode, NSInteger))gOrderWindow)(self, _cmd, place, other);
+    if (place != NSWindowOut) AnnounceIfChromeWindow(self);
+}
+
+static void AddChildWindow(NSWindow *self, SEL _cmd, NSWindow *child, NSWindowOrderingMode place) {
+    ((void (*)(id, SEL, NSWindow *, NSWindowOrderingMode))gAddChildWindow)(self, _cmd, child, place);
+    AnnounceIfChromeWindow(child);
+}
+
+static void ChromeWindowsAnnounceThemselves() {
+    if (gOrderWindow) return;
+    Method order = class_getInstanceMethod(NSWindow.class, @selector(orderWindow:relativeTo:));
+    gOrderWindow = method_getImplementation(order);
+    class_replaceMethod(NSWindow.class, @selector(orderWindow:relativeTo:), (IMP)OrderWindow, method_getTypeEncoding(order));
+    Method add = class_getInstanceMethod(NSWindow.class, @selector(addChildWindow:ordered:));
+    gAddChildWindow = method_getImplementation(add);
+    class_replaceMethod(NSWindow.class, @selector(addChildWindow:ordered:), (IMP)AddChildWindow, method_getTypeEncoding(add));
+}
+
 // MARK: - NSApplication
 
 @interface BrowserCEFApplication () <CefAppProtocol> {
@@ -161,6 +194,7 @@ static void PageWindowsFollowTheirBrowserWindow() {
 @end
 
 @interface CEFRuntime ()
+@property (nonatomic, readwrite) BOOL operatingChromeMenu;
 - (CefRefPtr<CefRequestContext>)privateContextFor:(CEFTab *)tab;
 - (void)registerTab:(CEFTab *)tab;
 - (void)unregisterTab:(CEFTab *)tab;
@@ -1035,15 +1069,22 @@ static id AXButtonNamed(id e, NSString *name, int depth) {
         if (button != AXKids(container).lastObject && [AXName(button) hasPrefix:name]) { completion([button accessibilityPerformPress]); return; }
     }
     // Not pinned: Chrome's menu runs it (and briefly pops the action out, like a click in Chrome would).
-    if (![AXKids(container).lastObject accessibilityPerformPress]) { completion(NO); return; }
+    CEFRuntime *runtime = [CEFRuntime shared];
+    runtime.operatingChromeMenu = YES;
+    void (^done)(BOOL) = ^(BOOL ran) {
+        // The menu closes after its item is pressed.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{ runtime.operatingChromeMenu = NO; });
+        completion(ran);
+    };
+    if (![AXKids(container).lastObject accessibilityPerformPress]) { done(NO); return; }
     __weak NSWindow *weakToolbar = toolbarWindow;
     __block int attempts = 0;
     __block void (^poll)(void);
     void (^tryPress)(void) = ^{
         for (NSWindow *menu in weakToolbar.childWindows) {
-            if (id item = AXButtonNamed(menu, name, 0)) { completion([item accessibilityPerformPress]); poll = nil; return; }
+            if (id item = AXButtonNamed(menu, name, 0)) { done([item accessibilityPerformPress]); poll = nil; return; }
         }
-        if (++attempts > 40) { completion(NO); poll = nil; return; }
+        if (++attempts > 40) { done(NO); poll = nil; return; }
         void (^next)(void) = poll;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 25 * NSEC_PER_MSEC), dispatch_get_main_queue(), next);
     };
@@ -1299,6 +1340,7 @@ private:
         return NO;
     }
     PageWindowsFollowTheirBrowserWindow();
+    ChromeWindowsAnnounceThemselves();
     return YES;
 }
 

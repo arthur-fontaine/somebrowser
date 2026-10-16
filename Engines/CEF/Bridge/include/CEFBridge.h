@@ -67,6 +67,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
          reply:(void (^)(NSString *_Nullable username, NSString *_Nullable password))reply;
 @end
 
+/// Posted (object: the window) when one of Chrome's own views windows is shown: a dialog, a bubble, a popup.
+FOUNDATION_EXPORT NSNotificationName const CEFChromeWindowShownNotification;
+
 @protocol CEFRuntimeDelegate <NSObject>
 /// Called on the IO thread for every request: must be fast and thread-safe. nil continues, an empty string
 /// blocks, any other string replaces the URL (e.g. tracking parameters removed).
@@ -95,6 +98,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 @property (nonatomic) int extensionToolbarWidth;
 /// Extensions are installed (or loaded unpacked): keep a Chrome window for them while no page is open.
 @property (nonatomic) BOOL extensionsInstalled;
+/// While the browser runs an action through Chrome's extensions menu (an extension not pinned in the hidden toolbar
+/// yet): that menu is Chrome's, operated by the browser, not a dialog to show.
+@property (nonatomic, readonly) BOOL operatingChromeMenu;
 /// How long after startup that window may first be made (0: at once). Restored pages usually make it unneeded, and
 /// making it first adds ~150 ms to the launch.
 @property (nonatomic) NSTimeInterval anchorStartupDelay;

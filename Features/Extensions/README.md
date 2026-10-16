@@ -5,6 +5,8 @@ buttons, and the Extensions panel (⌘⇧E, the puzzle button) lists them all: r
 options and side panel. The panel is the browser's own; Chrome's extensions menu never shows. Popups, permission
 prompts and options pages are the extensions' (or Chrome's), so extensions behave as in Chrome (popups,
 `action.onClicked`, the `activeTab` grant); Manage Extensions… opens Chrome's page for site access and removal.
+Chrome's prompts (a permission an extension asks for, an extension removing itself) show as the browser's own dialogs
+(Dialogs feature); the Web Store's install prompt has the same shape but isn't checked end to end.
 
 **How it works** — The engine implements `EngineExtensions` (Core). On Chromium, every page carries Chrome's real
 toolbar in an invisible 1×1 overlay where every extension is pinned (the engine pins them all in Chrome's preferences

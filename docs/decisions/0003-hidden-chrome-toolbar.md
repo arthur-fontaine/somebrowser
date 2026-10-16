@@ -53,6 +53,11 @@ when Chrome replaces those files.
   pinned live (Chrome follows `extensions.pinned_extensions`), so actions don't go through Chrome's menu.
 - The page is made key before its action runs: Chrome puts what the extension asks for (a permission prompt…) over its
   active window, else over its newest page window, maybe a hidden tab's (with the sidebar key) (2026-10-16).
+- Chrome's prompts (a permission an extension asks for, an extension removing itself) are read the same way, through
+  in-process accessibility, and shown as the browser's own dialogs (Dialogs feature), Chrome's window kept invisible;
+  its button is pressed with the answer, after Chrome's double-click cooldown (it ignores earlier presses). Chrome's
+  windows announce themselves as they're shown (the bridge hooks `orderWindow:relativeTo:` and `addChildWindow:`;
+  AppKit posts nothing for child windows) (2026-10-16).
 - Teardown: Chrome's browser view keeps a pointer to its toolbar, so before a page window closes the toolbar
   is moved back into that window (hidden) and the overlay destroyed; otherwise the toolbar dies with the
   overlay widget first and closing the window is a use-after-free. E2E quits fail on any crash.

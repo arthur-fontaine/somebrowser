@@ -33,6 +33,28 @@ struct DialogsFeatureTests {
         #expect(leave()?.accepted == false)
     }
 
+    /// The engine's own dialogs (Chrome's extension prompts) come with no page: they show over the page in front, the
+    /// chosen button goes back, and the engine can take one back unanswered.
+    @Test func engineDialogsShowOverThePageInFront() throws {
+        let h = try harness()
+        let tab = h.openTab("https://a.example")
+        _ = h.runtime.live(tab)
+        var answer: PageDialog.Answer?
+        let kind = PageDialog.Kind.engine(title: "Remove “X”?", buttons: ["Cancel", "Remove"])
+        h.runtime.engine.hooks.pageDialog?(PageDialog(kind: kind, message: "", origin: nil, tab: nil)) { answer = $0 }
+        #expect(h.runtime.commands.canRun("dialogs.accept"))
+        try h.run("dialogs.accept", arguments: ["button": "1"])
+        #expect(answer == PageDialog.Answer(accepted: true, button: 1))
+
+        let withdrawal = DialogWithdrawal()
+        answer = nil
+        h.runtime.engine.hooks.pageDialog?(PageDialog(kind: kind, message: "", origin: nil, tab: nil, withdrawal: withdrawal)) { answer = $0 }
+        #expect(h.runtime.commands.canRun("dialogs.cancel"))
+        withdrawal.withdraw()
+        #expect(!h.runtime.commands.canRun("dialogs.cancel"))
+        #expect(answer == nil)
+    }
+
     /// A background tab's dialog waits for its tab; a closed tab's dialog is answered no.
     @Test func dialogsWaitForTheirTabAndEndWithIt() throws {
         let h = try harness()

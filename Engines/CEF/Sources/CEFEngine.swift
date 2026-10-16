@@ -23,6 +23,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
     private(set) var protectedMedia: ProtectedMedia
     private var webKit: WebKitEngine?
     private var webKitProfile: URL?
+    private var chromeDialogs: ChromeDialogs?
 
     public init(options: [String: SettingValue]) {
         self.options = options
@@ -166,6 +167,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         runtime.extensionToolbar = options["chromeToolbar"]?.stringValue != "none"
         // Sites' sign-ins go to the browser's own dialog once a feature shows them (Chrome's login dialog otherwise).
         hooks.observePageDialog { [weak self] in self?.runtime.handlesSignIn = self?.hooks.pageDialog != nil }
+        // Chrome's own dialogs (extensions' prompts) go to the same feature.
+        chromeDialogs = ChromeDialogs(hooks: hooks)
         let profile = profileDirectory.appendingPathComponent("Default", isDirectory: true)
         // A first launch restores nothing: the extensions' window is made at once (their welcome pages open then).
         let firstLaunch = !FileManager.default.fileExists(atPath: profile.appendingPathComponent("Preferences").path)

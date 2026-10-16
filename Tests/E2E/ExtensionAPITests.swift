@@ -108,6 +108,55 @@ struct ExtensionAPITests {
         try s.finish()
     }
 
+    /// Chrome's own extension prompts (a permission asked for, an extension removing itself) show as the browser's
+    /// dialogs: Chrome's windows stay invisible, and the answer given in the browser's dialog is the one Chrome gets.
+    /// With our Chromium (the answer shows in the extension's badge, `chromium/0001`).
+    @Test func extensionPromptsAreTheBrowsers() throws {
+        let fixture = Self.fixture.deletingLastPathComponent().appendingPathComponent("PromptExtension")
+        let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-prompt-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: data) }
+        let server = try TestHTTPServer(pages: Self.pages)
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path],
+                                arguments: ["--load-extension=\(fixture.path)"])
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        guard try (app.eval("navigator.userAgent") as? String ?? "").contains("Chrome/156") else { try app.quit(); return }
+        var id = ""
+        try app.waitUntil(timeout: 20) {
+            id = (try app.state()["extensions"] as? [[String: Any]])?.first?["id"] as? String ?? ""
+            return !id.isEmpty
+        }
+        let badge = { (try app.state()["extensions"] as? [[String: Any]])?.first?["badge"] as? String }
+        // Chrome's views windows big enough to show something (its hidden toolbar is 1×1): shown, or kept invisible by
+        // the browser (and clicks go through).
+        let chromeWindows = { (visible: Bool) in
+            ((try app.call(["op": "views"])["windows"] as? [[String: Any]]) ?? []).filter {
+                $0["class"] as? String == "NativeWidgetMacNSWindow" && !(($0["frame"] as? String) ?? "").hasSuffix("{1, 1}}")
+                    && (visible ? ($0["alpha"] as? Double ?? 0) > 0 : $0["alpha"] as? Double == 0 && $0["ignoresMouse"] as? Bool == true)
+            }.count
+        }
+        // A permission, denied in the browser's dialog. The action's button may not be ready at once: press until a
+        // prompt comes.
+        try app.waitUntil(timeout: 20) {
+            if try chromeWindows(false) + chromeWindows(true) > 0 { return true }
+            try app.run("extensions.run", ["id": id])
+            Thread.sleep(forTimeInterval: 1)
+            return false
+        }
+        try app.waitUntil(timeout: 10) { try chromeWindows(false) == 1 }
+        #expect(try chromeWindows(true) == 0)
+        try app.run("dialogs.cancel")
+        try app.waitUntil(timeout: 30) { try badge() == "N" }
+        // Removing itself (a bubble, a child window), accepted.
+        try app.run("extensions.run", ["id": id])
+        try app.waitUntil(timeout: 10) { try chromeWindows(false) == 1 }
+        #expect(try chromeWindows(true) == 0)
+        try app.run("dialogs.accept")
+        try app.waitUntil(timeout: 30) { (try app.state()["extensions"] as? [[String: Any]])?.isEmpty == true }
+        try app.quit()
+    }
+
     /// With no page open (a first launch), an extension's welcome page still opens as a tab: `tabs.create` needs a
     /// Chrome window to start from, and each page here is one ("No current window" before); the page-less anchor
     /// stands in (with `chromium/0005`, the tab opens from it as its popups would, and the browser adopts it). With every tab closed
