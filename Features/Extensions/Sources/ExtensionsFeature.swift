@@ -222,7 +222,6 @@ struct ExtensionButtons: View {
                 }
                 ExtensionIcon(title: "Extensions", image: nil, help: "Extensions (⌘⇧E)", action: menu)
             }
-            .padding(.horizontal, 2)
             .glassControl(in: Capsule())
         }
     }
@@ -241,10 +240,10 @@ struct ExtensionIcon: View {
                 if let image {
                     Image(nsImage: image).resizable().interpolation(.high).frame(width: 16, height: 16)
                 } else {
-                    Image(systemName: "puzzlepiece.extension").font(.system(size: 13, weight: .medium))
+                    Image(systemName: "puzzlepiece.extension").font(.system(size: 15, weight: .medium))
                 }
             }
-            .frame(width: 30, height: 30)
+            .frame(width: Design.Size.control, height: Design.Size.control)
             .overlay(alignment: .bottomTrailing) {
                 if let badge, !badge.isEmpty {
                     Text(badge.prefix(4))

@@ -129,7 +129,6 @@ struct NavigationButtons: View {
                 try? commands.run(live?.isLoading == true ? "navigation.stop" : "navigation.reload", window: window)
             }
         }
-        .padding(.horizontal, 3)
         .glassControl(in: Capsule())
     }
 }
@@ -147,10 +146,10 @@ struct NavButton: View {
             action()
         } label: {
             Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 15, weight: .medium))
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, value: bounce)
-                .frame(width: 30, height: 30)
+                .frame(width: Design.Size.control, height: Design.Size.control)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

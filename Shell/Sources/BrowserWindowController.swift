@@ -37,6 +37,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
                                  backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
+        // An empty toolbar: the system's 52 pt titlebar, its traffic lights centered on the sidebar's top row.
+        window.toolbar = NSToolbar(identifier: "browser")
+        window.toolbarStyle = .unified
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 480, height: 360)
         window.collectionBehavior = [.fullScreenPrimary]
@@ -107,6 +110,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
             window?.standardWindowButton(kind)?.isHidden = !visible
         }
+        window?.toolbar?.isVisible = visible
     }
 
     required init?(coder: NSCoder) { fatalError() }

@@ -80,27 +80,28 @@ struct SpaceSwitcher: View {
     var body: some View {
         let spaces = runtime.tabs.spaces
         if spaces.count > 1 {
-            HStack(spacing: 2) {
+            // Segments concentric inside the capsule: 36 tall, 4 in, so each is a 28 pt capsule.
+            HStack(spacing: 0) {
                 ForEach(spaces) { space in
                     let selected = space.id == window.spaceID
                     Button { runtime.switchSpace(space.id, in: window) } label: {
                         SpaceSymbol(space.kind)
-                            .frame(width: 14, height: 14)
-                            .frame(width: 28, height: 24)
+                            .frame(width: 15, height: 15)
+                            .frame(width: 36, height: Design.Size.control - 8)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(selected ? .primary : .secondary)
                     .background {
-                        if selected { Capsule().fill(.primary.opacity(0.12)).matchedGeometryEffect(id: "selection", in: selection) }
+                        if selected { Capsule().fill(Design.Fill.selection).matchedGeometryEffect(id: "selection", in: selection) }
                     }
                     .help(space.kind.title)
                     .accessibilityLabel(space.kind.title)
                 }
             }
-            .padding(3)
+            .padding(4)
             .glassControl(in: Capsule())
-            .animation(.spring(duration: 0.3, bounce: 0.2), value: window.spaceID)
+            .animation(Design.Motion.selection, value: window.spaceID)
             .frame(maxWidth: .infinity)
         }
     }

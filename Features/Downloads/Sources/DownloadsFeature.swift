@@ -122,10 +122,10 @@ struct DownloadsButton: View {
                             .rotationEffect(.degrees(-90))
                             .animation(.easeOut(duration: 0.3), value: p)
                     }
-                    Image(systemName: "arrow.down").font(.system(size: 10, weight: .bold)).symbolEffect(.bounce, value: bounce)
+                    Image(systemName: "arrow.down").font(.system(size: 12, weight: .bold)).symbolEffect(.bounce, value: bounce)
                 }
-                .frame(width: 20, height: 20)
-                .frame(width: 30, height: 30)
+                .frame(width: 22, height: 22)
+                .frame(width: Design.Size.control, height: Design.Size.control)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
