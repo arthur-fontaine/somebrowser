@@ -380,3 +380,21 @@ struct UboReleaseTests {
         #expect(error == nil)
     }
 }
+
+struct BlockedWeekTests {
+    @Test func countsTheLastSevenDaysAndKeepsNoMore() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("blocked-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let day: TimeInterval = 86_400
+        let week = BlockedWeek(url: file)
+        week.add(5, on: now.addingTimeInterval(-9 * day))  // too old by the time of the later adds
+        week.add(3, on: now.addingTimeInterval(-6 * day))
+        week.add(4, on: now)
+        week.add(2, on: now)
+        #expect(week.total(days: 7, until: now) == 9)
+        // Persisted, and pruned to the week.
+        #expect(BlockedWeek(url: file).total(days: 30, until: now) == 9)
+    }
+}
+

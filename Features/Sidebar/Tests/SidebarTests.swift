@@ -77,6 +77,8 @@ struct SidebarFeatureTests {
         #expect(h.window.isSidebarVisible)
         try h.run("sidebar.toggle")
         #expect(!h.window.isSidebarVisible)
+        try h.run("sidebar.toggle")
+        #expect(h.window.isSidebarVisible && !h.window.isSidebarLeaving)
         try h.run("sidebar.focus-mode")
         #expect(h.window.flags.contains(SidebarModel.focusFlag))
     }

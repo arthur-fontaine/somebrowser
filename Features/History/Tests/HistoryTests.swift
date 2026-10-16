@@ -69,4 +69,19 @@ struct HistoryTests {
         try h.run("history.show")
         #expect(h.window.flags.contains(HistoryFeature.panelFlag))
     }
+
+    @Test func frequentSitesAddUpTheirPagesAndLeaveFavoritesOut() throws {
+        let h = try harness()
+        let feature = try #require(h.runtime.feature(HistoryFeature.self))
+        let old = Date(timeIntervalSince1970: 1_000_000)
+        feature.store.importEntries([
+            HistoryEntry(url: URL(string: "https://www.a.example/1")!, title: "A1", lastVisit: old, visitCount: 3),
+            HistoryEntry(url: URL(string: "https://a.example/2")!, title: "A2", lastVisit: old, visitCount: 4),
+            HistoryEntry(url: URL(string: "https://b.example/")!, title: "B", lastVisit: old, visitCount: 6),
+            HistoryEntry(url: URL(string: "https://fav.example/")!, title: "Fav", lastVisit: old, visitCount: 50),
+        ])
+        let sites = feature.store.frequentSites(limit: 5, excluding: ["fav.example"])
+        // a.example's two pages (7 visits) outrank b.example (6); each site shows its most visited page.
+        #expect(sites.map(\.url.absoluteString) == ["https://a.example/2", "https://b.example/"])
+    }
 }
