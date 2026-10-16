@@ -238,6 +238,21 @@ final class AutomationServer {
                               "ignoresMouse": child.ignoresMouseEvents, "hit": chain, "ax": ax])
             }
             reply(["ok": true, "windows": found])
+        case "ax":
+            // An app window's accessibility tree (Chrome's own dialogs, read in process as the browser reads them).
+            guard let n = req["number"] as? Int, let w = NSApp.windows.first(where: { $0.windowNumber == n }) else {
+                return reply(["ok": false, "error": "no window"])
+            }
+            func dump(_ e: NSObject, _ depth: Int) -> [String] {
+                guard depth < 30 else { return [] }
+                let get = { (key: String) in (e.responds(to: NSSelectorFromString(key)) ? e.value(forKey: key) : nil).map { "\($0)" } ?? "" }
+                var out = [String(repeating: "  ", count: depth) + "\(get("accessibilityRole")) \(get("accessibilitySubrole")) "
+                           + "label='\(get("accessibilityLabel"))' title='\(get("accessibilityTitle"))' value='\(get("accessibilityValue"))' "
+                           + "enabled=\(get("isAccessibilityEnabled"))"]
+                for child in (e.value(forKey: "accessibilityChildren") as? [NSObject]) ?? [] { out += dump(child, depth + 1) }
+                return out
+            }
+            reply(["ok": true, "ax": dump(w, 0)])
         case "state":
             reply(["ok": true, "state": stateJSON()])
         case "eval":
@@ -278,7 +293,8 @@ final class AutomationServer {
             // Every app window front to back, with its parent: page, overlay and engine bubble composition.
             let windows: [[String: Any]] = NSApp.orderedWindows.map { w in
                 ["number": w.windowNumber, "class": String(describing: type(of: w)), "frame": NSStringFromRect(w.frame),
-                 "parent": w.parent?.windowNumber ?? 0, "visible": w.isVisible, "level": w.level.rawValue, "alpha": w.alphaValue]
+                 "parent": w.parent?.windowNumber ?? 0, "visible": w.isVisible, "level": w.level.rawValue, "alpha": w.alphaValue,
+                 "ignoresMouse": w.ignoresMouseEvents]
             }
             reply(["ok": true, "views": dump(root, 0), "children": ns.childWindows?.map { NSStringFromRect($0.frame) } ?? [],
                    "windows": windows, "keyWindow": key.map { "\(type(of: $0))#\($0.identifier?.rawValue ?? "")" } ?? NSNull()])
