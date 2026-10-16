@@ -104,6 +104,24 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// A tab Claude acts on (the Claude in Chrome extension marks it with its glow) moves to the Claude space.
+    @Test func claudesTabsGoToTheClaudeSpace() throws {
+        let server = try TestHTTPServer(pages: [
+            "/mine": "<!doctype html><title>Mine</title><body>mine</body>",
+            "/claude": "<!doctype html><title>Claude</title><body><script>setTimeout(() => { const d = document.createElement('div'); d.id = 'claude-agent-glow-border'; document.body.appendChild(d); }, 300);</script></body>",
+        ])
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
+        try app.open(server.url("/mine"))
+        try app.open(server.url("/claude"))
+        func spaces() throws -> [[String: Any]] { try app.state()["spaces"] as? [[String: Any]] ?? [] }
+        try app.waitUntil(timeout: 15) { try spaces().contains { $0["kind"] as? String == "claude" } }
+        let claude = try spaces().first { $0["kind"] as? String == "claude" }
+        #expect((claude?["today"] as? [[String: Any]])?.map { $0["title"] as? String } == ["Claude"])
+        let normal = try spaces().first { $0["kind"] as? String == "normal" }
+        #expect((normal?["today"] as? [[String: Any]])?.compactMap { $0["title"] as? String } == ["Mine"])
+        try app.quit()
+    }
+
     /// A click reaches the page: nothing of the window's own covers it (Chromium routes clicks by the views under the
     /// pointer, and CEF's overlay host view once took them all).
     @Test func clicksReachThePage() throws {

@@ -1,0 +1,12 @@
+{
+  "id": "claude",
+  "name": "Claude",
+  "summary": "Tabs Claude controls (Claude in Chrome, driven from Claude Code or Claude) gather in a Claude space.",
+  "entry": "ClaudeFeature",
+  "provides": [],
+  "requires": [],
+  "commands": [],
+  "settings": [
+    { "key": "claude.space", "title": "Put the tabs Claude controls in their own space", "type": "bool", "default": true }
+  ]
+}
