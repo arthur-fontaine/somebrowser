@@ -313,7 +313,6 @@ final class AutomationServer {
             guard let window else { return reply(["ok": false, "error": "no window"]) }
             let on = req["value"] as? Bool ?? true
             window.isSidebarPeeking = on
-            if on { window.titlebarRequests.insert("sidebar.peek") } else { window.titlebarRequests.remove("sidebar.peek") }
             reply(["ok": true])
         case "appearance":
             // `dark`, `light` or `system`: the app's appearance, whatever the Mac's (design screenshots).

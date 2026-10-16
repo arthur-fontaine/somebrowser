@@ -57,7 +57,6 @@ final class CommandBarModel {
         sessions[window.id] = nil
         window.flags.remove(Self.flag)
         if peeked.remove(window.id) != nil {
-            window.titlebarRequests.remove(Self.flag)
             // Put away unless the pointer is over it (then it hides as the pointer leaves, as a hover peek does).
             let frame = runtime.shell?.nsWindow(for: window)?.frame ?? .zero
             if !frame.contains(NSEvent.mouseLocation) || NSEvent.mouseLocation.x > frame.minX + window.sidebarWidth + 16 {

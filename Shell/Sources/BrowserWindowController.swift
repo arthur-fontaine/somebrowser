@@ -108,7 +108,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func updateTrafficLights() {
         let hasSidebar = !runtime.ui.views(for: .sidebar).isEmpty
         let docked = state.isSidebarVisible && !state.isSidebarArriving  // they'd sit over the sidebar sliding under them
-        let visible = !hasSidebar || docked || state.isSidebarPeeking || !state.titlebarRequests.isEmpty || state.isFullscreen
+        // The floating sidebar draws its own in their place (it covers these).
+        let visible = !hasSidebar || docked || (!state.isSidebarPeeking && (!state.titlebarRequests.isEmpty || state.isFullscreen))
         let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { window?.standardWindowButton($0) }
         let appearing = visible && buttons.contains(where: \.isHidden)
         for button in buttons {

@@ -35,8 +35,10 @@ struct SidebarView: View {
     private var header: some View {
         GlassGroup(spacing: 6) {
             HStack(spacing: Design.Space.block) {
-                // The traffic lights live here (full-size content view); the floating sidebar covers them instead.
-                Spacer(minLength: isOnGlass ? 0 : 72)
+                // The traffic lights live here (full-size content view). The floating sidebar covers the window's own, so it
+                // draws its own in their place.
+                if isOnGlass { WindowControls(leading: Design.Grid.edge).frame(width: WindowControls.width, height: Design.Size.header) }
+                Spacer(minLength: isOnGlass ? Design.Space.block : 72)
                 SlotHost(.sidebarHeader, window: window)
                 SidebarIconButton(systemImage: "sidebar.left", help: "Toggle Sidebar (⌘S)") {
                     try? env.runtime.commands.run("sidebar.toggle", window: window)
@@ -463,7 +465,6 @@ struct SidebarPeekOverlay: View {
                             guard inside else { return }
                             hideTask?.cancel()
                             withAnimation(.spring(duration: 0.28, bounce: 0.1)) { window.isSidebarPeeking = true }
-                            window.titlebarRequests.insert("sidebar.peek")
                         }
                 }
                 Spacer(minLength: 0)
@@ -477,7 +478,6 @@ struct SidebarPeekOverlay: View {
             try? await Task.sleep(for: .milliseconds(350))
             guard !Task.isCancelled else { return }
             withAnimation(.spring(duration: 0.28, bounce: 0.05)) { window.isSidebarPeeking = false }
-            window.titlebarRequests.remove("sidebar.peek")
         }
     }
 }

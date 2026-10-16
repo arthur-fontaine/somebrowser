@@ -12,7 +12,6 @@ public final class CommandBarFeature: BrowserFeature {
     func openInline(_ w: BrowserWindowState, mode: CommandBarModel.Mode) {
         if !w.isSidebarVisible && !w.isSidebarPeeking {
             withAnimation(.spring(duration: 0.28, bounce: 0.1)) { w.isSidebarPeeking = true }  // the peek's own slide
-            w.titlebarRequests.insert(CommandBarModel.flag)
             model.peeked.insert(w.id)
         }
         model.open(w, mode: mode, style: .inline)
