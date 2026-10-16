@@ -1,5 +1,5 @@
 diff --git a/third_party/blink/renderer/core/scroll/scrollbar_theme_mac.cc b/third_party/blink/renderer/core/scroll/scrollbar_theme_mac.cc
-index 079315eed9..18a499a399 100644
+index 079315eed9..4653ae9106 100644
 --- a/third_party/blink/renderer/core/scroll/scrollbar_theme_mac.cc
 +++ b/third_party/blink/renderer/core/scroll/scrollbar_theme_mac.cc
 @@ -27,10 +27,14 @@
@@ -17,39 +17,62 @@ index 079315eed9..18a499a399 100644
  #include "third_party/blink/renderer/core/paint/paint_info.h"
  #include "third_party/blink/renderer/core/scroll/mac_scrollbar_animator.h"
  #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
-@@ -44,6 +48,18 @@
+@@ -44,6 +48,30 @@
  
  namespace blink {
  
 +namespace {
 +
-+// For embedders that round the page's corners: the page's own (root) scrollbars
-+// keep their thumbs clear of them, their tracks inset by `inset` DIPs at both
-+// ends, as AppKit insets a scroller from a window's rounded corners.
-+// --enable-features=RootScrollbarAvoidsCorners:inset/8
++// For embedders that round the page's corners: the page's own (root)
++// scrollbars keep their thumbs clear of them, the thumb's travel inset by
++// `inset` DIPs at both ends of the (full-length, corner-clipped) track.
++// --enable-features=RootScrollbarAvoidsCorners:inset/4
 +BASE_FEATURE(kRootScrollbarAvoidsCorners, base::FEATURE_DISABLED_BY_DEFAULT);
 +const base::FeatureParam<int> kRootScrollbarCornerInset{
-+    &kRootScrollbarAvoidsCorners, "inset", 8};
++    &kRootScrollbarAvoidsCorners, "inset", 4};
++
++// The thumb's travel: the track, inset at both ends for the page's own (root)
++// scroller when kRootScrollbarAvoidsCorners is on (0 otherwise).
++int RootScrollbarCornerInset(const Scrollbar& scrollbar) {
++  const LayoutBox* box = scrollbar.GetLayoutBox();
++  if (!box || !box->IsLayoutView() || !box->GetFrame() ||
++      !box->GetFrame()->IsOutermostMainFrame() ||
++      !base::FeatureList::IsEnabled(kRootScrollbarAvoidsCorners)) {
++    return 0;
++  }
++  return kRootScrollbarCornerInset.Get() * scrollbar.ScaleFromDIP();
++}
 +
 +}  // namespace
 +
  static float s_initial_button_delay = 0.5f;
  static float s_autoscroll_button_delay = 0.05f;
  static bool s_jump_on_track_click = false;
-@@ -353,7 +369,21 @@ gfx::Rect ScrollbarThemeMac::ForwardButtonRect(
+@@ -193,7 +221,14 @@ void ScrollbarThemeMac::PaintTrackBackground(const PaintInfo& paint_info,
+                                              const gfx::Rect& rect) {
+   GraphicsContext& context = paint_info.context;
+   GraphicsContextStateSaver state_saver(context);
+-  context.Translate(rect.x(), rect.y());
++  // `rect` is the thumb's travel (TrackRect); the track spans the whole frame,
++  // clipped by the page's corners like any scroller.
++  const int inset = RootScrollbarCornerInset(scrollbar);
++  if (scrollbar.Orientation() == kVerticalScrollbar) {
++    context.Translate(rect.x(), rect.y() - inset);
++  } else {
++    context.Translate(rect.x() - inset, rect.y());
++  }
+ 
+   auto* mac_scrollbar = MacScrollbar::GetForScrollbar(scrollbar);
+   if (!mac_scrollbar)
+@@ -353,7 +388,16 @@ gfx::Rect ScrollbarThemeMac::ForwardButtonRect(
  }
  
  gfx::Rect ScrollbarThemeMac::TrackRect(const Scrollbar& scrollbar) const {
 -  return scrollbar.FrameRect();
++  // The compositor moves the thumb along this rect, so the inset is here; the
++  // track itself is still painted full length (PaintTrackBackground).
 +  gfx::Rect rect = scrollbar.FrameRect();
-+  // The page's own scroller: the outermost main frame's layout view.
-+  const LayoutBox* box = scrollbar.GetLayoutBox();
-+  if (!box || !box->IsLayoutView() || !box->GetFrame() ||
-+      !box->GetFrame()->IsOutermostMainFrame() ||
-+      !base::FeatureList::IsEnabled(kRootScrollbarAvoidsCorners)) {
-+    return rect;
-+  }
-+  const int inset = kRootScrollbarCornerInset.Get() * scrollbar.ScaleFromDIP();
++  const int inset = RootScrollbarCornerInset(scrollbar);
 +  if (scrollbar.Orientation() == kVerticalScrollbar) {
 +    rect.Inset(gfx::Insets::TLBR(inset, 0, inset, 0));
 +  } else {

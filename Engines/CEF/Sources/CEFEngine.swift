@@ -119,8 +119,9 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
             // Chrome's footer under extension pages ("set by …", customize): window chrome pages here don't have.
             "NtpFooter",
         ].joined(separator: ","),
-        // Our Chromium (patch chromium/0007): the page's own scrollbars stay clear of its card's rounded corners.
-        "enable-features": "RootScrollbarAvoidsCorners:inset/\(Int(Design.cardRadius))",
+        // Our Chromium (patch chromium/0007): the page's own scrollbar thumb travels 4 pt in from the card's ends, its
+        // rounded end (radius 4) concentric with the card's corner (8); the track stays full length, as AppKit's.
+        "enable-features": "RootScrollbarAvoidsCorners:inset/\(Int(Design.cardRadius / 2))",
     ]
 
     /// Chrome's own search engine is never used for the omnibox (search is a feature); it is only enabled (as the
