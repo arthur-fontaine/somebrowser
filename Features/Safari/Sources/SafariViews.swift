@@ -28,7 +28,7 @@ struct SafariStartSection: View {
             if !model.favorites.isEmpty || !model.devices.isEmpty || !model.tabGroups.isEmpty {
                 PageSection("Safari") {
                     if !model.favorites.isEmpty {
-                        LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 14) {
+                        LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 16) {
                             ForEach(model.favorites.prefix(16)) { favorite in
                                 // Only an icon a page already showed: a start page contacts no site.
                                 SiteTile(icon: env.runtime.favicons.image(for: favorite.url), title: favorite.title,

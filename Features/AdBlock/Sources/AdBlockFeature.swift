@@ -326,17 +326,8 @@ struct PrivacySummary: View {
     var body: some View {
         if blocked > 0 {
             PageSection("Privacy") {
-                HStack(spacing: 12) {
-                    Image(systemName: "shield.lefthalf.filled").font(.system(size: 22)).foregroundStyle(.secondary).frame(width: 30)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(blocked.formatted()) trackers and ads blocked").font(.system(size: 13, weight: .semibold))
-                        Text("In the last seven days").font(.system(size: 12)).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .frame(height: 60)
-                .background(Design.Fill.hover, in: RoundedRectangle(cornerRadius: Design.Radius.tile, style: .continuous))
+                PageCard(symbol: "shield.lefthalf.filled", title: "\(blocked.formatted()) trackers and ads blocked",
+                         detail: "In the last seven days")
             }
         }
     }

@@ -1,9 +1,12 @@
 {
   "id": "start-page",
   "name": "Start Page",
-  "summary": "Blank tabs show a calm page with a search field and your favorites.",
+  "summary": "Blank tabs show a column of sections: a search field, your favorites and what other features add.",
   "entry": "StartPageFeature",
   "optional": ["search"],
+  "commands": [
+    { "id": "start-page.make-default", "title": "Make Default Browser" }
+  ],
   "settings": [
     { "key": "start-page.showFavorites", "title": "Show favorites on the start page", "type": "bool", "default": true }
   ]

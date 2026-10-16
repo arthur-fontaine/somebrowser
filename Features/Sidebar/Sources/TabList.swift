@@ -295,7 +295,7 @@ struct FaviconView: View {
         let live = tab.live
         // The page's icon, or the one it showed last time (a tab not loaded yet): never fetched from here.
         SiteIcon(live?.favicon ?? env.runtime.favicons.image(for: live?.url ?? tab.url),
-                 placeholder: tab.url == nil ? "plus.square.dashed" : "globe")
+                 placeholder: tab.url == nil ? "square.grid.2x2" : "globe")
             .overlay {
                 if live?.isLoading == true {
                     ProgressView().controlSize(.mini).scaleEffect(0.8)

@@ -1,3 +1,4 @@
+import AppKit
 import BrowserCore
 import SwiftUI
 
@@ -10,6 +11,19 @@ public final class StartPageFeature: BrowserFeature {
         let runtime = context.runtime
         context.ui.contribute(.emptyContent, id: "start-page") { window in
             StartPage(window: window, runtime: runtime)
+        }
+        context.commands.handle("start-page.make-default", isEnabled: { _ in !Self.isDefaultBrowser }) { _ in Self.makeDefaultBrowser() }
+    }
+
+    /// Whether web links open here (asked of Launch Services; nothing leaves the Mac).
+    static var isDefaultBrowser: Bool {
+        NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)?.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL
+    }
+
+    /// macOS asks the user to confirm.
+    static func makeDefaultBrowser() {
+        for scheme in ["http", "https"] {
+            NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme) { _ in }
         }
     }
 
@@ -39,6 +53,7 @@ struct StartPage: View {
                     field
                     if runtime.settings.bool("start-page.showFavorites") { favorites }
                     SlotHost("start-page.extras", window: window)
+                    getStarted
                 }
                 .frame(width: min(Self.columnWidth, geo.size.width - 64))
                 .padding(.top, min(96, geo.size.height * 0.12))
@@ -65,15 +80,41 @@ struct StartPage: View {
         .background(Design.Fill.hover, in: Capsule())
     }
 
+    /// Before there's any history: the first things to do.
+    @ViewBuilder
+    private var getStarted: some View {
+        let fresh = !window.isPrivate && runtime.capabilities.history?.recent(limit: 1).isEmpty != false
+        let canImport = runtime.commands.isHandled("import.open")
+        let canBeDefault = runtime.commands.canRun("start-page.make-default")
+        if fresh, canImport || canBeDefault {
+            PageSection("Get Started") {
+                VStack(spacing: 8) {
+                    if canImport {
+                        PageCard(symbol: "square.and.arrow.down", title: "Import from Safari or Chrome…") {
+                            try? runtime.commands.run("import.open", window: window)
+                        }
+                    }
+                    if canBeDefault {
+                        PageCard(symbol: "globe", title: "Make \(Brand.name) your default browser") {
+                            try? runtime.commands.run("start-page.make-default", window: window)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private var favorites: some View {
         let tabs = runtime.tabs.favorites.compactMap { runtime.tabs.tab($0) }
         if !tabs.isEmpty {
             PageSection("Favorites") {
-                LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 14) {
+                LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 16) {
                     ForEach(tabs.prefix(16)) { tab in
                         let url = tab.pinnedURL ?? tab.url
-                        SiteTile(icon: tab.live?.favicon ?? runtime.favicons.image(for: url), title: tab.displayTitle, help: url?.absoluteString) {
+                        // A favorite the user renamed keeps its name; others are named by their site, as frequent sites are.
+                        let name = tab.customTitle.flatMap { $0.isEmpty ? nil : $0 } ?? SiteTile.name(for: url) ?? tab.displayTitle
+                        SiteTile(icon: tab.live?.favicon ?? runtime.favicons.image(for: url), title: name, help: url?.absoluteString) {
                             runtime.select(tab.id, in: window)
                         }
                     }

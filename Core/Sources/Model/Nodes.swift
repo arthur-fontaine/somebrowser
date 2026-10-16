@@ -51,7 +51,8 @@ public final class BrowserTab: Identifiable {
         if let live = engineTab?.state.title, !live.isEmpty { return live }
         if !title.isEmpty { return title }
         if let host = url?.host() { return host }
-        return "New Tab"
+        // A blank tab shows the start page (Safari's name); "New Tab" is the action that opens one.
+        return "Start Page"
     }
 
     /// Pinned/favorite tab currently away from its home URL.
