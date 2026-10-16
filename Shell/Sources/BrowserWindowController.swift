@@ -15,6 +15,10 @@ final class ShellWindow: NSWindow {
     @objc var _hasActiveAppearance: Bool {
         isKeyWindow || childKeyWindowProvider?() == true
     }
+
+    static func isActive(_ window: NSWindow, keyWindow: NSWindow?) -> Bool {
+        WindowFocus.isActive(window, keyWindow: keyWindow) { $0.parent }
+    }
 }
 
 final class BrowserWindowController: NSWindowController, NSWindowDelegate {
@@ -51,7 +55,16 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         window.contentView = hosting
         self.hosting = hosting
         // Keep the shell looking active while a page or overlay child window has keyboard focus.
-        window.childKeyWindowProvider = { [weak window] in window?.childWindows?.contains { $0.isKeyWindow } ?? false }
+        window.childKeyWindowProvider = { [weak window] in
+            guard let window, let key = NSApp.keyWindow, key !== window else { return false }
+            return ShellWindow.isActive(window, keyWindow: key)
+        }
+        // Key moves between the window and its page or overlays without the window's own delegate calls telling.
+        for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshActiveState() }
+            }
+        }
         if childWindows {
             let overlay = OverlayWindow(state: state, runtime: runtime)
             self.overlay = overlay
@@ -118,10 +131,18 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: NSWindowDelegate
 
-    func windowDidBecomeKey(_ notification: Notification) { state.isKeyWindow = true }
-    func windowDidResignKey(_ notification: Notification) {
-        state.isKeyWindow = (window as? ShellWindow)?.childKeyWindowProvider?() ?? false
+    /// Active while key is anywhere in this window (see `ShellWindow.isActive`). Resigning key happens before the next
+    /// window becomes key, so this also runs once the move is over.
+    private func refreshActiveState() {
+        guard let window else { return }
+        let active = ShellWindow.isActive(window, keyWindow: NSApp.keyWindow)
+        guard state.isKeyWindow != active else { return }
+        state.isKeyWindow = active
+        window.contentView?.superview?.needsDisplay = true  // the traffic lights follow `_hasActiveAppearance`
     }
+
+    func windowDidBecomeKey(_ notification: Notification) { refreshActiveState() }
+    func windowDidResignKey(_ notification: Notification) { DispatchQueue.main.async { self.refreshActiveState() } }
     func windowDidResize(_ notification: Notification) { state.viewport?.layoutDidChange(); layoutOverlay(); persistFrame() }
 
     private func layoutOverlay() {

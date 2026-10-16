@@ -36,6 +36,8 @@ struct BrowserWindowView: View {
             if overlaysInline { SlotHost(.overlay, window: window) }
         }
         .ignoresSafeArea()
+        // SwiftUI would draw the sidebar inactive whenever the page (a window of its own under Chromium) has focus.
+        .environment(\.controlActiveState, window.isKeyWindow ? .key : .inactive)
         .animation(.spring(duration: 0.32, bounce: 0.12), value: window.isSidebarVisible)
         .onChange(of: window.isSidebarVisible) { env.runtime.shell?.contentLayoutDidChange(in: window) }
     }

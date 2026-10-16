@@ -219,4 +219,14 @@ struct KeyShortcutTests {
         #expect(KeyShortcut("hyper+t") == nil)
         #expect(KeyShortcut("cmd++")?.key == "+")
     }
+
+    /// The browser window stays active while its page, an overlay or a popup over the page has keyboard focus.
+    @Test func windowsStayActiveWhileWhatTheyHoldHasFocus() {
+        final class W { let parent: W?; init(_ parent: W? = nil) { self.parent = parent } }
+        let browser = W(), page = W(browser), popup = W(page), other = W()
+        for key in [browser, page, popup] { #expect(WindowFocus.isActive(browser, keyWindow: key) { $0.parent }) }
+        #expect(!WindowFocus.isActive(browser, keyWindow: other) { $0.parent })
+        #expect(!WindowFocus.isActive(browser, keyWindow: nil) { $0.parent })
+        #expect(!WindowFocus.isActive(page, keyWindow: browser) { $0.parent })
+    }
 }
