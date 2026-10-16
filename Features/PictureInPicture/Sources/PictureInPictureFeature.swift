@@ -112,14 +112,25 @@ final class PiPSession {
         let size = CGSize(width: width, height: (width * 9 / 16).rounded())
         panel = PiPPanel(content: content, size: size, model: model)
         model.perform = { [weak self] action in self?.perform(action) }
-        if !isCall {
+        if isCall {
+            panel.present(from: startFrame)
+        } else {
+            // The flight starts once the page shows only the video, in its shape: re-aimed midway, it stuttered. A page
+            // slow to answer doesn't hold it up.
+            var presented = false
+            let present = { [weak panel] in
+                guard !presented else { return }
+                presented = true
+                panel?.present(from: startFrame)
+            }
             engineTab.evaluateJavaScript(PiPScripts.enter) { [weak self] result in
                 if case .success(let value) = result, let dims = value as? [Double], dims.count == 2, dims[1] > 0 {
                     self?.panel.setAspect(CGFloat(dims[0] / dims[1]))
                 }
+                present()
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: present)
         }
-        panel.present(from: startFrame)
         model.onHoverChanged = { [weak self] hovering in if hovering { self?.refreshState() } }
     }
 

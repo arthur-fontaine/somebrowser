@@ -8,9 +8,11 @@
   calls keep their page (Meet's own controls).
 - The page content comes from the engine through `EngineFloating` (WebKit moves the `WKWebView`; CEF
   hands over the tab's own window), so playback never restarts.
-- The panel appears in the bottom-right corner, flying from the browser window.
+- The panel appears in the bottom-right corner, flying from the browser window once the page shows only the video in
+  its shape (else re-aimed midway, it stuttered).
 - `PiPPhysics` (pure, tested): throw projection `p + v·d/(1−d)`, edge tuck, aspect-preserving pinch resize, and the
-  settle: a spring that starts at the release's velocity and that fingers can catch mid-flight. Placement is free: still fingers leave the panel where it is, a throw glides on and stops at the screen's
+  settle: a spring that starts at the release's velocity and that fingers can catch mid-flight (re-aimed, it keeps its
+  speed). Placement is free: still fingers leave the panel where it is, a throw glides on and stops at the screen's
   edges, a throw past a side edge tucks it in (a strip showing; double-click brings it back). Never further off screen
   than tucked in, whether moved, thrown or overshooting.
 - Mouse drag, two-finger trackpad moves and pinch feed it. Trackpad moves follow the fingers whatever the scroll

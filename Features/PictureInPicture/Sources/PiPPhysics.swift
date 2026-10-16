@@ -96,6 +96,13 @@ enum PiPPhysics {
             self.target = target
         }
 
+        /// The same motion aimed elsewhere: where it is, as fast as it goes (no stop and start).
+        func aimed(at target: CGRect) -> FrameSpring {
+            var spring = FrameSpring(from: frame, velocity: velocity, to: target)
+            spring.sizeVelocity = sizeVelocity
+            return spring
+        }
+
         mutating func advance(by dt: TimeInterval) {
             let k = pow(2 * .pi / Self.response, 2), c = 4 * .pi * Self.dampingRatio / Self.response
             var remaining = CGFloat(min(dt, 1.0 / 15))  // a stalled frame doesn't jump

@@ -198,6 +198,15 @@ struct PiPFeatureTests {
         #expect(PiPPhysics.velocity(of: moving, at: 10.5) == .zero)
     }
 
+    /// Re-aimed on its way (the video's shape known), the panel keeps its speed: no stop and start.
+    @Test func reAimingKeepsTheSpeed() {
+        var spring = PiPPhysics.FrameSpring(from: CGRect(x: 0, y: 0, width: 800, height: 450), velocity: .zero,
+                                            to: CGRect(x: 1000, y: 16, width: 320, height: 180))
+        for _ in 0..<6 { spring.advance(by: 1.0 / 60) }
+        let aimed = spring.aimed(at: CGRect(x: 1000, y: 16, width: 320, height: 240))
+        #expect(aimed.velocity == spring.velocity && aimed.frame == spring.frame && hypot(aimed.velocity.dx, aimed.velocity.dy) > 100)
+    }
+
     /// Thrown toward its corner, the panel keeps going at the throw's speed, then settles exactly there.
     @Test func settlingCarriesTheThrow() {
         let start = CGRect(x: 100, y: 100, width: 320, height: 180)

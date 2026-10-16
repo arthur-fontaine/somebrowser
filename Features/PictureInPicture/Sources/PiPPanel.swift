@@ -93,11 +93,14 @@ final class PiPPanel: NSPanel {
         guard ratio.isFinite, ratio > 0.3, ratio < 4 else { return }
         aspect = ratio
         targetSize = CGSize(width: targetSize.width, height: (targetSize.width / ratio).rounded())
-        settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame))
+        if isVisible { settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame)) }  // else `present` uses it
     }
+
+    private var dismissed = false
 
     /// Grows out of the browser window into the bottom-right corner (Radian).
     func present(from start: CGRect?) {
+        guard !dismissed else { return }  // closed before it flew (back to the tab at once)
         resting = .placed(PiPPhysics.cornerOrigin(size: targetSize, in: screenFrame))
         let target = PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame)
         if let start {
@@ -115,6 +118,7 @@ final class PiPPanel: NSPanel {
     }
 
     func dismiss() {
+        dismissed = true
         stopWatchingPinches()
         stopSpring()
         releaseSwipes()
@@ -137,8 +141,13 @@ final class PiPPanel: NSPanel {
     private var springLink: CADisplayLink?
     private var lastStep: CFTimeInterval = 0
 
-    func settle(_ target: CGRect, velocity: CGVector = .zero) {
-        spring = PiPPhysics.FrameSpring(from: frame, velocity: velocity, to: target)
+    /// Springs to `target`, at `velocity` from a release; already on its way, it's re-aimed keeping its speed.
+    func settle(_ target: CGRect, velocity: CGVector? = nil) {
+        if let velocity {
+            spring = PiPPhysics.FrameSpring(from: frame, velocity: velocity, to: target)
+        } else {
+            spring = spring?.aimed(at: target) ?? PiPPhysics.FrameSpring(from: frame, velocity: .zero, to: target)
+        }
         lastStep = CACurrentMediaTime()
         guard springLink == nil else { return }
         let link = displayLink(target: self, selector: #selector(stepSpring(_:)))
