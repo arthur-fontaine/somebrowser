@@ -4,6 +4,7 @@ import SwiftUI
 
 /// Start page: Safari Favorites (live) and the iPhone's tabs, or the button that connects Safari.
 struct SafariStartSection: View {
+    @Environment(BrowserEnvironment.self) private var env
     let model: SafariModel
     let window: BrowserWindowState
     let open: (URL, Bool) -> Void
@@ -16,75 +17,52 @@ struct SafariStartSection: View {
         case .some(false):
             Button(action: connect) {
                 Label("Sync with Safari on your iPhone", systemImage: "safari")
-                    .font(.callout)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(.quaternary.opacity(0.5), in: Capsule())
+                    .font(.system(size: 13))
+                    .padding(.horizontal, 14)
+                    .frame(height: 32)
+                    .background(Design.Fill.hover, in: Capsule())
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
         case .some(true):
-            VStack(spacing: 14) {
-                if !model.favorites.isEmpty {
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(76), spacing: 14), count: min(model.favorites.count, 8)), spacing: 14) {
-                        ForEach(model.favorites.prefix(16)) { favorite in
-                            FavoriteTile(favorite: favorite) { open(favorite.url, false) }
-                                .contextMenu {
-                                    Button("Open in New Tab") { open(favorite.url, true) }
-                                    Button("Open in New Window") { openInNewWindow(favorite.url) }
-                                    Button("Delete", role: .destructive) { delete(favorite) }
-                                    Button("Copy Link") {
-                                        NSPasteboard.general.clearContents()
-                                        NSPasteboard.general.setString(favorite.url.absoluteString, forType: .string)
+            if !model.favorites.isEmpty || !model.devices.isEmpty || !model.tabGroups.isEmpty {
+                PageSection("Safari") {
+                    if !model.favorites.isEmpty {
+                        LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 14) {
+                            ForEach(model.favorites.prefix(16)) { favorite in
+                                // Only an icon a page already showed: a start page contacts no site.
+                                SiteTile(icon: env.runtime.favicons.image(for: favorite.url), title: favorite.title,
+                                         help: favorite.url.absoluteString) { open(favorite.url, false) }
+                                    .contextMenu {
+                                        Button("Open in New Tab") { open(favorite.url, true) }
+                                        Button("Open in New Window") { openInNewWindow(favorite.url) }
+                                        Button("Delete", role: .destructive) { delete(favorite) }
+                                        Button("Copy Link") {
+                                            NSPasteboard.general.clearContents()
+                                            NSPasteboard.general.setString(favorite.url.absoluteString, forType: .string)
+                                        }
                                     }
-                                }
-                                .transition(.scale.combined(with: .opacity))
+                                    .transition(.scale.combined(with: .opacity))
+                            }
                         }
+                        .animation(Design.Motion.layout, value: model.favorites)
                     }
-                }
-                if !model.devices.isEmpty || !model.tabGroups.isEmpty {
-                    Button { window.toggle(flag: SafariFeature.cloudTabsFlag) } label: {
-                        Label("iCloud Tabs", systemImage: "icloud")
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(.quaternary.opacity(0.5), in: Capsule())
+                    if !model.devices.isEmpty || !model.tabGroups.isEmpty {
+                        Button { window.toggle(flag: SafariFeature.cloudTabsFlag) } label: {
+                            Label("iCloud Tabs", systemImage: "icloud")
+                                .font(.system(size: 13))
+                                .padding(.horizontal, 14)
+                                .frame(height: 32)
+                                .background(Design.Fill.hover, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
                 }
             }
-            .animation(.spring(duration: 0.35, bounce: 0.2), value: model.favorites)
         case .none:
             EmptyView()
         }
-    }
-}
-
-struct FavoriteTile: View {
-    @Environment(BrowserEnvironment.self) private var env
-    let favorite: SafariBookmark
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Group {
-                    // Only an icon a page already showed: a start page contacts no site.
-                    if let icon = env.runtime.favicons.image(for: favorite.url) {
-                        SiteIcon(icon)
-                    } else {
-                        Text(String(favorite.title.prefix(1)).uppercased()).font(.system(size: 18, weight: .semibold)).foregroundStyle(.secondary)
-                    }
-                }
-                .frame(width: 26, height: 26)
-                .frame(width: 56, height: 56)
-                .background(.quaternary.opacity(hovering ? 0.8 : 0.5), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .scaleEffect(hovering ? 1.05 : 1)
-                Text(favorite.title).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).frame(width: 76)
-            }
-        }
-        .buttonStyle(.plain)
-        .onHover { h in withAnimation(.spring(duration: 0.2)) { hovering = h } }
-        .help(favorite.url.absoluteString)
     }
 }
 
