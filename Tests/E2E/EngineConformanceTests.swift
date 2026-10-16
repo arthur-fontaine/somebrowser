@@ -128,8 +128,9 @@ struct EngineConformanceTests {
         try app.run("sidebar.toggle")
         try app.waitUntil(timeout: 5) { let f = try frames(); return f.page.minX - f.shell.minX < 10 }
         let hidden = try frames()
-        #expect(hidden.shell.maxY - hidden.page.maxY <= 6.5)
-        #expect(hidden.page.minX - hidden.shell.minX <= 6.5)
+        // Only the window's one margin (Design.windowInset, 8 pt) around the page: no bar above it.
+        #expect(hidden.shell.maxY - hidden.page.maxY <= 8.5)
+        #expect(hidden.page.minX - hidden.shell.minX <= 8.5)
         try app.quit()
     }
 
