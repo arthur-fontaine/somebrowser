@@ -157,6 +157,7 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         self.profile = profile
         reloadExtensions()
         watchProfile(profile)
+        NativeMessagingHosts.mirror(into: profileDirectory.appendingPathComponent("NativeMessagingHosts", isDirectory: true))
         try runtime.initialize(withRootCachePath: profileDirectory.path, switches: switches)
     }
 

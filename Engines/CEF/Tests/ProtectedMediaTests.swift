@@ -82,3 +82,21 @@ struct ProtectedMediaTests {
         #expect(isolatedA == WebKitEngine.storeIdentifier(options: [:], profileDirectory: a, isolated: true))
     }
 }
+
+struct NativeMessagingHostsTests {
+    /// Chrome's manifests (Claude Code's, 1Password's…) reach the profile's folder; unchanged ones aren't rewritten,
+    /// and files that aren't manifests are left alone.
+    @Test func chromeManifestsAreMirrored() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nm-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let chrome = root.appendingPathComponent("chrome"), profile = root.appendingPathComponent("profile")
+        try FileManager.default.createDirectory(at: chrome, withIntermediateDirectories: true)
+        let manifest = #"{"name":"com.anthropic.claude_code_browser_extension","path":"/x","type":"stdio","allowed_origins":["chrome-extension://fcoeoabgfenejglbffodgkkbkcdhcgfn/"]}"#
+        try manifest.write(to: chrome.appendingPathComponent("com.anthropic.claude_code_browser_extension.json"), atomically: true, encoding: .utf8)
+        try "not json".write(to: chrome.appendingPathComponent("broken.json"), atomically: true, encoding: .utf8)
+        try "x".write(to: chrome.appendingPathComponent("notes.txt"), atomically: true, encoding: .utf8)
+        #expect(NativeMessagingHosts.mirror(from: chrome, into: profile) == ["com.anthropic.claude_code_browser_extension.json"])
+        #expect(try String(contentsOf: profile.appendingPathComponent("com.anthropic.claude_code_browser_extension.json"), encoding: .utf8) == manifest)
+        #expect(NativeMessagingHosts.mirror(from: chrome, into: profile).isEmpty)
+    }
+}
