@@ -78,6 +78,9 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         "disable-webui-omnibox": "",
         // Sites' sign-ins go to CefRequestHandler::GetAuthCredentials (the browser's own dialog), not Chrome's prompt.
         "disable-chrome-login-prompt": "",
+        // No "… started debugging this browser" bar in pages: Claude in Chrome debugs the tabs it controls, which the
+        // Claude space and the extension's own glow already show.
+        "silent-debugger-extension-api": "",
         // Our Chromium (patch chromium/0004): no animation flying to Chrome's hidden downloads button.
         "disable-download-ui": "",
         "allow-browser-signin": "false",
@@ -121,6 +124,13 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         "alternate_error_pages.enabled": false,
         // Downloads are the browser's own UI (the Downloads feature): Chrome's bubble doesn't pop up when one ends.
         "download_bubble.partial_view_enabled": false,
+        // Passwords and AutoFill are the browser's own (Apple Passwords): no Chrome "Save password?" bubble, no Chrome
+        // address or card dropdowns under fields, no translate offer.
+        "credentials_enable_service": false,
+        "credentials_enable_autosignin": false,
+        "autofill.profile_enabled": false,
+        "autofill.credit_card_enabled": false,
+        "translate.enabled": false,
     ]
 
     public func bootstrap(profileDirectory: URL) throws {

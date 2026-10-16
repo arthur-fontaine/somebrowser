@@ -175,6 +175,22 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// Chrome's own password, autofill and translate offers stay off (the browser's own features replace them).
+    @Test func chromesOwnOffersAreOff() throws {
+        let server = try TestHTTPServer(pages: ["/one": "<!doctype html><title>One</title>"])
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.tabs().contains { $0.title == "One" } }
+        try app.quit()
+        let file = app.directory.appendingPathComponent("data/Engine/cef-chrome/Default/Preferences")
+        let prefs = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        #expect(prefs["credentials_enable_service"] as? Bool == false)
+        #expect((prefs["autofill"] as? [String: Any])?["profile_enabled"] as? Bool == false)
+        #expect((prefs["autofill"] as? [String: Any])?["credit_card_enabled"] as? Bool == false)
+        #expect((prefs["translate"] as? [String: Any])?["enabled"] as? Bool == false)
+    }
+
     /// A click reaches the page: nothing of the window's own covers it (Chromium routes clicks by the views under the
     /// pointer, and CEF's overlay host view once took them all).
     @Test func clicksReachThePage() throws {
