@@ -161,6 +161,20 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// A site that can't be reached shows the browser's own page at its address (not Chrome's, not WebKit's blank one).
+    @Test func unreachableSitesShowTheBrowsersPage() throws {
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
+        // A port nothing listens on: the connection is refused.
+        let port = try { try TestHTTPServer(pages: [:]).port }()  // the server is gone once its port is known
+        let url = "http://127.0.0.1:\(port)/nothing"
+        Thread.sleep(forTimeInterval: 0.3)
+        try app.open(url)
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Can’t Open 127.0.0.1" }
+        #expect(try app.eval("location.href") as? String == url)
+        #expect(try app.eval("document.querySelector('button').textContent") as? String == "Try Again")
+        try app.quit()
+    }
+
     /// A click reaches the page: nothing of the window's own covers it (Chromium routes clicks by the views under the
     /// pointer, and CEF's overlay host view once took them all).
     @Test func clicksReachThePage() throws {

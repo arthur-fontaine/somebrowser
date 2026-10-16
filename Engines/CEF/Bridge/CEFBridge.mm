@@ -266,6 +266,22 @@ public:
 
     CefRefPtr<CefJSDialogHandler> GetJSDialogHandler() override { return this; }
 
+    // Failed loads and invalid certificates: the browser's own pages instead of Chrome's.
+    void OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, ErrorCode errorCode, const CefString &errorText,
+                     const CefString &failedUrl) override {
+        CEFTab *tab = tab_;
+        if (!frame->IsMain() || errorCode == ERR_ABORTED || !tab.delegate) return;
+        [tab.delegate cefTab:tab loadFailed:NS(failedUrl) code:(int)errorCode text:NS(errorText)];
+    }
+    bool OnCertificateError(CefRefPtr<CefBrowser> browser, cef_errorcode_t cert_error, const CefString &request_url,
+                            CefRefPtr<CefSSLInfo> ssl_info, CefRefPtr<CefCallback> callback) override {
+        CEFTab *tab = tab_;
+        int decision = tab.delegate ? [tab.delegate cefTab:tab certificateErrorFor:NS(request_url)] : -1;
+        if (decision < 0) return false;
+        if (decision > 0) callback->Continue(); else callback->Cancel();
+        return true;
+    }
+
     // Page dialogs: the browser's own UI instead of Chrome's tab-modal dialogs.
     bool OnJSDialog(CefRefPtr<CefBrowser> browser, const CefString &origin_url, JSDialogType type, const CefString &message_text,
                     const CefString &default_prompt_text, CefRefPtr<CefJSDialogCallback> callback, bool &suppress_message) override {

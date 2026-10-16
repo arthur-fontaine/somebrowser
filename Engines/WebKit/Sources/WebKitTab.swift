@@ -234,6 +234,20 @@ extension WebKitTab: WKNavigationDelegate {
         delegate?.engineTabDidFinishLoad(self)
     }
 
+    /// The browser's own page for a load that failed (WebKit shows nothing), at the address that failed.
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        let e = error as NSError
+        // Cancelled (another load began), stopped by policy (a download took over: 102) or by a plug-in (204) isn't a failure.
+        guard e.domain != NSURLErrorDomain || e.code != NSURLErrorCancelled, e.domain != "WebKitErrorDomain" || ![102, 204].contains(e.code),
+              let url = e.userInfo[NSURLErrorFailingURLErrorKey] as? URL, ["http", "https"].contains(url.scheme),
+              let page = engine?.hooks.errorPage else { return }
+        let certificate = e.domain == NSURLErrorDomain && [NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateUntrusted,
+            NSURLErrorServerCertificateHasUnknownRoot, NSURLErrorServerCertificateNotYetValid, NSURLErrorSecureConnectionFailed].contains(e.code)
+        guard let html = page(PageLoadError(url: url, kind: certificate ? .certificate : .network, description: e.localizedDescription, tab: self))
+        else { return }
+        webView.loadSimulatedRequest(URLRequest(url: url), responseHTML: html)
+    }
+
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         state.isCrashed = true
         delegate?.engineTabDidCrash(self)
@@ -328,6 +342,14 @@ extension WebKitTab: WKUIDelegate {
     /// A site's sign-in (HTTP authentication) in the browser's own dialog; other challenges as WebKit decides.
     func webView(_ webView: WKWebView, respondTo challenge: URLAuthenticationChallenge) async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
         let method = challenge.protectionSpace.authenticationMethod
+        // A certificate the user chose to accept for this site (Visit Anyway on the error page), this session.
+        if method == NSURLAuthenticationMethodServerTrust, let trust = challenge.protectionSpace.serverTrust,
+           engine?.hooks.acceptedInvalidCertificates.contains(challenge.protectionSpace.host) == true {
+            // The trust must carry its own failures as exceptions (known once evaluated here), else WebKit still refuses it.
+            _ = SecTrustEvaluateWithError(trust, nil)
+            if let exceptions = SecTrustCopyExceptions(trust) as CFData? { SecTrustSetExceptions(trust, exceptions) }
+            return (.useCredential, URLCredential(trust: trust))
+        }
         guard [NSURLAuthenticationMethodHTTPBasic, NSURLAuthenticationMethodHTTPDigest, NSURLAuthenticationMethodDefault].contains(method),
               engine?.hooks.pageDialog != nil, challenge.previousFailureCount < 3 else { return (.performDefaultHandling, nil) }
         let space = challenge.protectionSpace

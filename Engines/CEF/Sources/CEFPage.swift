@@ -307,6 +307,24 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
     }
 
+    /// Chromium's certificate errors are net errors -200 to -299 (`net/base/net_error_list.h`).
+    func cefTab(_ tab: CEFTab, loadFailed url: String, code: Int32, text: String) -> Bool {
+        guard let page = engine?.hooks.errorPage, let failed = URL(string: url), ["http", "https"].contains(failed.scheme) else { return false }
+        let kind: PageLoadError.Kind = (-299 ... -200).contains(code) ? .certificate : .network
+        guard let html = page(PageLoadError(url: failed, kind: kind, description: text, tab: self)),
+              let response = HTTPURLResponse(url: failed, statusCode: 200, httpVersion: "HTTP/1.1",
+                                             headerFields: ["Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store"])
+        else { return false }
+        // At the address that failed, in place of Chrome's page (a reload asks the network again).
+        DispatchQueue.main.async { [weak self] in self?.loadSimulated(failed, response: response, body: Data(html.utf8)) }
+        return true
+    }
+
+    func cefTab(_ tab: CEFTab, certificateErrorFor url: String) -> Int32 {
+        guard let hooks = engine?.hooks, hooks.errorPage != nil else { return -1 }
+        return URL(string: url)?.host().map { hooks.acceptedInvalidCertificates.contains($0) } == true ? 1 : 0
+    }
+
     func cefTab(_ tab: CEFTab, dialog kind: String, message: String, defaultText: String, origin: String,
                 reply: @escaping (Bool, String?) -> Void) -> Bool {
         guard let show = engine?.hooks.pageDialog else { return false }

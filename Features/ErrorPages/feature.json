@@ -1,0 +1,10 @@
+{
+  "id": "error-pages",
+  "name": "Error Pages",
+  "summary": "The browser's own page when a site can't be opened, or its certificate isn't valid (with Visit Anyway).",
+  "entry": "ErrorPagesFeature",
+  "provides": ["error-pages"],
+  "requires": [],
+  "commands": [],
+  "settings": []
+}

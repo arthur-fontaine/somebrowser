@@ -109,6 +109,14 @@ public final class EngineHooks {
     /// Shows the native permission prompt when no handler decided. Set by the permissions feature.
     public var permissionPrompt: ((PermissionRequest, @escaping (Bool) -> Void) -> Void)?
 
+    // MARK: Error pages
+
+    /// The browser's own page (HTML) for a main-frame load that failed; nil keeps the engine's. Set by the error pages
+    /// feature. Engines show it at the address that failed.
+    public var errorPage: ((PageLoadError) -> String?)?
+    /// Hosts whose invalid certificate the user chose to accept (this session): engines let their pages load.
+    public var acceptedInvalidCertificates: Set<String> = []
+
     // MARK: Page dialogs
 
     /// Shows a page's dialog (alert, confirm, prompt, leaving the page, a site's sign-in) in the browser's own UI and
@@ -283,6 +291,28 @@ public struct PermissionRequest {
     public init(kinds: [Kind], origin: URL, tab: EngineTab?) {
         self.kinds = kinds
         self.origin = origin
+        self.tab = tab
+    }
+}
+
+/// A main-frame load that failed.
+public struct PageLoadError {
+    public enum Kind: Equatable {
+        /// The site's certificate isn't valid (expired, for another name, untrusted…): the page can be visited anyway.
+        case certificate
+        /// Offline, no such host, refused, timed out…
+        case network
+    }
+    public var url: URL
+    public var kind: Kind
+    /// The engine's description (`net::ERR_…` name or the system's message).
+    public var description: String
+    public var tab: EngineTab?
+
+    public init(url: URL, kind: Kind, description: String, tab: EngineTab?) {
+        self.url = url
+        self.kind = kind
+        self.description = description
         self.tab = tab
     }
 }
