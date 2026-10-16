@@ -438,6 +438,12 @@ public final class BrowserRuntime {
     }
 
     fileprivate func tabDidRequestClose(_ id: NodeID) { close(id) }
+
+    /// In the private space of the window showing the page (or the key window).
+    fileprivate func tab(_ id: NodeID, openPrivately url: URL) {
+        guard let window = windows.first(where: { $0.selectedTabID == id }) ?? keyWindow else { return }
+        openPrivateTab(url, in: window)
+    }
 }
 
 /// Routes engine delegate calls to the runtime with the tab's id.
@@ -456,4 +462,5 @@ private final class LiveTabBinding: EngineTabDelegate {
     func engineTab(_ tab: EngineTab, didCommit url: URL) { runtime?.tab(tabID, didCommit: url) }
     func engineTabDidFinishLoad(_ tab: EngineTab) { runtime?.tabDidFinishLoad(tabID) }
     func engineTabDidRequestClose(_ tab: EngineTab) { runtime?.tabDidRequestClose(tabID) }
+    func engineTab(_ tab: EngineTab, openPrivately url: URL) { runtime?.tab(tabID, openPrivately: url) }
 }

@@ -307,6 +307,10 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         NSApp.mainMenu?.performKeyEquivalent(with: event) ?? false
     }
 
+    func cefTab(_ tab: CEFTab, openPrivately url: String) {
+        if let u = URL(string: url) { delegate?.engineTab(self, openPrivately: u) }
+    }
+
     /// Chromium's certificate errors are net errors -200 to -299 (`net/base/net_error_list.h`).
     func cefTab(_ tab: CEFTab, loadFailed url: String, code: Int32, text: String) -> Bool {
         guard let page = engine?.hooks.errorPage, let failed = URL(string: url), ["http", "https"].contains(failed.scheme) else { return false }

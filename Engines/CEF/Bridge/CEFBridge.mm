@@ -16,6 +16,7 @@
 #include "include/cef_application_mac.h"
 #include "include/cef_client.h"
 #include "include/cef_jsdialog_handler.h"
+#include "include/cef_context_menu_handler.h"
 #include "include/cef_cookie.h"
 #include "include/cef_parser.h"
 #include "include/cef_color_ids.h"
@@ -260,11 +261,47 @@ class DevToolsClient : public CefClient {
 class TabClient : public CefClient, public CefLifeSpanHandler, public CefDisplayHandler, public CefLoadHandler,
                   public CefRequestHandler, public CefKeyboardHandler, public CefFindHandler, public CefPermissionHandler,
                   public CefDownloadHandler, public CefCommandHandler, public CefDevToolsMessageObserver,
-                  public CefJSDialogHandler {
+                  public CefJSDialogHandler, public CefContextMenuHandler {
 public:
     explicit TabClient(CEFTab *tab) : tab_(tab), filter_(new FilterHandler) {}
 
     CefRefPtr<CefJSDialogHandler> GetJSDialogHandler() override { return this; }
+    CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
+
+    // The page's context menu (a native menu): without the items that open Chrome's own UI (QR code, sharing, sending to
+    // devices, translation, Lens, Gemini, Chrome's reading mode and split view), and with the private space in place of
+    // Chrome's incognito window.
+    static constexpr int kOpenLinkPrivately = MENU_ID_USER_FIRST + 1;
+    void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefContextMenuParams> params,
+                             CefRefPtr<CefMenuModel> model) override {
+        int incognito = model->GetIndexOf(IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD);
+        if (incognito >= 0) {
+            model->RemoveAt(incognito);
+            model->InsertItemAt(incognito, kOpenLinkPrivately, "Open Link in Private Tab");
+        }
+        for (int id : {IDC_CONTENT_CONTEXT_GENERATE_QR_CODE, IDC_CONTENT_CONTEXT_SHARING_SUBMENU, IDC_SEND_TAB_TO_SELF,
+                       IDC_CONTENT_CONTEXT_SEND_TAB_TO_SELF_DEVICE1, IDC_CONTENT_CONTEXT_SEND_TAB_TO_SELF_MANAGE_DEVICES, IDC_QRCODE_GENERATOR,
+                       IDC_SHARING_HUB, IDC_CONTENT_CONTEXT_TRANSLATE, IDC_CONTENT_CONTEXT_PARTIAL_TRANSLATE, IDC_CONTENT_CONTEXT_LENS_REGION_SEARCH,
+                       IDC_CONTENT_CONTEXT_LENS_OVERLAY, IDC_CONTENT_CONTEXT_SEARCHLENSFORIMAGE, IDC_CONTENT_CONTEXT_SEARCHLENSFORVIDEOFRAME,
+                       IDC_CONTENT_CONTEXT_GLICSHAREIMAGE, IDC_CONTENT_CONTEXT_GLIC, IDC_CONTENT_CONTEXT_RELOAD_GLIC, IDC_CONTENT_CONTEXT_ARCHIVE_GLIC,
+                       IDC_CONTENT_CONTEXT_OPEN_IN_READING_MODE, IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW, IDC_CONTENT_CONTEXT_OPENLINKINPROFILE}) {
+            while (model->Remove(id)) {}
+        }
+        // No separator first, last or twice in a row once items are gone.
+        for (size_t i = model->GetCount(); i-- > 0;) {
+            bool separator = model->GetTypeAt(i) == MENUITEMTYPE_SEPARATOR;
+            bool edge = i == 0 || i + 1 == model->GetCount();
+            if (separator && (edge || model->GetTypeAt(i - 1) == MENUITEMTYPE_SEPARATOR)) model->RemoveAt(i);
+        }
+        if (model->GetCount() > 0 && model->GetTypeAt(0) == MENUITEMTYPE_SEPARATOR) model->RemoveAt(0);
+    }
+    bool OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefContextMenuParams> params,
+                              int command_id, EventFlags event_flags) override {
+        CEFTab *tab = tab_;
+        if (command_id != kOpenLinkPrivately || !tab.delegate) return false;
+        [tab.delegate cefTab:tab openPrivately:NS(params->GetLinkUrl())];
+        return true;
+    }
 
     // Failed loads and invalid certificates: the browser's own pages instead of Chrome's.
     void OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, ErrorCode errorCode, const CefString &errorText,

@@ -56,6 +56,8 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 /// its own. `reply` answers on the main thread.
 - (BOOL)cefTab:(CEFTab *)tab dialog:(NSString *)kind message:(NSString *)message defaultText:(NSString *)defaultText
         origin:(NSString *)origin reply:(void (^)(BOOL accepted, NSString *_Nullable text))reply;
+/// Open Link in Private Tab (the page's context menu).
+- (void)cefTab:(CEFTab *)tab openPrivately:(NSString *)url;
 /// A main-frame load failed (`code`: Chromium's net error, `text` its name): YES when the browser shows its own page.
 - (BOOL)cefTab:(CEFTab *)tab loadFailed:(NSString *)url code:(int)code text:(NSString *)text;
 /// A main frame's certificate isn't valid: 1 to load it anyway, 0 to refuse (the load then fails), -1 for Chrome's page.

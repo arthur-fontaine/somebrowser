@@ -116,6 +116,8 @@ public protocol EngineTabDelegate: AnyObject {
     func engineTabDidRequestClose(_ tab: EngineTab)
     /// The renderer crashed or was killed.
     func engineTabDidCrash(_ tab: EngineTab)
+    /// The user asked to open `url` privately (Open Link in Private Tab).
+    func engineTab(_ tab: EngineTab, openPrivately url: URL)
 }
 
 public extension EngineTabDelegate {
@@ -123,4 +125,5 @@ public extension EngineTabDelegate {
     func engineTabDidFinishLoad(_ tab: EngineTab) {}
     func engineTabDidRequestClose(_ tab: EngineTab) {}
     func engineTabDidCrash(_ tab: EngineTab) {}
+    func engineTab(_ tab: EngineTab, openPrivately url: URL) {}
 }

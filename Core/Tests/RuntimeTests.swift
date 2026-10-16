@@ -201,6 +201,16 @@ struct RuntimeTests {
         #expect(h.selectedTab?.id == first.id)
     }
 
+    /// Open Link in Private Tab (a page's context menu) opens the link in the window's private space.
+    @Test func linksOpenPrivatelyInThePrivateSpace() throws {
+        let h = try harness()
+        let page = h.openTab("https://a.example")
+        let fake = h.fakeTab(page)
+        fake.delegate?.engineTab(fake, openPrivately: URL(string: "https://secret.example/")!)
+        #expect(h.window.isPrivate && !h.window.isLocked)
+        #expect(h.selectedTab?.url?.host() == "secret.example" && h.selectedTab?.isPrivate == true)
+    }
+
     /// A private tab opens in the private space; leaving the space locks it (its pages aren't shown) until unlocked;
     /// its last tab closing ends it, and the window goes back to the normal space.
     @Test func privateSpacesLockWhenLeft() throws {
