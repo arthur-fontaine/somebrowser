@@ -122,6 +122,18 @@ struct PiPFeatureTests {
         #expect(g > 1)
     }
 
+    /// Moves stop at the screen's edges; a panel tucked into one comes back out, never further in.
+    @Test func movesStayOnScreen() {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900), size = CGSize(width: 400, height: 225)
+        let inside = CGPoint(x: 1000, y: 600)
+        #expect(PiPPhysics.keptOnScreen(inside, movedBy: CGVector(dx: 500, dy: 500), size: size, in: screen) == CGPoint(x: 1040, y: 675))
+        #expect(PiPPhysics.keptOnScreen(inside, movedBy: CGVector(dx: -1500, dy: -900), size: size, in: screen) == .zero)
+        #expect(PiPPhysics.keptOnScreen(inside, movedBy: CGVector(dx: -10, dy: 20), size: size, in: screen) == CGPoint(x: 990, y: 620))
+        let tucked = CGPoint(x: 1440 - 28, y: 300)  // past the right edge
+        #expect(PiPPhysics.keptOnScreen(tucked, movedBy: CGVector(dx: 40, dy: 0), size: size, in: screen) == tucked)
+        #expect(PiPPhysics.keptOnScreen(tucked, movedBy: CGVector(dx: -100, dy: 0), size: size, in: screen).x == CGFloat(1440 - 28 - 100))
+    }
+
     /// A release throws at the speed of the last moves; fingers that stopped before lifting throw nothing.
     @Test func releaseVelocityIsTheLastMoves() {
         let moving: [(t: TimeInterval, d: CGVector)] = (0...6).map { (t: 10 + Double($0) * 0.01, d: CGVector(dx: 20, dy: 0)) }

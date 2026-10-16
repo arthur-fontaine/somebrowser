@@ -60,14 +60,25 @@ enum PiPPhysics {
         }
     }
 
-    /// Scroll points to screen points: two fingers carry the panel about as far as dragging it with the pointer would.
-    static let trackpadGain: CGFloat = 2
+    /// Scroll points to screen points: two fingers carry the panel a little further than they travel (1 felt slow, 2
+    /// too fast).
+    static let trackpadGain: CGFloat = 1.5
 
     /// How far the fingers moved on the trackpad (screen points, y up), from a scroll event: the panel follows them
     /// whatever the scroll direction setting ("natural" scrolling inverts the deltas).
     static func fingerMove(scrollX: CGFloat, scrollY: CGFloat, natural: Bool) -> CGVector {
         let sign: CGFloat = (natural ? 1 : -1) * trackpadGain
         return CGVector(dx: sign * scrollX, dy: -sign * scrollY)
+    }
+
+    /// Where a move by `delta` from `origin` leaves the panel, kept on `screen`: it stops at an edge. One already past
+    /// an edge (tucked in) can come back, not go further. Tucking is a throw's doing (`rest`), not a move's.
+    static func keptOnScreen(_ origin: CGPoint, movedBy delta: CGVector, size: CGSize, in screen: CGRect) -> CGPoint {
+        func axis(_ o: CGFloat, _ d: CGFloat, _ lo: CGFloat, _ hi: CGFloat) -> CGFloat {
+            min(max(o + d, min(o, lo)), max(o, hi))
+        }
+        return CGPoint(x: axis(origin.x, delta.dx, screen.minX, screen.maxX - size.width),
+                       y: axis(origin.y, delta.dy, screen.minY, screen.maxY - size.height))
     }
 
     /// Points per second over the moves of the last 100 ms before `time` (older ones: the fingers had stopped).

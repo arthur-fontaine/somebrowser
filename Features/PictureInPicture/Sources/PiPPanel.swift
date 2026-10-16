@@ -169,12 +169,16 @@ final class PiPPanel: NSPanel {
         pageWindow?.setFrame(f, display: true)
     }
 
-    func moveBy(_ dx: CGFloat, _ dy: CGFloat) {
+    /// Moves with the pointer or the fingers, stopping at the screen's edges; returns how far it went.
+    @discardableResult
+    func moveBy(_ dx: CGFloat, _ dy: CGFloat) -> CGVector {
         stopSpring()
         let o = frame.origin
-        setFrameOrigin(CGPoint(x: o.x + dx, y: o.y + dy))
+        let to = PiPPhysics.keptOnScreen(o, movedBy: CGVector(dx: dx, dy: dy), size: frame.size, in: screenFrame)
+        setFrameOrigin(to)
         pageWindow?.setFrameOrigin(frame.origin)
         if model.stashed { model.stashed = false }
+        return CGVector(dx: to.x - o.x, dy: to.y - o.y)
     }
 
     /// Release with a velocity (points/second): fling to a corner or tuck into an edge.
@@ -290,9 +294,8 @@ final class PiPRootView: NSView {
         let d = PiPPhysics.fingerMove(scrollX: event.scrollingDeltaX, scrollY: event.scrollingDeltaY,
                                       natural: event.isDirectionInvertedFromDevice)
         if event.phase == .changed || event.phase == .began {
-            record(d, at: event.timestamp)
-            panel?.moveBy(d.dx, d.dy)
-            carryPointer(by: d)
+            record(d, at: event.timestamp)  // the fingers' speed: a throw past an edge still tucks the panel in
+            if let moved = panel?.moveBy(d.dx, d.dy) { carryPointer(by: moved) }
         } else if event.phase == .ended || event.phase == .cancelled {
             panel?.release(velocity: PiPPhysics.velocity(of: samples, at: event.timestamp))
         }
