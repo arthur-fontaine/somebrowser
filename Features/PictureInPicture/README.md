@@ -8,8 +8,8 @@
   calls keep their page (Meet's own controls).
 - The page content comes from the engine through `EngineFloating` (WebKit moves the `WKWebView`; CEF
   hands over the tab's own window), so playback never restarts.
-- The panel appears in the bottom-right corner, flying from the browser window once the page shows only the video in
-  its shape (else re-aimed midway, it stuttered).
+- The panel flies into the bottom-right corner from the video's own place on the page (`PiPGeometry`), once the page
+  shows only the video in its shape (else re-aimed midway, it stuttered). The page stays where it is until then.
 - `PiPPhysics` (pure, tested): throw projection `p + v·d/(1−d)`, edge tuck, aspect-preserving pinch resize, and the
   settle: a spring that starts at the release's velocity and that fingers can catch mid-flight (re-aimed, it keeps its
   speed). Placement is free: still fingers leave the panel where it is, a throw glides on and stops at the screen's
@@ -17,8 +17,10 @@
   than tucked in, whether moved, thrown or overshooting.
 - Mouse drag, two-finger trackpad moves and pinch feed it. Trackpad moves follow the fingers whatever the scroll
   direction setting, a little further than they travel; the pointer stays put. Swipes go to what's under the pointer,
-  which the panel leaves as it moves: `SwipeCatcher`, a small invisible window there, hands them to the panel swipe
-  after swipe until the pointer moves (no system permission; what's below doesn't scroll). Pinches are caught over the
+  which the panel leaves as it moves; and all of a swipe's events go to the window it began over. So, while the pointer
+  stays: between swipes, `SwipeCatcher`, a small invisible window under the pointer where the panel isn't, takes the
+  next ones (over other apps too; no system permission), and a local monitor hands swipes over the browser's own
+  windows to the panel first (a page that scrolls doesn't take them). Pinches are caught over the
   panel by event monitors (AppKit sends them to the key window, and the panel never takes focus), in this app and over
   others.
 - Controls: close, mute, expand back to the tab, −10s/play/+10s, scrubber.
