@@ -148,13 +148,16 @@ struct ExtensionAPITests {
         }
         try app.waitUntil(timeout: 10) { try chromeWindows(false) == 1 }
         #expect(try chromeWindows(true) == 0)
-        try app.run("dialogs.cancel")
+        try app.waitUntil(timeout: 10) { (try? app.run("dialogs.cancel")) != nil }
         try app.waitUntil(timeout: 30) { try badge() == "N" }
+        // Chrome closes its dialog a moment after the answer; a bubble shown meanwhile closes too, as focus moves (no
+        // person clicks that fast).
+        try app.waitUntil(timeout: 10) { try chromeWindows(false) + chromeWindows(true) == 0 }
         // Removing itself (a bubble, a child window), accepted.
         try app.run("extensions.run", ["id": id])
         try app.waitUntil(timeout: 10) { try chromeWindows(false) == 1 }
         #expect(try chromeWindows(true) == 0)
-        try app.run("dialogs.accept")
+        try app.waitUntil(timeout: 10) { (try? app.run("dialogs.accept")) != nil }
         try app.waitUntil(timeout: 30) { (try app.state()["extensions"] as? [[String: Any]])?.isEmpty == true }
         try app.quit()
     }

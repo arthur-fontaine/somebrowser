@@ -1,11 +1,17 @@
-// Each click of its action asks for one of Chrome's prompts, in turn: a permission, then removing itself. Asked for at
-// once in the click's listener (Chrome needs the click's user gesture); the answer shows in its badge.
-let clicks = 0;
+// Its action asks for Chrome's prompts in turn: a permission, then (once answered) removing itself. Asked for at once
+// in the click's listener (Chrome needs the click's user gesture); clicks while a prompt is up are ignored. The answer
+// shows in its badge.
+let step = 'permission';
+let asking = false;
 const badge = text => chrome.action.setBadgeText({ text });
 chrome.action.onClicked.addListener(() => {
-  if (clicks++ % 2 === 0) {
-    chrome.permissions.request({ permissions: ['bookmarks'] }).then(granted => badge(granted ? 'Y' : 'N'), () => badge('E'));
+  if (asking) return;
+  asking = true;
+  if (step === 'permission') {
+    chrome.permissions.request({ permissions: ['bookmarks'] })
+      .then(granted => badge(granted ? 'Y' : 'N'), () => badge('E'))
+      .finally(() => { step = 'remove'; asking = false; });
   } else {
-    chrome.management.uninstallSelf({ showConfirmDialog: true }).catch(() => badge('K'));
+    chrome.management.uninstallSelf({ showConfirmDialog: true }).catch(() => badge('K')).finally(() => { asking = false; });
   }
 });
