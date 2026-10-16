@@ -79,8 +79,9 @@ public enum Design {
         /// Something leaving (the sidebar sliding out): it accelerates away.
         public static let leaveDuration: TimeInterval = 0.20
         public static let leave = Animation.easeIn(duration: leaveDuration)
-        /// The selection lens, chips, segmented controls.
-        public static let selection = Animation.snappy(duration: 0.28)
+        /// The selection lens, chips, segmented controls: Spotlight's fast-start curve, so the lens leaves on the very
+        /// frame the row's title changes (a spring from rest barely moves in its first frames).
+        public static let selection = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28)
         /// Paging between spaces.
         public static let space = Animation.smooth(duration: 0.32)
         public static let hover = Animation.easeOut(duration: 0.12)

@@ -98,6 +98,7 @@ struct SpacePager: View {
                 }
                 if let leaving, let space = store.space(leaving.id) {
                     SpaceTabs(window: window, model: model, space: space)
+                        .environment(\.frozenSelection, FrozenSelection(id: window.mru.first { store.spaceID(of: $0) == leaving.id }))
                         .offset(x: -direction * width * progress)
                         .opacity(reduceMotion ? 1 - progress : 1)
                         .allowsHitTesting(false)

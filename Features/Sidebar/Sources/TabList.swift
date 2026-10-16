@@ -64,6 +64,7 @@ struct EmptyPinnedDropZone: View {
 
 struct TabRow: View {
     @Environment(BrowserEnvironment.self) private var env
+    @Environment(\.frozenSelection) private var frozenSelection
     let row: SidebarRow
     let window: BrowserWindowState
     let model: SidebarModel
@@ -74,7 +75,7 @@ struct TabRow: View {
 
     var body: some View {
         let store = env.runtime.tabs
-        let selected = window.selectedTabID == row.id
+        let selected = (frozenSelection.map(\.id) ?? window.selectedTabID) == row.id
         let hovered = model.hovered == row.id
         let drop = model.dropTarget?.id == row.id ? model.dropTarget?.zone : nil
         Group {
@@ -85,7 +86,7 @@ struct TabRow: View {
             }
         }
         .padding(.leading, Design.Grid.iconInset + CGFloat(row.depth) * Self.indent)
-        .padding(.trailing, 6)
+        .padding(.trailing, 8)  // the ×'s center mirrors the favicon's
         .frame(height: rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(alignment: .leading) { guides }
@@ -418,4 +419,13 @@ struct SelectionLens: View {
         // A lens that wasn't showing appears where it is; one that was slides.
         .animation(shown == nil ? nil : reduceMotion ? Design.Motion.reduced : Design.Motion.selection, value: rect)
     }
+}
+
+/// A space sliding out keeps showing the tab it had selected (the window's selection has moved to the next space).
+struct FrozenSelection: Equatable {
+    let id: UUID?
+}
+
+extension EnvironmentValues {
+    @Entry var frozenSelection: FrozenSelection?
 }
