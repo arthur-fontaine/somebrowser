@@ -1,5 +1,6 @@
 import AppKit
 import BrowserCore
+import Carbon.HIToolbox
 import SwiftUI
 
 /// App delegate + window management. Generic: it knows windows and slots, never features.
@@ -164,11 +165,22 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
 /// The Settings window. The browser's commands are off while it has the keyboard (`MenuBuilder`), so ⌘W, which is
 /// "Close Tab", closes it as in any other app.
 final class SettingsWindow: NSWindow {
+    /// Arrows, delete, forward delete, home and end: what a field edits with, whatever the modifiers.
+    static let editingKeys: Set<Int> = [kVK_LeftArrow, kVK_RightArrow, kVK_UpArrow, kVK_DownArrow, kVK_Delete, kVK_ForwardDelete,
+                                        kVK_Home, kVK_End]
+
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command, event.charactersIgnoringModifiers == "w" {
             performClose(nil)
             return true
         }
-        return super.performKeyEquivalent(with: event)
+        if super.performKeyEquivalent(with: event) { return true }
+        // A field gets its editing keys (⌘← to the line's start) before the menus: there the browser's items, off, would
+        // swallow them.
+        if let field = firstResponder as? NSTextView, Self.editingKeys.contains(Int(event.keyCode)) {
+            field.keyDown(with: event)
+            return true
+        }
+        return false
     }
 }
