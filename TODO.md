@@ -157,7 +157,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] `downloads.download` from service workers and popups (patch `cef/0001`; E2E `badgesAndWorkerDownloadsWithOurChromium`)
 - [x] `tabs.create`/`windows.create` ids that last: patches `chromium/0005` + `cef/0002` (built 2026-10-16) open such a
       tab as a browser of ours the way a page's popups open, instead of a stock window (ADR-0005; E2E
-      `extensionTabsKeepTheirIds` with `BROWSER_E2E_CEF_PATCHES=0005`)
+      `extensionTabsKeepTheirIds` with `BROWSER_E2E_CEF_PATCHES=0005,0006`)
 - [-] `omnibox` keywords: the command bar replaces Chrome's omnibox; CEF can't hand it input
 - [x] Checked: `window.focus()` in a background tab (app in front or not) leaves no page window detached from the browser
       window; the one seen came from DevTools being adopted as a tab (fixed)
@@ -179,7 +179,8 @@ to check that the feature still works (`forkctl test <feature>`).
       (E2E `extensionsAreManagedWithoutChromesPage`, net log included). Still Chrome's page if typed: errors, "Load
       unpacked" (developer mode)
 - [~] Claude in Chrome: native messaging hosts mirrored, Claude space from the extension's page marks; Claude's own
-      tabs: ADR-0005 patches 1–2 built (a session's first tab works); groups across windows (patch 3) for multi-tab sessions not written.
+      tabs: ADR-0005 patches 1–3 built (`chromium/0005`, `chromium/0006`, `cef/0002`): a session's tabs keep their ids
+      and its group spans pages (E2E `extensionTabsKeepTheirIds`). Not checked with Claude itself end to end.
       Chrome's new-tab page, which Claude's tabs start on, shows the browser's own (E2E `chromesNewTabPageIsTheBrowsers`)
 
 ## 9. Performance (U)

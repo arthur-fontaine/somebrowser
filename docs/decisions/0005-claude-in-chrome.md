@@ -1,6 +1,7 @@
 # 0005 — Claude in Chrome: what works today, and the patches for the rest
 
-Date: 2026-10-16 · Status: patches 1 and 2 built and checked (`chromium/0005`, `cef/0002`, 2026-10-16: E2E `extensionTabsKeepTheirIds` passes); patch 3 proposed
+Date: 2026-10-16 · Status: patches 1 to 3 built and checked (`chromium/0005`, `chromium/0006`, `cef/0002`, 2026-10-16:
+E2E `extensionTabsKeepTheirIds` runs a two-tab session)
 
 ## Context
 
@@ -36,7 +37,7 @@ its own tab. So:
 
 ## The patches
 
-Both written ones hang on one switch, `--views-hosted-new-tabs` (the CEF engine passes it; without our build it does
+All three hang on one switch, `--views-hosted-new-tabs` (the CEF engine passes it; without our build it does
 nothing).
 
 1. **Chrome's new tabs keep their ids** (`chromium/0005`, `cef/0002`, written). CEF already hosts popups a page opens
@@ -59,27 +60,29 @@ nothing).
    {windowTypes: ["normal"]})` then finds the page in front, and `tabs.create({windowId})` lands in it (patch 1 makes
    it a tab of ours). A page's Browser has a tab group model already (only app windows don't), so
    `tabs.group({createProperties: {windowId}})` groups its one tab: a session's first tab works end to end.
-3. **Groups across page windows (Chromium, proposed).** One window per tab means a group can't hold several tabs. Patch
-   `TabsGroupFunction`/`TabGroupsUpdateFunction`/`tabs.query({groupId})` behind a switch (`--groups-across-windows`)
-   so a group is a set of tab ids the browser keeps (not a tab strip span): grouping never moves tabs, `groupId` on
-   each tab reports it, and `tabGroups.onCreated/onUpdated/onRemoved` fire as usual. The app reads the groups (CEF
-   API `CefBrowserHost::GetTabGroupId`, new) and puts a Claude group's tabs in the Claude space directly, without
-   waiting for the page marks.
+3. **Groups span pages** (`chromium/0006`, written). One window per tab means a group can't hold several tabs, and
+   Chromium's `TabsGroupFunction` moves tabs into the group's window. Each later tab of a session opens in the
+   group's window (`tabGroups.get(groupId).windowId`), so in a page of its own (patch 1), then joins with
+   `tabs.group({tabIds, groupId})`. Between pages, that now joins each tab to the group in its own page's tab strip,
+   under the same `TabGroupId` (`AddToGroupForRestore`), instead of moving it: `tabs.query({groupId})` finds every
+   member, `tabGroups.query` lists the group once, and `tabGroups.update` gives every page holding it the same look.
+   Chrome's saved tab groups are off with the switch (`IsTabGroupSyncEnabled`): they follow a group in one tab strip
+   (a second strip making the same group fails a `CHECK`), and the browser shows none of them. Not done:
+   `tabGroups.onCreated`/`onRemoved` fire once per page holding the group (Claude listens to neither), and the app
+   doesn't read groups (the page marks bring a session's tabs to the Claude space).
 
-Order: 1 and 2 make Claude Code work end to end with a single tab per session; 3 makes multi-tab sessions work (a
-second tab Claude opens lands in a window of its own, and Claude groups a new tab only when it's in the group's
-window). A smaller 3 to try first: the same `TabGroupId` in each page's own tab strip (`AddToGroupForRestore`) instead
-of moving tabs, visuals copied to every window, and `tabGroups.onCreated`/`onRemoved` fired once per id.
+Order: 1 and 2 make Claude Code work end to end with a single tab per session; 3 makes multi-tab sessions work.
 
-Finding (2026-10-16, extension 1.0.100): where the extension opens a follow-up tab itself, it groups it only when
-`tabs.create` answers with the opener's window id (`d.windowId === e.windowId`). Here every page is a window of its own,
-so even with patch 3 that tab would stay out of the group. Multi-tab sessions need extensions to see one window per
-browser window (every page of a browser window reporting the same window id, the tab strip spanning those pages),
-which patch 3 alone doesn't give; that larger change is the next step, not patch 3 by itself.
+Correction (2026-10-16, extension 1.0.100): an earlier note here said multi-tab sessions need every page of a browser
+window to report one window id. The comparison it quoted (`d.windowId === e.windowId`) is only in the extension's
+"foreground guard": links a Claude tab's page opens in the foreground are reopened by the extension next to the
+opener and grouped only when they land in its window. Those stay out of the group here (they open as child tabs of
+the browser's own); Claude's own new tabs (`tabs_create_mcp`) compare no window ids and join the group (patch 3).
 
 Checks: the E2E test `extensionTabsKeepTheirIds` runs Claude's session steps through the probe extension
-(`windows.getLastFocused`, `tabs.create`, `tabs.get` a second later, `tabs.group`, `tabGroups.update`, `tabs.query
-({groupId})`, and the `windows.create` fallback) with `BROWSER_E2E_CEF_PATCHES` listing 0005. Chrome's new-tab page,
+(`windows.getLastFocused`, `tabs.create`, `tabs.get` a second later, `tabs.group`, `tabGroups.update`, then a second tab
+opened in the group's window and joined to the group, `tabs.query({groupId})` holding both, `tabGroups.query` listing
+the group once, and the `windows.create` fallback) with `BROWSER_E2E_CEF_PATCHES` listing 0006. Chrome's new-tab page,
 which Claude's tabs start on, would contact Google: the CEF page shows the browser's own new tab instead (E2E
 `chromesNewTabPageIsTheBrowsers`, runs today).
 
@@ -88,6 +91,7 @@ which Claude's tabs start on, would contact Google: the CEF page shows the brows
 - Until our build has patches 1 and 2, Claude can act on tabs the user opened, and they land in the Claude space; a
   session that opens its own tab fails at its first step ("No tab with id").
 - Built 2026-10-16: grouping the one tab of a page's tab strip works (`tabs.group`, `tabGroups.update`,
-  `tabs.query({groupId})`), and a tab opened by an extension opens as a child of the page in front.
+  `tabs.query({groupId})`), a tab opened by an extension opens as a child of the page in front, and a group holds
+  tabs from several pages.
 - The patches change how every extension's `tabs.create` behaves here, for the better (ids that last, the TODO's
   open item): they're tested with the extension suite (ExtensionAPITests), not only Claude's.
