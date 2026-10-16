@@ -13,6 +13,8 @@ struct InlineEditor: View {
     @State private var visible = false
     @State private var expanded = false
     @State private var rowsShown = false
+    /// The expanded editor's denser tint, arriving with its growth.
+    @State private var tinted = false
     /// The last results, still drawn while the panel folds away.
     @State private var shownItems: [OmniboxItem] = []
     @FocusState private var focused: Bool
@@ -45,7 +47,7 @@ struct InlineEditor: View {
             .frame(width: max(width, 0), height: height, alignment: .top)
             .clipShape(shape)
             // Expanded, a menu's denser material, so it reads as one surface over the sidebar and the page alike.
-            .background(Color(nsColor: .windowBackgroundColor).opacity(rowsShown ? 0.65 : 0), in: shape)
+            .background(Color(nsColor: .windowBackgroundColor).opacity(tinted ? 0.65 : 0), in: shape)
             .background(Design.Fill.glassScrim, in: shape)
             .glassSurface(in: shape)
             .background { if editing { ClickOutside { model.close(window) } } }
@@ -135,13 +137,15 @@ struct InlineEditor: View {
                 var still = Transaction()
                 still.disablesAnimations = true
                 withTransaction(still) { visible = true }
-                // The field hides once the editor has drawn over it.
-                DispatchQueue.main.async { window.isEditingAddress = true }
+                // The field stays under the editor (the same shape) until it has grown: hidden any earlier, it could be
+                // gone before the overlay's first frame is on screen.
+                let hideField = { if editing { window.isEditingAddress = true } }
+                withAnimation(.easeOut(duration: 0.2)) { tinted = true }
                 if reduceMotion {
                     expanded = true
-                    withAnimation(.easeOut(duration: 0.15)) { rowsShown = true }
+                    withAnimation(.easeOut(duration: 0.15)) { rowsShown = true } completion: { hideField() }
                 } else {
-                    withAnimation(Self.curve(0.28)) { expanded = true }
+                    withAnimation(Self.curve(0.28)) { expanded = true } completion: { hideField() }
                     withAnimation(.easeOut(duration: 0.14).delay(0.06)) { rowsShown = true }
                 }
                 DispatchQueue.main.async { focused = true }
@@ -149,6 +153,7 @@ struct InlineEditor: View {
         } else {
             focused = false
             withAnimation(.easeOut(duration: 0.08)) { rowsShown = false }
+            withAnimation(.easeOut(duration: 0.2)) { tinted = false }
             withAnimation(reduceMotion ? .easeOut(duration: 0.1) : Self.curve(0.22)) { expanded = false } completion: {
                 guard !editing else { return }
                 // The field back under it first, then the editor goes.

@@ -431,6 +431,7 @@ struct SidebarResizeHandle: View {
 /// When the sidebar is hidden, the left window edge reveals it as a floating panel (Horse's "Shelf").
 struct SidebarPeekOverlay: View {
     @Environment(BrowserEnvironment.self) private var env
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let window: BrowserWindowState
     let model: SidebarModel
     @State private var hideTask: Task<Void, Never>?
@@ -448,7 +449,8 @@ struct SidebarPeekOverlay: View {
                         .clipShape(slab)
                         .shadow(color: .black.opacity(0.22), radius: 24, y: 10)
                         .padding(Design.windowInset)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
+                        // Solid as it slides (fading, the page and its rows showed through each other).
+                        .transition(reduceMotion ? .opacity : .move(edge: .leading))
                         .onHover { inside in
                             hideTask?.cancel()
                             if !inside { scheduleHide() }
