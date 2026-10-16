@@ -885,6 +885,8 @@ public:
 - (void)createBrowserWithURL:(NSString *)url {
     CefBrowserSettings settings;
     settings.background_color = CefColorSetARGB(255, 255, 255, 255);
+    // No Chrome status bubble over the page: the browser shows hovered links itself (Link Tree). Popups inherit it.
+    settings.chrome_status_bubble = STATE_DISABLED;
     CefRefPtr<CefRequestContext> context = _isPrivate ? [[CEFRuntime shared] privateContextFor:self] : nullptr;
     CefRefPtr<CefBrowserView> view = CefBrowserView::CreateBrowserView(_client, CS(url ?: @""), settings,
                                                                        [[CEFRuntime shared] extraInfo], context, _viewDelegate);

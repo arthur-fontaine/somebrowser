@@ -104,6 +104,26 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// A hovered (here focused) link shows in the browser's own box (Link Tree), not in Chrome's status bubble at the
+    /// page's corner too.
+    @Test func hoveredLinksShowNoChromeBubble() throws {
+        let server = try TestHTTPServer(pages: ["/link": "<!doctype html><title>Link</title><a href='https://example.org/somewhere'>link</a>"])
+        let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
+        guard try app.state()["engine"] as? String == "cef-chrome" else { try app.quit(); return }
+        try app.open(server.url("/link"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "Link" }
+        _ = try app.eval("document.querySelector('a').focus(); 1")
+        var bubbles: [String] = []
+        for _ in 0..<40 {
+            let windows = try app.call(["op": "views"])["windows"] as? [[String: Any]] ?? []
+            bubbles += windows.filter { w in w["class"] as? String == "NativeWidgetMacNSWindow" && w["visible"] as? Bool == true
+                && (w["alpha"] as? Double ?? 0) > 0 && !(w["frame"] as? String ?? "").hasSuffix("{1, 1}}") }.compactMap { $0["frame"] as? String }
+            Thread.sleep(forTimeInterval: 0.03)
+        }
+        #expect(bubbles.isEmpty, "Chrome windows shown: \(bubbles)")
+        try app.quit()
+    }
+
     /// A tab Claude acts on (the Claude in Chrome extension marks it with its glow) moves to the Claude space.
     @Test func claudesTabsGoToTheClaudeSpace() throws {
         let server = try TestHTTPServer(pages: [
