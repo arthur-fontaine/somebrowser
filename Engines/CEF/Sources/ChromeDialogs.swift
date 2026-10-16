@@ -38,7 +38,7 @@ final class ChromeDialogs {
                      NSWindow.didChangeOcclusionStateNotification] {
             observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
                 guard let window = note.object as? NSWindow else { return }
-                MainActor.assumeIsolated { self?.consider(window, attempts: 10) }
+                MainActor.assumeIsolated { self?.consider(window, attempts: 40) }
             })
         }
         observers.append(center.addObserver(forName: NSWindow.willCloseNotification, object: nil, queue: .main) { [weak self] note in
@@ -90,13 +90,12 @@ final class ChromeDialogs {
         }
     }
 
-    /// Invisible and out of the way: clicks and keys go to the browser's own dialog.
+    /// Invisible, and clicks go through to the browser's own dialog. Focus stays: Chrome's bubbles close (cancelled)
+    /// when they lose it, and Return or Escape there does what the browser's dialog would (its default button, or
+    /// cancel), the browser's dialog following.
     private func hide(_ window: NSWindow) {
         window.alphaValue = 0
         window.ignoresMouseEvents = true
-        if window.isKeyWindow {
-            NSApp.orderedWindows.first { $0 !== window && $0.isVisible && $0.canBecomeMain }?.makeKey()
-        }
     }
 
     private func closed(_ window: NSWindow) {
