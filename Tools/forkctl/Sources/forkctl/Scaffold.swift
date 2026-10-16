@@ -122,7 +122,15 @@ enum Vendor {
         let sha = try Shell.capture(["shasum", "-a", "1", tarball.path]).split(separator: " ").first.map(String.init)
         guard sha == pin.sha1 else { throw ProjectError.invalid("CEF checksum mismatch: \(sha ?? "?") ≠ \(pin.sha1)") }
         if !FileManager.default.fileExists(atPath: dir.path) {
-            try Shell.run(["tar", "xjf", tarball.path, "-C", cache.path])
+            // Into a folder named after the archive, whatever its own top folder is called (two builds of one CEF
+            // version, ours with different patches, extract to the same name).
+            let unpack = cache.appendingPathComponent(".unpack-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: unpack, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: unpack) }
+            try Shell.run(["tar", "xjf", tarball.path, "-C", unpack.path])
+            let top = try FileManager.default.contentsOfDirectory(at: unpack, includingPropertiesForKeys: nil).filter { !$0.lastPathComponent.hasPrefix(".") }
+            guard top.count == 1 else { throw ProjectError.invalid("unexpected CEF archive layout: \(top.map(\.lastPathComponent))") }
+            try FileManager.default.moveItem(at: top[0], to: dir)
         }
         let wrapper = dir.appendingPathComponent("build/libcef_dll_wrapper/libcef_dll_wrapper.a")
         if !FileManager.default.fileExists(atPath: wrapper.path) {
