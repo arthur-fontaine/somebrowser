@@ -13,6 +13,7 @@ import Testing
     #expect(Validator.usesURLSession("let (data, _) = try await URLSession.shared.data(from: url)"))
     #expect(Validator.usesURLSession("    let s = URLSession(configuration: .ephemeral) // own session"))
     #expect(!Validator.usesURLSession("// URLSession stays out\nlet data = try await context.fetch(request, purpose: \"x\")"))
+    #expect(!Validator.usesURLSession("async -> (URLSession.AuthChallengeDisposition, URLCredential?) {"))
 }
 
 @Test func pascalCaseIds() {

@@ -117,10 +117,11 @@ enum Validator {
 
     static let modifierNames: Set<String> = ["cmd", "shift", "opt", "alt", "ctrl", "fn"]
 
-    /// URLSession in code (not in a comment).
+    /// URLSession in code (not in a comment). Its authentication-challenge answer type makes no request (WebKit's
+    /// challenge delegate needs it).
     static func usesURLSession(_ source: String) -> Bool {
         source.split(separator: "\n").contains { line in
-            let code = line.trimmingCharacters(in: .whitespaces)
+            let code = line.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "URLSession.AuthChallengeDisposition", with: "")
             return !code.hasPrefix("//") && (code.range(of: "//").map { String(code[..<$0.lowerBound]) } ?? code).contains("URLSession")
         }
     }
