@@ -10,6 +10,8 @@
 - `archive.after` — Archive Today tabs after
 - `archive.keepDays` — Keep archived tabs for (days)
 
+**Sidebar** — once something is archived, an Archive button in the sidebar's footer opens it.
+
 **Start page** — contributes "Recently Archived": the five tabs archived last, a click from coming back.
 
 **Tests** — `./forkctl test archive`.

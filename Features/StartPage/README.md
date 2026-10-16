@@ -6,7 +6,8 @@ archived tabs, AdBlock's privacy line, Safari's favorites).
 
 **How it works** — The column is left-aligned, 680 pt wide, near the top of the page. Sections use Core's
 `PageSection`, `SiteTile` and `PageRow`, so contributions read alike. Everything shown is local: tiles show icons
-pages already showed (`runtime.favicons`), so a blank tab contacts no site.
+pages already showed (`runtime.favicons`), so a blank tab contacts no site. Before there's any history, a Get Started
+section offers importing from another browser and making this one the default (`start-page.make-default`).
 
 **Tests** — `./forkctl test start-page`.
 
