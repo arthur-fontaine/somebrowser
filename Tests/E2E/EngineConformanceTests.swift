@@ -81,6 +81,29 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
+    /// With the sidebar hidden there's no top bar: the page reaches the window's top edge (but for the content inset),
+    /// as it reaches its left edge. Everything lives in the sidebar.
+    @Test func hiddenSidebarLeavesNoTopBar() throws {
+        let (app, server) = try launch()
+        guard try app.state()["engine"] as? String == "cef-chrome" else { return try app.quit() }  // pages are windows
+        try app.open(server.url("/one"))
+        try app.waitUntil(timeout: 15) { try app.eval("document.title") as? String == "One" }
+        func frames() throws -> (shell: NSRect, page: NSRect) {
+            let windows = try app.call(["op": "views"])["windows"] as? [[String: Any]] ?? []
+            let shell = windows.first { $0["class"] as? String == "ShellWindow" }
+            let page = windows.first { $0["class"] as? String == "CefNSWindow" && $0["parent"] as? Int == shell?["number"] as? Int }
+            return (NSRectFromString(shell?["frame"] as? String ?? ""), NSRectFromString(page?["frame"] as? String ?? ""))
+        }
+        let shown = try frames()
+        #expect(shown.page.minX - shown.shell.minX > 100)  // the sidebar's room
+        try app.run("sidebar.toggle")
+        try app.waitUntil(timeout: 5) { let f = try frames(); return f.page.minX - f.shell.minX < 10 }
+        let hidden = try frames()
+        #expect(hidden.shell.maxY - hidden.page.maxY <= 6.5)
+        #expect(hidden.page.minX - hidden.shell.minX <= 6.5)
+        try app.quit()
+    }
+
     /// A download is the browser's own (the Downloads feature): Chrome's download bubble doesn't pop up beside it, nor
     /// its "download started" animation flying to its (hidden) downloads button.
     @Test func downloadsShowNoChromeBubble() throws {
