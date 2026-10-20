@@ -25,7 +25,7 @@ public struct WindowControls: NSViewRepresentable {
             buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { NSWindow.standardWindowButton($0, for: style) }
             super.init(frame: .zero)
             for (button, action) in zip(buttons, [#selector(NSWindow.performClose(_:)), #selector(NSWindow.performMiniaturize(_:)),
-                                                  #selector(NSWindow.performZoom(_:))]) {
+                                                  #selector(NSWindow.toggleFullScreen(_:))]) {  // as the window's own green light
                 button.action = action
                 addSubview(button)
             }
