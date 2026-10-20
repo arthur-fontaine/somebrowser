@@ -322,6 +322,7 @@ struct ExtensionsPanel: View {
                 .transition(.scale(scale: 0.96, anchor: .topLeading).combined(with: .opacity))
             }
             .onExitCommand { if model.shownDetails != nil { manage.show(nil) } else { close() } }
+            .holdsSidebarPeek("extensions.panel", in: window)
         }
     }
 

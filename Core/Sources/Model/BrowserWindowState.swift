@@ -43,6 +43,9 @@ public final class BrowserWindowState: Identifiable {
     /// Overlays with text input currently on screen. When the engine hosts pages in child windows, the shell
     /// gives keyboard focus to the overlay window while this is non-empty (use `.overlayKeyboardFocus(_:in:)`).
     public var overlayFocusRequests: Set<String> = []
+    /// Panels opened from the floating sidebar (the address editor, the extensions panel…): it stays while any is on
+    /// screen (use `.holdsSidebarPeek(_:in:)`).
+    public var sidebarPeekHolds: Set<String> = []
 
     /// Most-recently-used tabs, newest first (Ctrl-Tab, selection after close).
     @ObservationIgnored public internal(set) var mru: [NodeID] = []

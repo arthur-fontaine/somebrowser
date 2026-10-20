@@ -67,6 +67,7 @@ struct SiteControlsPopover: View {
                     .transition(.scale(scale: 0.9, anchor: .topLeading).combined(with: .opacity))
             }
             .onKeyPress(.escape) { close(); return .handled }
+            .holdsSidebarPeek("site-controls", in: window)
         }
     }
 

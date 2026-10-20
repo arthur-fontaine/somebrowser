@@ -61,6 +61,7 @@ struct InlineEditor: View {
         }
         .ignoresSafeArea()
         .overlayKeyboardFocus("command-bar.inline", in: window, isEnabled: editing)
+        .holdsSidebarPeek("command-bar.inline", in: window, isEnabled: editing)
         .onChange(of: editing) { present(editing) }
         .onChange(of: model.session(window)?.query) { if let q = model.session(window)?.query { shownQuery = q } }
         .onChange(of: items.map(\.id)) {

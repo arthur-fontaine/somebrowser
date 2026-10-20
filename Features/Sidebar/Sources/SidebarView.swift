@@ -472,14 +472,24 @@ struct SidebarPeekOverlay: View {
                 Spacer(minLength: 0)
             }
             .frame(maxHeight: .infinity)
+            // What held it closed with the pointer elsewhere: no hover report comes then.
+            .onChange(of: window.sidebarPeekHolds.isEmpty) { if window.sidebarPeekHolds.isEmpty { scheduleHide() } }
         }
     }
 
+    /// From the window's frame: hover reports also come when key moves to an overlay, the pointer still over it.
+    private var pointerOverPanel: Bool {
+        guard let frame = env.runtime.shell?.nsWindow(for: window)?.frame else { return false }
+        let pointer = NSEvent.mouseLocation
+        return frame.contains(pointer) && pointer.x <= frame.minX + window.sidebarWidth + 2 * Design.windowInset
+    }
+
     private func scheduleHide() {
+        hideTask?.cancel()
         hideTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(350))
-            // Not under the address being edited: it goes away when the editing ends.
-            guard !Task.isCancelled, !window.isEditingAddress else { return }
+            // Not under what was opened from it (the address editor, the extensions panel…): it goes when that does.
+            guard !Task.isCancelled, window.sidebarPeekHolds.isEmpty, !pointerOverPanel else { return }
             withAnimation(.spring(duration: 0.28, bounce: 0.05)) { window.isSidebarPeeking = false }
         }
     }

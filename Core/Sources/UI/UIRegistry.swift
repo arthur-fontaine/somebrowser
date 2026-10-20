@@ -101,4 +101,14 @@ public extension View {
             }
             .onDisappear { window.overlayFocusRequests.remove(id) }
     }
+
+    /// Keeps the floating sidebar out while this is on screen, as something opened from it: its click-catcher covers
+    /// the sidebar, which would take that for the pointer leaving.
+    func holdsSidebarPeek(_ id: String, in window: BrowserWindowState, isEnabled: Bool = true) -> some View {
+        onAppear { if isEnabled { window.sidebarPeekHolds.insert(id) } }
+            .onChange(of: isEnabled) {
+                if isEnabled { window.sidebarPeekHolds.insert(id) } else { window.sidebarPeekHolds.remove(id) }
+            }
+            .onDisappear { window.sidebarPeekHolds.remove(id) }
+    }
 }
