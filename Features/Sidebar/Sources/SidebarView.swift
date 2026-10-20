@@ -478,7 +478,8 @@ struct SidebarPeekOverlay: View {
     private func scheduleHide() {
         hideTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(350))
-            guard !Task.isCancelled else { return }
+            // Not under the address being edited: it goes away when the editing ends.
+            guard !Task.isCancelled, !window.isEditingAddress else { return }
             withAnimation(.spring(duration: 0.28, bounce: 0.05)) { window.isSidebarPeeking = false }
         }
     }
