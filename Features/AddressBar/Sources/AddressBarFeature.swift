@@ -107,7 +107,7 @@ struct AddressPill: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!runtime.commands.isHandled("site-controls.show"))
+            .disabled(!runtime.commands.isHandled("site-controls.show") || url.map { SiteSettingsStore.site(for: $0) == nil } == true)
             .help(developer ? "Developer mode (⌃D)" : "Site Controls")
             Text(text.isEmpty ? "Search or enter address" : text)
                 .font(.system(size: 13, weight: .medium))

@@ -17,7 +17,8 @@ public final class SiteControlsFeature: BrowserFeature {
     public func activate() {
         context.commands.handle("site-controls.show", isEnabled: { [weak self] inv in
             guard let self, let w = inv.window else { return false }
-            return self.context.runtime.selectedTab(in: w)?.live?.url != nil
+            // Settings are per host: `data:`, `about:`… pages have none to show.
+            return SiteSettingsStore.site(for: self.context.runtime.selectedTab(in: w)?.live?.url) != nil
         }) { inv in inv.window?.toggle(flag: Self.flag) }
 
         // Per-site sound: applied on every navigation.
