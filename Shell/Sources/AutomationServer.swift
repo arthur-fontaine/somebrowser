@@ -199,14 +199,17 @@ final class AutomationServer {
         case "clickTitle":
             // A left click on the browser window's control titled `title` (a sidebar row…), found through accessibility,
             // delivered as AppKit delivers one to a key window. Replies with the main-thread time of the click.
+            // `queued`: through the app's event queue to the window as it is, key or not (first-click checks).
             guard let title = req["title"] as? String, let shellWindow = window.flatMap({ shell?.nsWindow(for: $0) }),
                   let frame = Self.accessibleFrame(titled: title, in: shellWindow) else { return reply(["ok": false, "error": "no such control"]) }
             let center = shellWindow.convertPoint(fromScreen: NSPoint(x: frame.midX, y: frame.midY))
+            let queued = req["queued"] as? Bool ?? false
             let start = DispatchTime.now()
             for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
                 guard let event = NSEvent.mouseEvent(with: type, location: center, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                                                      windowNumber: shellWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
                 else { continue }
+                if queued { NSApp.postEvent(event, atStart: false); continue }
                 shellWindow.makeKey()
                 shellWindow.sendEvent(event)
             }
