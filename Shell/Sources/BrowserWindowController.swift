@@ -164,9 +164,16 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func refreshActiveState() {
         guard let window else { return }
         let active = ShellWindow.isActive(window, keyWindow: NSApp.keyWindow)
-        guard state.isKeyWindow != active else { return }
-        state.isKeyWindow = active
-        window.contentView?.superview?.needsDisplay = true  // the traffic lights follow `_hasActiveAppearance`
+        let changed = state.isKeyWindow != active
+        // The traffic lights follow `_hasActiveAppearance`, but only re-read it as this window's own key changes: they
+        // went grey as key moved on to the page, though the window stays active.
+        guard changed || (active && !window.isKeyWindow) else { return }
+        if changed { state.isKeyWindow = active }
+        // The frame passes AppKit's own key-change refresh down to them.
+        let frame = window.contentView?.superview
+        let refresh = NSSelectorFromString("_windowChangedKeyState")
+        if frame?.responds(to: refresh) == true { frame?.perform(refresh) }
+        frame?.needsDisplay = true
     }
 
     func windowDidBecomeKey(_ notification: Notification) { refreshActiveState() }
