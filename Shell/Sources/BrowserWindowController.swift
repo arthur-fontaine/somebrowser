@@ -27,6 +27,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private weak var shell: ShellController?
     private var hosting: NSHostingView<AnyView>?
     private var overlay: OverlayWindow?
+    private var toolbar: NSToolbar?
 
     init(state: BrowserWindowState, runtime: BrowserRuntime, shell: ShellController) {
         self.state = state
@@ -167,8 +168,17 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         overlay.setFrame(window.convertToScreen(window.contentLayoutRect.union(window.contentView?.frame ?? .zero)), display: true)
     }
     func windowDidMove(_ notification: Notification) { state.viewport?.layoutDidChange(); persistFrame() }
+    /// A toolbar goes to a shelf of its own in full screen, opaque over the sidebar's top row; the window has one only for
+    /// its titlebar's height, so it leaves for full screen.
+    func windowWillEnterFullScreen(_ notification: Notification) {
+        toolbar = window?.toolbar
+        window?.toolbar = nil
+    }
+    func windowDidExitFullScreen(_ notification: Notification) {
+        if let toolbar { window?.toolbar = toolbar }
+        state.isFullscreen = false; state.viewport?.layoutDidChange(); layoutOverlay(); updateTrafficLights()
+    }
     func windowDidEnterFullScreen(_ notification: Notification) { state.isFullscreen = true; state.viewport?.layoutDidChange(); layoutOverlay() }
-    func windowDidExitFullScreen(_ notification: Notification) { state.isFullscreen = false; state.viewport?.layoutDidChange(); layoutOverlay() }
     func windowDidChangeScreen(_ notification: Notification) { state.viewport?.layoutDidChange() }
 
     func windowWillClose(_ notification: Notification) {
