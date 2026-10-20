@@ -808,7 +808,8 @@ public:
     void OnWindowDestroyed(CefRefPtr<CefWindow> window) override { view_ = nullptr; window_ = nullptr; }
     bool IsFrameless(CefRefPtr<CefWindow>) override { return true; }
     void OnWindowBoundsChanged(CefRefPtr<CefWindow>, const CefRect &) override { [tab_ pageWindowBoundsChanged]; }
-    bool CanResize(CefRefPtr<CefWindow>) override { return true; }
+    /// The viewport sizes it. A resizable page window takes resize drags at its edges, which meet the screen's in full screen.
+    bool CanResize(CefRefPtr<CefWindow>) override { return false; }
     bool CanClose(CefRefPtr<CefWindow>) override { return true; }
     CefRect GetInitialBounds(CefRefPtr<CefWindow>) override { return CefRect(-20000, -20000, 1024, 768); }
     cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
