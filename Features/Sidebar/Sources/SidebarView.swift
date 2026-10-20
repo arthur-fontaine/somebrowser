@@ -394,10 +394,12 @@ struct WindowDragArea: NSViewRepresentable {
     final class DragView: NSView {
         override var mouseDownCanMoveWindow: Bool { true }
         override func mouseDown(with event: NSEvent) {
+            // The browser window, also from the floating sidebar's window above its page (it moves with it).
+            let target = window?.parent ?? window
             if event.clickCount == 2 {
-                window?.performZoom(nil)
+                target?.performZoom(nil)
             } else {
-                window?.performDrag(with: event)
+                target?.performDrag(with: event)
             }
         }
     }
