@@ -214,6 +214,34 @@ final class AutomationServer {
                 shellWindow.sendEvent(event)
             }
             reply(["ok": true, "ms": Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e6])
+        case "activate":
+            // The app in front: only the frontmost app has a key window (focus and first-click tests).
+            NSApp.activate(ignoringOtherApps: true)
+            window.flatMap { shell?.nsWindow(for: $0) }?.makeKeyAndOrderFront(nil)
+            reply(["ok": true])
+        case "mouse":
+            // `events`: [{type: move|down|up|drag, x, y}], points from the browser window's top-left, posted one by one
+            // through the app's event queue as the window server sends them: to `window` (browser, overlay or page) as it
+            // is, key or not, so first clicks, key changes and hover tracking run as they do for a person.
+            guard let shellWindow = window.flatMap({ shell?.nsWindow(for: $0) }) else { return reply(["ok": false, "error": "no window"]) }
+            let target: NSWindow? = switch req["window"] as? String ?? "browser" {
+            case "overlay": shellWindow.childWindows?.first { $0.identifier == ShellOverlay.windowIdentifier }
+            case "page": shellWindow.childWindows?.last { $0.identifier != ShellOverlay.windowIdentifier && $0.frame.width > 2 && $0.isVisible }
+            default: shellWindow
+            }
+            guard let target else { return reply(["ok": false, "error": "no such window"]) }
+            let types: [String: NSEvent.EventType] = ["move": .mouseMoved, "down": .leftMouseDown, "up": .leftMouseUp, "drag": .leftMouseDragged]
+            for step in req["events"] as? [[String: Any]] ?? [] {
+                guard let type = types[step["type"] as? String ?? ""] else { continue }
+                let screen = NSPoint(x: shellWindow.frame.minX + (step["x"] as? Double ?? 0), y: shellWindow.frame.maxY - (step["y"] as? Double ?? 0))
+                guard let event = NSEvent.mouseEvent(with: type, location: target.convertPoint(fromScreen: screen), modifierFlags: [],
+                                                     timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: target.windowNumber,
+                                                     context: nil, eventNumber: 0, clickCount: step["clicks"] as? Int ?? 1,
+                                                     pressure: type == .leftMouseUp || type == .mouseMoved ? 0 : 1)
+                else { continue }
+                NSApp.postEvent(event, atStart: false)
+            }
+            reply(["ok": true])
         case "hit":
             // The browser window's child windows (front to back) under (x, y) of the content area, with the AppKit view
             // and the accessibility path there (mouse routing checks).
@@ -402,8 +430,16 @@ final class AutomationServer {
                     "private": w.isPrivate,
                     "locked": w.isLocked,
                     "flags": Array(w.flags).sorted(),
+                    "peeking": w.isSidebarPeeking,
+                    "editingAddress": w.isEditingAddress,
+                    "active": w.isKeyWindow,
+                    "frame": shell?.nsWindow(for: w).map { NSStringFromRect($0.frame) } ?? "",
                 ] as [String: Any]
             },
+            // Which of the app's windows AppKit has as key and main (page child windows, the overlay, the browser window).
+            "keyWindow": NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? NSNull(),
+            "mainWindow": NSApp.mainWindow.map { String(describing: type(of: $0)) } ?? NSNull(),
+            "appActive": NSApp.isActive,
             "favorites": runtime.tabs.favorites.compactMap(tabJSON),
             "spaces": runtime.tabs.spaces.map { s in
                 [
