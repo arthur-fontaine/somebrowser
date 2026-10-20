@@ -27,6 +27,9 @@ final class OverlayWindow: NSPanel {
         guard let parent else { return false }
         return ShellWindow.isActive(parent, keyWindow: NSApp.keyWindow)
     }
+    /// Their green light is the browser window's, which goes full screen: AppKit asks the window they're in which glyph
+    /// to draw ("+" otherwise).
+    @objc var _zoomButtonIsFullScreenButton: Bool { parent != nil }
     override var canBecomeMain: Bool { false }
 }
 
