@@ -5,7 +5,7 @@ import SwiftUI
 /// over the browser window's titlebar. They act on the browser window and light up together under the pointer, as the
 /// real ones do. Lay out `width` wide; the red light is centered `Design.Grid.iconCenter − leading` in.
 public struct WindowControls: NSViewRepresentable {
-    public static let width: CGFloat = 64
+    public static let width: CGFloat = 72
     let leading: CGFloat
 
     /// `leading`: where this view starts from the sidebar's edge, so the lights land where the docked sidebar has them.
@@ -45,10 +45,13 @@ public struct WindowControls: NSViewRepresentable {
 
         public override func layout() {
             super.layout()
-            // 20 pt apart, as the window's own; the red one on the sidebar's icon column.
+            // As far apart as the window's own (it changes with the system); the red one on the sidebar's icon column.
+            let target = window?.parent ?? window
+            let close = target?.standardWindowButton(.closeButton), minimize = target?.standardWindowButton(.miniaturizeButton)
+            let spacing = close.flatMap { c in minimize.map { $0.frame.minX - c.frame.minX } } ?? 23
             for (i, button) in buttons.enumerated() {
                 let size = button.frame.size
-                button.setFrameOrigin(NSPoint(x: redCenter - size.width / 2 + CGFloat(i) * 20, y: (bounds.height - size.height) / 2))
+                button.setFrameOrigin(NSPoint(x: redCenter - size.width / 2 + CGFloat(i) * spacing, y: (bounds.height - size.height) / 2))
             }
         }
 
