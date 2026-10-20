@@ -91,12 +91,24 @@ static BOOL PageWindowIsMainWindow(NSWindow *self, SEL _cmd) {
     return self.parentWindow.isMainWindow;
 }
 
+static IMP gWindowCanBecomeMainWindow;
+
+/// Nor does it take main from it: a click in the page did, and the browser window then drew inactive (its traffic
+/// lights grey, the sidebar's glass flat) while the page had focus. Detached ones (popups, DevTools) are their own.
+static BOOL PageWindowCanBecomeMainWindow(NSWindow *self, SEL _cmd) {
+    if (self.parentWindow) return NO;
+    return ((BOOL (*)(id, SEL))gWindowCanBecomeMainWindow)(self, _cmd);
+}
+
 static void PageWindowsFollowTheirBrowserWindow() {
     Class page = NSClassFromString(@"CefNSWindow");
     if (!page || gWindowIsMainWindow) return;
     Method method = class_getInstanceMethod(page, @selector(isMainWindow));
     gWindowIsMainWindow = method_getImplementation(method);
     class_replaceMethod(page, @selector(isMainWindow), (IMP)PageWindowIsMainWindow, method_getTypeEncoding(method));
+    Method canBecomeMain = class_getInstanceMethod(page, @selector(canBecomeMainWindow));
+    gWindowCanBecomeMainWindow = method_getImplementation(canBecomeMain);
+    class_replaceMethod(page, @selector(canBecomeMainWindow), (IMP)PageWindowCanBecomeMainWindow, method_getTypeEncoding(canBecomeMain));
 }
 
 /// Chrome's views windows announce themselves when shown (`CEFChromeWindowShownNotification`), child windows included,
