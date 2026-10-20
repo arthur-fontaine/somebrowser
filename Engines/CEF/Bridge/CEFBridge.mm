@@ -183,6 +183,14 @@ static void ChromeWindowsAnnounceThemselves() {
         }
     }
 }
+
+/// Window managers (Raycast, Rectangle…) move and resize the focused window: the browser window, not the page or
+/// overlay child window that has key.
+- (id)accessibilityFocusedWindow {
+    NSWindow *window = self.keyWindow;
+    while (window.parentWindow) window = window.parentWindow;
+    return window ?: [super accessibilityFocusedWindow];
+}
 @end
 
 // MARK: - Tab internals
