@@ -19,6 +19,16 @@ final class ShellWindow: NSWindow {
     static func isActive(_ window: NSWindow, keyWindow: NSWindow?) -> Bool {
         WindowFocus.isActive(window, keyWindow: keyWindow) { $0.parent }
     }
+
+    /// A click from this window's own page or overlay (which have key) is no first click: AppKit would only make this
+    /// window key and drop it, so the address field took two clicks. Key moves here first and the click goes through.
+    override func sendEvent(_ event: NSEvent) {
+        if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type), !isKeyWindow,
+           let key = NSApp.keyWindow, key !== self, Self.isActive(self, keyWindow: key) {
+            makeKey()
+        }
+        super.sendEvent(event)
+    }
 }
 
 final class BrowserWindowController: NSWindowController, NSWindowDelegate {
