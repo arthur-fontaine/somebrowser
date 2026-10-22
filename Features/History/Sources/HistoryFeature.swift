@@ -70,60 +70,46 @@ struct HistoryPanelOverlay: View {
     let store: HistoryStore
     let runtime: BrowserRuntime
     @State private var query = ""
+    /// The store isn't observed (SQLite): a removal or a clear bumps this to list again.
+    @State private var revision = 0
 
     var body: some View {
-        if window.flags.contains(HistoryFeature.panelFlag) {
-            ZStack {
-                Color.black.opacity(0.12).contentShape(Rectangle()).onTapGesture { window.flags.remove(HistoryFeature.panelFlag) }
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("History").font(.title3.bold())
-                        Spacer()
-                        Button { window.flags.remove(HistoryFeature.panelFlag) } label: { Image(systemName: "xmark") }.buttonStyle(.borderless)
-                    }
-                    TextField("Search history", text: $query).textFieldStyle(.roundedBorder)
-                    List(grouped(store.search(query, limit: 300)), id: \.0) { day, entries in
-                        Section(day) {
-                            ForEach(entries) { e in
-                                HStack {
-                                    Text(e.title.isEmpty ? e.url.absoluteString : e.title).lineLimit(1)
-                                    Spacer()
-                                    Text(e.url.host() ?? "").foregroundStyle(.secondary).lineLimit(1)
-                                    Text(e.lastVisit, style: .time).foregroundStyle(.tertiary).monospacedDigit()
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    runtime.openTab(e.url, in: window)
-                                    window.flags.remove(HistoryFeature.panelFlag)
-                                }
-                                .contextMenu { Button("Remove from History") { store.remove(url: e.url); query += "" } }
-                            }
-                        }
-                    }
-                    .listStyle(.inset)
-                }
-                .padding(20)
-                .frame(width: 720, height: 520)
-                .overlayKeyboardFocus("history", in: window)
-                .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
+        let shown = window.flags.contains(HistoryFeature.panelFlag)
+        let _ = revision
+        SearchPanel("history", in: window, isShown: shown, symbol: "clock", prompt: "Search History", query: $query,
+                    sections: shown ? sections() : [],
+                    empty: PanelEmptyState(symbol: "clock", title: "No History",
+                                           detail: window.isPrivate ? "Private windows don't keep history." : "The pages you visit show up here."),
+                    close: { window.flags.remove(HistoryFeature.panelFlag) }) {
+            PanelMenu(systemImage: "trash", help: "Clear History") {
+                Button("Clear Today's History") { clear(since: Calendar.current.startOfDay(for: Date())) }
+                Button("Clear All History") { clear(since: nil) }
             }
-            .onKeyPress(.escape) { window.flags.remove(HistoryFeature.panelFlag); return .handled }
+        }
+        .onChange(of: shown) { if !shown { query = "" } }
+    }
+
+    private func sections() -> [PanelSection] {
+        PanelSection.byDay(store.search(query, limit: 300), date: \.lastVisit) { e in
+            PanelItem(id: e.url.absoluteString, icon: runtime.favicons.image(for: e.url),
+                      title: e.title.isEmpty ? e.url.absoluteString : e.title, subtitle: Self.address(e.url),
+                      detail: e.lastVisit.formatted(date: .omitted, time: .shortened), url: e.url,
+                      open: { runtime.openTab(e.url, in: window) },
+                      remove: ("Remove from History", { store.remove(url: e.url); revision += 1 }))
         }
     }
 
-    private func grouped(_ entries: [HistoryEntry]) -> [(String, [HistoryEntry])] {
-        let f = DateFormatter()
-        f.dateStyle = .full
-        f.doesRelativeDateFormatting = true
-        var order: [String] = []
-        var map: [String: [HistoryEntry]] = [:]
-        for e in entries.sorted(by: { $0.lastVisit > $1.lastVisit }) {
-            let key = f.string(from: e.lastVisit)
-            if map[key] == nil { order.append(key) }
-            map[key, default: []].append(e)
-        }
-        return order.map { ($0, map[$0]!) }
+    private func clear(since date: Date?) {
+        store.clear(since: date)
+        revision += 1
+    }
+
+    /// The address without its scheme or "www.", as Safari's history lists it.
+    static func address(_ url: URL) -> String {
+        var s = url.absoluteString
+        for prefix in ["https://", "http://"] where s.hasPrefix(prefix) { s.removeFirst(prefix.count) }
+        if s.hasPrefix("www.") { s.removeFirst(4) }
+        return s.hasSuffix("/") && s.filter({ $0 == "/" }).count == 1 ? String(s.dropLast()) : s
     }
 }
 
