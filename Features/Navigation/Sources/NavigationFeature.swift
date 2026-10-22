@@ -142,10 +142,8 @@ struct ReloadButton: View {
 
     var body: some View {
         let live = env.runtime.selectedTab(in: window)?.live
-        if live == nil {
-            // Its slot kept on a blank tab, so the extensions beside it don't move.
-            Color.clear.frame(width: Design.AddressField.control, height: Design.AddressField.control)
-        } else if let live {
+        // None on a blank tab: the extensions beside it take the field's end.
+        if let live {
             FieldButton(help: live.isLoading ? "Stop" : "Reload (⌘R)") {
                 try? commands.run(live.isLoading ? "navigation.stop" : "navigation.reload", window: window)
             } label: {
