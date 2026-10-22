@@ -150,7 +150,7 @@ final class ArchiveOmnibox: OmniboxProvider {
             let score = max(FuzzyMatch.score(query, in: item.title), FuzzyMatch.score(query, in: item.url?.host() ?? ""))
             guard score > 0.5 else { return nil }
             return OmniboxItem(id: "archive:\(item.id)", title: item.title, subtitle: item.url?.host(), icon: .favicon(item.url),
-                               kind: "Archived", score: score * 0.6) { [weak feature] w in feature?.restore(item, in: w) }
+                               kind: "Archived", score: score * 0.6, fill: item.url?.absoluteString) { [weak feature] w in feature?.restore(item, in: w) }
         }.prefix(3).map { $0 }
     }
 }

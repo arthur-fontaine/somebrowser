@@ -19,7 +19,10 @@ final class CommandBarModel {
 
     struct Session {
         var mode: Mode
+        /// What the field shows: what was typed, or the selected result's text (`OmniboxItem.fill`).
         var query: String
+        /// What was typed: the results and suggestions are for this.
+        var typed: String
         var selection = 0
         var suggestions: [String] = []
         var style: Style = .palette
@@ -49,7 +52,7 @@ final class CommandBarModel {
         if mode == .editURL, let tab = runtime.selectedTab(in: window) {
             query = (tab.live?.url ?? tab.url)?.absoluteString ?? ""
         }
-        sessions[window.id] = Session(mode: mode, query: query, style: style, initialQuery: query)
+        sessions[window.id] = Session(mode: mode, query: query, typed: query, style: style, initialQuery: query)
         window.flags.insert(Self.flag)
     }
 
@@ -65,11 +68,16 @@ final class CommandBarModel {
         }
     }
 
-    /// Esc: reverts what was typed, or closes if nothing was.
+    /// Esc: back to what was typed from a selected result, then reverts what was typed, then closes (Chrome's).
     func escape(_ window: BrowserWindowState) {
         guard var s = sessions[window.id] else { return }
-        if s.query != s.initialQuery {
+        if s.query != s.typed {
+            s.query = s.typed
+            s.selection = 0
+            sessions[window.id] = s
+        } else if s.query != s.initialQuery {
             s.query = s.initialQuery
+            s.typed = s.initialQuery
             s.selection = 0
             sessions[window.id] = s
         } else {
@@ -82,22 +90,24 @@ final class CommandBarModel {
     func setQuery(_ q: String, in window: BrowserWindowState) {
         guard var s = sessions[window.id] else { return }
         s.query = q
+        s.typed = q
         s.selection = 0
         s.suggestions = s.suggestions.filter { $0.lowercased().hasPrefix(q.lowercased()) }
         sessions[window.id] = s
     }
 
     func setSuggestions(_ list: [String], for query: String, in window: BrowserWindowState) {
-        guard var s = sessions[window.id], s.query == query else { return }
+        guard var s = sessions[window.id], s.typed == query else { return }
         s.suggestions = list
         sessions[window.id] = s
     }
 
     func moveSelection(_ delta: Int, in window: BrowserWindowState) {
         guard var s = sessions[window.id] else { return }
-        let count = items(for: window).count
-        guard count > 0 else { return }
-        s.selection = (s.selection + delta + count) % count
+        let list = items(for: window)
+        guard !list.isEmpty else { return }
+        s.selection = (s.selection + delta + list.count) % list.count
+        s.query = list[s.selection].fill ?? s.typed
         sessions[window.id] = s
     }
 
@@ -105,14 +115,15 @@ final class CommandBarModel {
 
     func items(for window: BrowserWindowState) -> [OmniboxItem] {
         guard let s = sessions[window.id] else { return [] }
-        let q = s.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let q = s.typed.trimmingCharacters(in: .whitespacesAndNewlines)
         if q.isEmpty { return recentItems(window) }
 
         var items: [OmniboxItem] = []
         if let primary = primaryItem(q, mode: s.mode) { items.append(primary) }
         for (i, suggestion) in s.suggestions.enumerated() where suggestion.lowercased() != q.lowercased() {
             items.append(openItem(id: "suggest:\(suggestion)", title: suggestion, subtitle: nil, input: suggestion,
-                                  icon: .system("magnifyingglass"), kind: "Search", score: 0.55 - Double(i) * 0.01, mode: s.mode))
+                                  icon: .system("magnifyingglass"), kind: "Search", score: 0.55 - Double(i) * 0.01, mode: s.mode,
+                                  fill: suggestion))
         }
         items += tabItems(q, window: window)
         for provider in runtime.capabilities.all(OmniboxProvider.self) { items += provider.items(for: q, in: window) }
@@ -139,8 +150,8 @@ final class CommandBarModel {
     }
 
     private func openItem(id: String, title: String, subtitle: String?, input: String, icon: OmniboxItem.Icon, kind: String,
-                          score: Double, mode: Mode) -> OmniboxItem {
-        OmniboxItem(id: id, title: title, subtitle: subtitle, icon: icon, kind: kind, score: score) { [weak self] window in
+                          score: Double, mode: Mode, fill: String? = nil) -> OmniboxItem {
+        OmniboxItem(id: id, title: title, subtitle: subtitle, icon: icon, kind: kind, score: score, fill: fill) { [weak self] window in
             guard let self, let url = self.search?.url(for: input) ?? URL(string: input) else { return }
             self.open(url, in: window, mode: mode)
         }
@@ -153,7 +164,7 @@ final class CommandBarModel {
             let score = max(FuzzyMatch.score(q, in: tab.displayTitle), FuzzyMatch.score(q, in: url?.host() ?? "") * 0.95)
             guard score > 0 else { return nil }
             return OmniboxItem(id: "tab:\(tab.id)", title: tab.displayTitle, subtitle: url?.host(), icon: .favicon(url),
-                               kind: "Switch to Tab", score: score + 0.05) { [weak self] w in
+                               kind: "Switch to Tab", score: score + 0.05, fill: url?.absoluteString) { [weak self] w in
                 self?.runtime.select(tab.id, in: w)
             }
         }
@@ -178,12 +189,13 @@ final class CommandBarModel {
         if let s = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
            s.count < 2048, search?.looksLikeURL(s) == true, let url = search?.url(for: s) {
             items.append(OmniboxItem(id: "paste", title: "Paste and Go", subtitle: url.absoluteString, icon: .system("doc.on.clipboard"),
-                                     kind: "Open", score: 2) { [weak self] w in self?.open(url, in: w, mode: mode) })
+                                     kind: "Open", score: 2, fill: url.absoluteString) { [weak self] w in self?.open(url, in: w, mode: mode) })
         }
         let open = Set(runtime.tabs.allTabs.compactMap { ($0.live?.url ?? $0.url).map(URLNormalizer.key(for:)) })
         for entry in runtime.capabilities.history?.recent(limit: 40) ?? [] where !open.contains(URLNormalizer.key(for: entry.url)) {
             items.append(OmniboxItem(id: "recent:\(entry.url.absoluteString)", title: entry.title.isEmpty ? entry.url.absoluteString : entry.title,
-                                     subtitle: entry.url.host(), icon: .favicon(entry.url), kind: "History", score: 1) { [weak self] w in
+                                     subtitle: entry.url.host(), icon: .favicon(entry.url), kind: "History", score: 1,
+                                     fill: entry.url.absoluteString) { [weak self] w in
                 self?.open(entry.url, in: w, mode: mode)
             })
             if items.count >= 6 { break }

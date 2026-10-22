@@ -187,6 +187,32 @@ struct CommandBarTests {
         #expect(h.selectedTab?.url?.absoluteString == "https://c.example")
     }
 
+    /// Chrome's: an arrowed-to suggestion fills the field and typing goes on from it; Esc goes back to what was typed.
+    @Test func arrowsFillTheFieldAndTypingGoesOnFromIt() throws {
+        let (h, model) = try harness()
+        try h.run("command-bar.open")
+        model.setQuery("hel", in: h.window)
+        model.setSuggestions(["hello", "help"], for: "hel", in: h.window)
+        let results = model.items(for: h.window).map(\.id)
+        model.moveSelection(1, in: h.window)
+        #expect(model.session(h.window)?.query == "hello")
+        #expect(model.items(for: h.window).map(\.id) == results)  // the list stays for what was typed
+        model.moveSelection(1, in: h.window)
+        #expect(model.session(h.window)?.query == "help")
+        model.moveSelection(-2, in: h.window)
+        #expect(model.session(h.window)?.query == "hel")
+
+        model.moveSelection(1, in: h.window)
+        model.escape(h.window)
+        #expect(model.session(h.window)?.query == "hel")
+        #expect(model.session(h.window)?.selection == 0)
+
+        model.moveSelection(1, in: h.window)
+        model.setQuery("hello world", in: h.window)  // what the field sends as " world" is typed after the fill
+        model.execute(h.window)
+        #expect(h.selectedTab?.url?.absoluteString == "https://search.example/?q=hello+world")
+    }
+
     /// The palette style keeps Arc's: ⌘T opens nothing until something is chosen.
     @Test func paletteStyleOpensNoTabFirst() throws {
         let (h, model) = try harness()

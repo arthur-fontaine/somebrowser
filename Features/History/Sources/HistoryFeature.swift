@@ -57,7 +57,8 @@ final class HistoryOmnibox: OmniboxProvider {
         let runtime = feature.context.runtime
         return feature.store.search(query, limit: 5).enumerated().map { i, e in
             OmniboxItem(id: "history:\(e.url.absoluteString)", title: e.title.isEmpty ? e.url.absoluteString : e.title,
-                        subtitle: e.url.host(), icon: .favicon(e.url), kind: "History", score: 0.7 - Double(i) * 0.02) { w in
+                        subtitle: e.url.host(), icon: .favicon(e.url), kind: "History", score: 0.7 - Double(i) * 0.02,
+                        fill: e.url.absoluteString) { w in
                 runtime.open(e.url, fillingBlankTabIn: w)
             }
         }

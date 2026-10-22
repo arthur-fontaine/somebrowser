@@ -92,10 +92,13 @@ public struct OmniboxItem: Identifiable {
     public var score: Double
     /// Keyboard hint shown on the right (e.g. a command's shortcut).
     public var accessory: String?
+    /// What the field shows while this result is selected with the arrows (Chrome's): a suggestion's text, a page's
+    /// address. Typing goes on from it. `nil` keeps what was typed.
+    public var fill: String?
     public var action: (BrowserWindowState) -> Void
 
     public init(id: String, title: String, subtitle: String? = nil, icon: Icon, kind: String, score: Double,
-                accessory: String? = nil, action: @escaping (BrowserWindowState) -> Void) {
+                accessory: String? = nil, fill: String? = nil, action: @escaping (BrowserWindowState) -> Void) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
@@ -103,6 +106,7 @@ public struct OmniboxItem: Identifiable {
         self.kind = kind
         self.score = score
         self.accessory = accessory
+        self.fill = fill
         self.action = action
     }
 }

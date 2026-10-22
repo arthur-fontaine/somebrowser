@@ -187,8 +187,8 @@ struct CommandBarPanel: View {
         .shadow(color: .black.opacity(0.22), radius: 24, y: 10)
         // Focused once it's on screen (the overlay window becomes key on the same turn), unfocused when hidden.
         .onChange(of: isShown, initial: true) { DispatchQueue.main.async { focused = isShown } }
-        .task(id: session?.query) {
-            guard let q = session?.query, let search = model.search else { return }
+        .task(id: session?.typed) {
+            guard let q = session?.typed, let search = model.search else { return }
             try? await Task.sleep(for: .milliseconds(120))
             guard !Task.isCancelled else { return }
             let list = await search.suggestions(for: q)

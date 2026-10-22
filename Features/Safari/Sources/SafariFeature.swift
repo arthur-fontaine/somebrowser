@@ -291,7 +291,8 @@ final class SafariHistoryOmnibox: OmniboxProvider {
             guard score >= 0.6 else { continue }
             let runtime = self.runtime
             out.append(OmniboxItem(id: "safari:" + entry.url.absoluteString, title: entry.title.isEmpty ? entry.url.absoluteString : entry.title,
-                                   subtitle: entry.url.host(), icon: .favicon(entry.url), kind: "Safari", score: score * 0.6) { w in
+                                   subtitle: entry.url.host(), icon: .favicon(entry.url), kind: "Safari", score: score * 0.6,
+                                   fill: entry.url.absoluteString) { w in
                 runtime.openTab(entry.url, in: w)
             })
             if out.count >= 5 { break }
