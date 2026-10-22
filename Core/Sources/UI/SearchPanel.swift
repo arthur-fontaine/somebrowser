@@ -74,10 +74,11 @@ public struct PanelEmptyState {
     }
 }
 
-/// A searchable list over the page (History, the archive), as macOS 26's Spotlight: the field is a glass capsule with the
-/// panel's actions as glass circles beside it, and the rows float in their own glass panel under it. The arrows move through the rows (as does the pointer),
-/// Return opens one, Esc clears the field and then closes.
-public struct SearchPanel<Actions: View>: View {
+/// A searchable list over the page (History, the archive): one Liquid Glass panel, the field on top, rows by section,
+/// the selected row's actions in a footer. One layer of glass over the page (Apple's guidance): what sits on the panel
+/// is a fill, never more glass. The arrows move through the rows (as does the pointer), Return opens one, ⌘⌫ removes
+/// it, Esc clears the field and then closes.
+public struct SearchPanel<Menu: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let window: BrowserWindowState
     let id: String
@@ -88,14 +89,14 @@ public struct SearchPanel<Actions: View>: View {
     let sections: [PanelSection]
     let empty: PanelEmptyState
     let close: () -> Void
-    let actions: Actions
+    let menu: Menu
 
     public static var width: CGFloat { 640 }
 
     public init(_ id: String, in window: BrowserWindowState, isShown: Bool, symbol: String, prompt: String, query: Binding<String>,
                 sections: [PanelSection], empty: PanelEmptyState, close: @escaping () -> Void,
-                /// Glass circles beside the field: `PanelButton`, `PanelMenu`.
-                @ViewBuilder actions: () -> Actions = { EmptyView() }) {
+                /// The footer's menu (clearing everything): buttons.
+                @ViewBuilder menu: () -> Menu = { EmptyView() }) {
         self.id = id
         self.window = window
         self.isShown = isShown
@@ -105,7 +106,7 @@ public struct SearchPanel<Actions: View>: View {
         self.sections = sections
         self.empty = empty
         self.close = close
-        self.actions = actions()
+        self.menu = menu()
     }
 
     public var body: some View {
@@ -121,7 +122,7 @@ public struct SearchPanel<Actions: View>: View {
                 SearchPanelBody(window: window, symbol: symbol, prompt: prompt, query: $query, sections: sections,
                                 empty: query.isEmpty ? empty : PanelEmptyState(symbol: "magnifyingglass", title: "No Results",
                                                                               detail: "Nothing matches “\(query)”."),
-                                maxHeight: max(240, min(560, content.height - top - 32)), close: close, actions: actions)
+                                maxHeight: max(240, min(560, content.height - top - 32)), close: close, menu: menu)
                     .overlayKeyboardFocus(id, in: window)
                     .holdsSidebarPeek(id, in: window)
                     .frame(width: min(Self.width, max(320, content.width - 48)))
@@ -141,32 +142,30 @@ public struct SearchPanel<Actions: View>: View {
 
 /// The panel's grid: the field's symbol and the rows' icons share one column, text starts at `textX`.
 enum PanelMetrics {
-    /// The field's height; it and the action buttons are capsules and circles of it.
-    static let fieldHeight: CGFloat = 52
-    /// Between the field, its buttons and the list (glass apart, blending as one).
-    static let gap = Design.Space.block
-    static let listRadius: CGFloat = 26
-    /// Rows sit this far inside the list, so their corners are concentric with its.
+    static let radius: CGFloat = 26
+    /// Rows sit this far inside the panel, so their corners are concentric with its.
     static let inset: CGFloat = 8
-    static let rowRadius = Design.concentric(listRadius, inset: inset)
-    static let iconX: CGFloat = fieldHeight / 2
-    static let iconWidth: CGFloat = 20
-    static let textX: CGFloat = iconX + iconWidth / 2 + 16
+    static let rowRadius = Design.concentric(radius, inset: inset)
+    /// The icon column's center, from the panel's edge.
+    static let iconCenter: CGFloat = 30
+    static let iconTile: CGFloat = 26
+    static let textX: CGFloat = 56
+    static let fieldHeight: CGFloat = 60
+    static let footerHeight: CGFloat = 52
+    static let rowHeight: CGFloat = 40
     static let emptyHeight: CGFloat = 200
-    static func rowHeight(_ item: PanelItem) -> CGFloat { item.subtitle == nil ? 40 : 48 }
     static func headerHeight(first: Bool) -> CGFloat { (first ? 8 : 16) + 16 + 4 }
 
     /// The list's height with nothing scrolled away, so a short list gets a short panel.
     static func listHeight(_ sections: [PanelSection]) -> CGFloat {
-        let rows = sections.flatMap(\.items)
-        let elements = sections.count + rows.count
-        return inset * 2 + rows.map(rowHeight).reduce(0, +)
+        let rows = sections.reduce(0) { $0 + $1.items.count }
+        return inset * 2 + CGFloat(rows) * rowHeight
             + sections.indices.map { headerHeight(first: $0 == 0) }.reduce(0, +)
-            + Design.Space.row * CGFloat(max(0, elements - 1))
+            + Design.Space.row * CGFloat(max(0, sections.count + rows - 1))
     }
 }
 
-struct SearchPanelBody<Actions: View>: View {
+struct SearchPanelBody<Menu: View>: View {
     let window: BrowserWindowState
     let symbol: String
     let prompt: String
@@ -175,7 +174,7 @@ struct SearchPanelBody<Actions: View>: View {
     let empty: PanelEmptyState
     let maxHeight: CGFloat
     let close: () -> Void
-    let actions: Actions
+    let menu: Menu
     @State private var selection: String?
     /// Where the arrows went: the list follows them, not the pointer (its row is on screen already).
     @State private var scrollTarget: String?
@@ -183,21 +182,17 @@ struct SearchPanelBody<Actions: View>: View {
 
     var body: some View {
         let isEmpty = sections.allSatisfy(\.items.isEmpty)
-        let listShape = RoundedRectangle(cornerRadius: PanelMetrics.listRadius, style: .continuous)
-        GlassGroup(spacing: PanelMetrics.gap) {
-            VStack(spacing: PanelMetrics.gap) {
-                HStack(spacing: PanelMetrics.gap) {
-                    field
-                    actions
-                }
-                Group { if isEmpty { emptyState } else { list } }
-                    .frame(height: min(isEmpty ? PanelMetrics.emptyHeight : PanelMetrics.listHeight(sections),
-                                       maxHeight - PanelMetrics.fieldHeight - PanelMetrics.gap))
-                    .clipShape(listShape)
-                    .glassSurface(in: listShape)
-            }
+        let shape = RoundedRectangle(cornerRadius: PanelMetrics.radius, style: .continuous)
+        let chrome = PanelMetrics.fieldHeight + 1 + PanelMetrics.footerHeight
+        VStack(spacing: 0) {
+            field
+            Rectangle().fill(Design.Fill.hairline).frame(height: 1).padding(.horizontal, 16)
+            Group { if isEmpty { emptyState } else { list } }
+                .frame(height: min(isEmpty ? PanelMetrics.emptyHeight : PanelMetrics.listHeight(sections), maxHeight - chrome))
+            footer
         }
-        .shadow(color: .black.opacity(0.12), radius: 20, y: 8)
+        .glassSurface(in: shape)
+        .shadow(color: .black.opacity(0.18), radius: 24, y: 10)
         .onKeyPress(.escape) {
             if query.isEmpty { close() } else { query = "" }
             return .handled
@@ -209,17 +204,22 @@ struct SearchPanelBody<Actions: View>: View {
 
     private var field: some View {
         HStack(spacing: 0) {
-            Image(systemName: symbol).font(.system(size: 17, weight: .medium)).foregroundStyle(.secondary)
-                .frame(width: PanelMetrics.iconWidth)
-                .padding(.leading, PanelMetrics.iconX - PanelMetrics.iconWidth / 2)
+            Image(systemName: symbol).font(.system(size: 18, weight: .medium)).foregroundStyle(.secondary)
+                .frame(width: PanelMetrics.iconTile)
+                .padding(.leading, PanelMetrics.iconCenter - PanelMetrics.iconTile / 2)
             TextField(prompt, text: $query)
                 .textFieldStyle(.plain)
-                .font(.system(size: 17))
+                .font(.system(size: 20))
                 .focused($focused)
                 .onSubmit(openSelection)
                 .onKeyPress(.downArrow) { move(1); return .handled }
                 .onKeyPress(.upArrow) { move(-1); return .handled }
-                .padding(.leading, PanelMetrics.textX - PanelMetrics.iconX - PanelMetrics.iconWidth / 2)
+                .onKeyPress(.delete, phases: .down) { press in
+                    guard press.modifiers.contains(.command), let item = selected, item.remove != nil else { return .ignored }
+                    remove(item)
+                    return .handled
+                }
+                .padding(.leading, PanelMetrics.textX - PanelMetrics.iconCenter - PanelMetrics.iconTile / 2)
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").font(.system(size: 15)).foregroundStyle(.tertiary)
@@ -227,12 +227,10 @@ struct SearchPanelBody<Actions: View>: View {
                 }
                 .buttonStyle(.plain)
                 .help("Clear Search")
-                .padding(.trailing, PanelMetrics.fieldHeight / 2 - 14)
             }
         }
-        .padding(.trailing, query.isEmpty ? Design.Space.capsuleTrailing : 0)
+        .padding(.trailing, 16)
         .frame(height: PanelMetrics.fieldHeight)
-        .glassSurface(in: Capsule())
     }
 
     private var list: some View {
@@ -244,11 +242,11 @@ struct SearchPanelBody<Actions: View>: View {
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .frame(height: 16)
-                            .padding(.leading, PanelMetrics.iconX - PanelMetrics.iconWidth / 2 - PanelMetrics.inset)
+                            .padding(.leading, PanelMetrics.iconCenter - PanelMetrics.iconTile / 2 - PanelMetrics.inset)
                             .padding(.top, i == 0 ? 8 : 16)
                             .padding(.bottom, 4)
                         ForEach(section.items) { item in
-                            PanelRow(item: item, selected: item.id == selection) { open(item) }
+                            PanelRow(item: item, selected: item.id == selection, open: { open(item) }, remove: { remove(item) })
                                 .id(item.id)
                                 .onHover { if $0 { selection = item.id } }
                         }
@@ -259,6 +257,42 @@ struct SearchPanelBody<Actions: View>: View {
             .scrollIndicators(.automatic)
             .onChange(of: scrollTarget) { if let scrollTarget { proxy.scrollTo(scrollTarget) } }
         }
+    }
+
+    /// The menu on the leading end; on the trailing end, what Return and ⌘⌫ do to the selected row.
+    private var footer: some View {
+        HStack(spacing: Design.Space.block) {
+            if Menu.self != EmptyView.self {
+                SwiftUI.Menu { menu } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 14, weight: .semibold))
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(Design.Fill.hover))
+                        .overlay(Circle().strokeBorder(Design.Fill.hairline))
+                        .contentShape(Circle())
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("More")
+            }
+            Spacer()
+            if let item = selected {
+                HStack(spacing: 0) {
+                    FooterAction(title: "Open", keys: ["return"]) { open(item) }
+                    if item.remove != nil {
+                        Rectangle().fill(Design.Fill.hairline).frame(width: 1, height: 16)
+                        FooterAction(title: "Remove", keys: ["command", "delete.left"]) { remove(item) }
+                    }
+                }
+                .padding(.horizontal, 4)
+                .frame(height: 36)
+                .background(Capsule().fill(Design.Fill.hover))
+                .overlay(Capsule().strokeBorder(Design.Fill.hairline))
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: PanelMetrics.footerHeight)
     }
 
     private var emptyState: some View {
@@ -274,6 +308,7 @@ struct SearchPanelBody<Actions: View>: View {
     }
 
     private var items: [PanelItem] { sections.flatMap(\.items) }
+    private var selected: PanelItem? { items.first { $0.id == selection } }
 
     private func move(_ delta: Int) {
         let ids = items.map(\.id)
@@ -284,48 +319,89 @@ struct SearchPanelBody<Actions: View>: View {
     }
 
     private func openSelection() {
-        if let item = items.first(where: { $0.id == selection }) { open(item) }
+        if let selected { open(selected) }
     }
 
     private func open(_ item: PanelItem) {
         item.open()
         close()
     }
+
+    /// The selection moves on to the next row, as in Mail.
+    private func remove(_ item: PanelItem) {
+        let ids = items.map(\.id)
+        if item.id == selection, let i = ids.firstIndex(of: item.id) {
+            selection = i + 1 < ids.count ? ids[i + 1] : i > 0 ? ids[i - 1] : nil
+        }
+        item.remove?.action()
+    }
 }
 
-/// A row of a panel's list: washed while selected (by the arrows or the pointer); its × replaces the detail under the
-/// pointer.
+/// An action in a panel's footer: its title and its keys, washed under the pointer.
+struct FooterAction: View {
+    let title: String
+    let keys: [String]
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(title).font(.system(size: 13, weight: .medium))
+                HStack(spacing: 3) {
+                    ForEach(keys, id: \.self) { key in
+                        Image(systemName: key).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                            .frame(width: 20, height: 20)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Design.Fill.hairline))
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(Capsule().fill(hovering ? Design.Fill.hover : .clear))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
+    }
+}
+
+/// A row of a panel's list: its icon on a tile, the title then the address, a time; washed while selected (by the arrows
+/// or the pointer), its × replacing the time under the pointer.
 struct PanelRow: View {
     let item: PanelItem
     let selected: Bool
     let open: () -> Void
+    let remove: () -> Void
     @State private var hovering = false
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: PanelMetrics.rowRadius, style: .continuous)
         HStack(spacing: 0) {
-            SiteIcon(item.icon).frame(width: 18, height: 18).frame(width: PanelMetrics.iconWidth)
-                .padding(.leading, PanelMetrics.iconX - PanelMetrics.iconWidth / 2 - PanelMetrics.inset)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(item.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+            SiteIcon(item.icon).frame(width: Design.Size.favicon, height: Design.Size.favicon)
+                .frame(width: PanelMetrics.iconTile, height: PanelMetrics.iconTile)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Design.Fill.tile))
+                .padding(.leading, PanelMetrics.iconCenter - PanelMetrics.iconTile / 2 - PanelMetrics.inset)
+            HStack(spacing: 8) {
+                Text(item.title).font(.system(size: 14)).lineLimit(1).truncationMode(.tail).layoutPriority(1)
                 if let subtitle = item.subtitle {
-                    Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    Text(subtitle).font(.system(size: 13)).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
                 }
             }
-            .padding(.leading, PanelMetrics.textX - PanelMetrics.iconX - PanelMetrics.iconWidth / 2)
-            Spacer(minLength: 12)
+            .padding(.leading, PanelMetrics.textX - PanelMetrics.iconCenter - PanelMetrics.iconTile / 2)
+            Spacer(minLength: 16)
             ZStack(alignment: .trailing) {
                 if let detail = item.detail {
-                    Text(detail).font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
+                    Text(detail).font(.system(size: 13)).monospacedDigit().foregroundStyle(.secondary)
                         .opacity(hovering && item.remove != nil ? 0 : 1)
                 }
-                if let remove = item.remove, hovering {
-                    RemoveButton(help: remove.title, action: remove.action)
+                if let action = item.remove, hovering {
+                    RemoveButton(help: action.title, action: remove)
                 }
             }
         }
         .padding(.trailing, 12)
-        .frame(height: PanelMetrics.rowHeight(item))
+        .frame(height: PanelMetrics.rowHeight)
         .background(shape.fill(selected ? Design.Fill.selection : .clear))
         .contentShape(shape)
         .onTapGesture(perform: open)
@@ -338,9 +414,9 @@ struct PanelRow: View {
                     NSPasteboard.general.setString(url.absoluteString, forType: .string)
                 }
             }
-            if let remove = item.remove {
+            if let action = item.remove {
                 Divider()
-                Button(remove.title, action: remove.action)
+                Button(action.title, action: remove)
             }
         }
     }
@@ -363,62 +439,5 @@ struct RemoveButton: View {
         .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
         .help(help)
         .accessibilityLabel(help)
-    }
-}
-
-/// An action beside a panel's field: a glass circle as tall as the field.
-public struct PanelButton: View {
-    let systemImage: String
-    let help: String
-    let action: () -> Void
-
-    public init(systemImage: String, help: String, action: @escaping () -> Void) {
-        self.systemImage = systemImage
-        self.help = help
-        self.action = action
-    }
-
-    public var body: some View {
-        Button(action: action) { PanelButtonSymbol(systemImage: systemImage) }
-            .buttonStyle(.plain)
-            .glassControl(in: Circle())
-            .help(help)
-            .accessibilityLabel(help)
-    }
-}
-
-/// `PanelButton` opening a menu.
-public struct PanelMenu<Content: View>: View {
-    let systemImage: String
-    let help: String
-    let content: Content
-
-    public init(systemImage: String, help: String, @ViewBuilder content: () -> Content) {
-        self.systemImage = systemImage
-        self.help = help
-        self.content = content()
-    }
-
-    public var body: some View {
-        Menu { content } label: { PanelButtonSymbol(systemImage: systemImage) }
-            .menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .glassControl(in: Circle())
-            .help(help)
-            .accessibilityLabel(help)
-    }
-}
-
-struct PanelButtonSymbol: View {
-    let systemImage: String
-
-    var body: some View {
-        Image(systemName: systemImage)
-            .font(.system(size: 16, weight: .medium))
-            .foregroundStyle(.primary)
-            .frame(width: PanelMetrics.fieldHeight, height: PanelMetrics.fieldHeight)
-            .contentShape(Circle())
     }
 }

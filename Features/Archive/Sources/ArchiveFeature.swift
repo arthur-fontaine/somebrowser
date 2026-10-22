@@ -168,7 +168,7 @@ struct ArchivePanel: View {
                     empty: PanelEmptyState(symbol: "archivebox", title: "Nothing Archived",
                                            detail: "Today tabs you leave alone for a while move here, and come back with a click."),
                     close: { window.flags.remove(ArchiveFeature.panelFlag) }) {
-            if !store.items.isEmpty { PanelButton(systemImage: "trash", help: "Empty the Archive") { store.clear() } }
+            Button("Empty the Archive") { store.clear() }.disabled(store.items.isEmpty)
         }
         .onChange(of: shown) { if !shown { query = "" } }
     }

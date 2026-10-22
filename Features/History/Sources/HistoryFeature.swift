@@ -81,10 +81,8 @@ struct HistoryPanelOverlay: View {
                     empty: PanelEmptyState(symbol: "clock", title: "No History",
                                            detail: window.isPrivate ? "Private windows don't keep history." : "The pages you visit show up here."),
                     close: { window.flags.remove(HistoryFeature.panelFlag) }) {
-            PanelMenu(systemImage: "trash", help: "Clear History") {
-                Button("Clear Today's History") { clear(since: Calendar.current.startOfDay(for: Date())) }
-                Button("Clear All History") { clear(since: nil) }
-            }
+            Button("Clear Today's History") { clear(since: Calendar.current.startOfDay(for: Date())) }
+            Button("Clear All History") { clear(since: nil) }
         }
         .onChange(of: shown) { if !shown { query = "" } }
     }
