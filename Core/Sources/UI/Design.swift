@@ -93,8 +93,6 @@ public enum Design {
         public static let selection = adaptive(light: .black.withAlphaComponent(0.09), dark: .white.withAlphaComponent(0.10))
         /// A favorite tile at rest.
         public static let tile = adaptive(light: .white.withAlphaComponent(0.35), dark: .white.withAlphaComponent(0.08))
-        /// A control drawn on glass (where it can't be glass itself).
-        public static let onGlass = adaptive(light: .black.withAlphaComponent(0.06), dark: .white.withAlphaComponent(0.08))
         public static let hairline = Color.primary.opacity(0.1)
         /// Under the text of a large glass panel, so it reads over any page (Spotlight's).
         public static let glassScrim = adaptive(light: .white.withAlphaComponent(0.10), dark: .black.withAlphaComponent(0.12))
@@ -130,6 +128,6 @@ public enum Design {
 }
 
 public extension EnvironmentValues {
-    /// Inside a glass surface (the floating sidebar): controls there are fills, never glass on glass.
-    @Entry var isOnGlass = false
+    /// In the floating sidebar, which sits over the browser window's titlebar and draws the traffic lights itself.
+    @Entry var isFloatingSidebar = false
 }

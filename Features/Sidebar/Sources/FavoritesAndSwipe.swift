@@ -80,17 +80,16 @@ struct FavoriteTile: View {
     }
 }
 
-/// The open favorite: the same glass as the selected row's lens (a wash in solid style or on glass).
+/// The open favorite: the same glass as the selected row's lens (a wash in solid style).
 struct TileLens: ViewModifier {
     @Environment(BrowserEnvironment.self) private var env
-    @Environment(\.isOnGlass) private var isOnGlass
     let selected: Bool
 
     func body(content: Content) -> some View {
         let solid = env.runtime.settings.string(SurfaceStyle.settingKey) == SurfaceStyle.solid.rawValue
         if !selected {
             content
-        } else if solid || isOnGlass {
+        } else if solid {
             content.background(Design.itemShape.fill(Design.Fill.selection))
         } else {
             content.glassSurface(in: Design.itemShape)

@@ -391,11 +391,9 @@ struct SelectionLensAnchor: PreferenceKey {
 }
 
 /// One piece of Liquid Glass behind the rows, sliding to the selected one. Rows draw above it, so their titles never
-/// pass through the glass (a lens per row smeared both titles while it re-formed). Solid style, or on the floating
-/// sidebar's own glass: a wash.
+/// pass through the glass (a lens per row smeared both titles while it re-formed). Solid style: a wash.
 struct SelectionLens: View {
     @Environment(BrowserEnvironment.self) private var env
-    @Environment(\.isOnGlass) private var isOnGlass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let rect: CGRect?
     @State private var shown: CGRect?
@@ -404,7 +402,7 @@ struct SelectionLens: View {
         let solid = env.runtime.settings.string(SurfaceStyle.settingKey) == SurfaceStyle.solid.rawValue
         let frame = rect ?? shown ?? .zero
         Group {
-            if solid || isOnGlass {
+            if solid {
                 Design.itemShape.fill(Design.Fill.selection)
             } else {
                 Color.clear.glassSurface(in: Design.itemShape)

@@ -4,7 +4,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Environment(BrowserEnvironment.self) private var env
-    @Environment(\.isOnGlass) private var isOnGlass
+    @Environment(\.isFloatingSidebar) private var isFloating
     let window: BrowserWindowState
     let model: SidebarModel
 
@@ -37,8 +37,8 @@ struct SidebarView: View {
             HStack(spacing: Design.Space.block) {
                 // The traffic lights live here (full-size content view). The floating sidebar covers the window's own, so it
                 // draws its own in their place.
-                if isOnGlass { WindowControls(leading: Design.Grid.edge).frame(width: WindowControls.width, height: Design.Size.header) }
-                Spacer(minLength: isOnGlass ? Design.Space.block : 72)
+                if isFloating { WindowControls(leading: Design.Grid.edge).frame(width: WindowControls.width, height: Design.Size.header) }
+                Spacer(minLength: isFloating ? Design.Space.block : 72)
                 SlotHost(.sidebarHeader, window: window)
                 SidebarIconButton(systemImage: "sidebar.left", help: "Toggle Sidebar (⌘S)") {
                     try? env.runtime.commands.run("sidebar.toggle", window: window)
@@ -432,6 +432,20 @@ struct SidebarResizeHandle: View {
     }
 }
 
+/// The browser window's own surface (the `background` slot): the floating sidebar sits on it as the docked one does.
+struct WindowSurfaceBackground: View {
+    @Environment(BrowserEnvironment.self) private var env
+    let window: BrowserWindowState
+
+    var body: some View {
+        if env.runtime.ui.views(for: "background").isEmpty {
+            Color(nsColor: .windowBackgroundColor)
+        } else {
+            SlotHost("background", window: window)
+        }
+    }
+}
+
 /// When the sidebar is hidden, the left window edge reveals it as a floating panel (Horse's "Shelf").
 struct SidebarPeekOverlay: View {
     @Environment(BrowserEnvironment.self) private var env
@@ -446,10 +460,12 @@ struct SidebarPeekOverlay: View {
             HStack(spacing: 0) {
                 if window.isSidebarPeeking {
                     let slab = RoundedRectangle(cornerRadius: Design.cardRadius, style: .continuous)
+                    // On the window's own surface, as the docked sidebar is, so its controls are Liquid Glass as there
+                    // (a glass slab would have made them washes: glass can't sample glass).
                     SidebarView(window: window, model: model)
-                        .environment(\.isOnGlass, true)
+                        .environment(\.isFloatingSidebar, true)
                         .frame(width: window.sidebarWidth)
-                        .glassSurface(in: slab)
+                        .background { WindowSurfaceBackground(window: window) }
                         .clipShape(slab)
                         .shadow(color: .black.opacity(0.22), radius: 24, y: 10)
                         .padding(Design.windowInset)
