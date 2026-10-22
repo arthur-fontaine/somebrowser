@@ -1,6 +1,7 @@
 import AppKit
 import BrowserCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SidebarView: View {
     @Environment(BrowserEnvironment.self) private var env
@@ -16,6 +17,7 @@ struct SidebarView: View {
                 if !window.isLocked {  // a locked private space shows nothing of its pages
                     SlotHost(.sidebarAddress, window: window)
                         .padding(.horizontal, Design.Grid.edge)
+                        .onDrop(of: [UTType.text], delegate: RevealFavorites(model: model, store: env.runtime.tabs))
                 }
                 FavoritesGrid(window: window, model: model)
                     .padding(.horizontal, Design.Grid.edge)
@@ -260,7 +262,8 @@ struct SpaceTabs: View {
         if space.kind == .private && window.isLocked {
             return AnyView(LockedSpace(window: window))
         }
-        let hasPinned = !space.pinned.isEmpty || model.dragging != nil
+        let hasPinned = !space.pinned.isEmpty
+        let today = Container.section(space.id, .today)
         return AnyView(ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: Design.Space.row) {
                 if hasPinned {  // the pinned section (and its divider) only once there's something to keep
@@ -272,10 +275,10 @@ struct SpaceTabs: View {
                 Color.clear.frame(height: 40)
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) { env.runtime.openTab(nil, in: window) }  // Arc: double-click empty space
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return false }
-                        return env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: .section(space.id, .today), store: store) }
-                    }
+                    // Today's end, marked under its last row.
+                    .onDrop(of: [UTType.text], delegate: SidebarDropDelegate(model: model, owner: .end(today), env: env) { _, dragged in
+                        SidebarLogic.endPlacement(rows: TabList.rows(today, in: window, store: store), in: today, dragged: dragged, store: store)
+                    })
             }
             .backgroundPreferenceValue(SelectionLensAnchor.self) { anchor in
                 GeometryReader { geo in SelectionLens(rect: anchor.map { geo[$0] }) }
@@ -363,6 +366,10 @@ struct NewTabRow: View {
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
         .onHover { hovering = $0 }
+        .overlay(alignment: .topLeading) { DropMark(target: model.dropTarget, owner: .newTab, rows: [], rowHeight: model.rowHeight) }
+        .onDrop(of: [UTType.text], delegate: SidebarDropDelegate(model: model, owner: .newTab, env: env) { [window, model, env] point, dragged in
+            SidebarLogic.newTabPlacement(atY: point.y, rowHeight: model.rowHeight, space: window.spaceID, dragged: dragged, store: env.runtime.tabs)
+        })
     }
 }
 

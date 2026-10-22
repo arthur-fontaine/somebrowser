@@ -12,10 +12,10 @@ struct FavoritesGrid: View {
     var body: some View {
         let store = env.runtime.tabs
         let ids = store.favorites
-        if !ids.isEmpty || model.dragging != nil {
+        if !ids.isEmpty || model.favoritesOpen {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 52, maximum: 120), spacing: Design.Space.block)], spacing: Design.Space.block) {
                 ForEach(ids, id: \.self) { id in
-                    if let tab = store.tab(id) { FavoriteTile(tab: tab, window: window) }
+                    if let tab = store.tab(id) { FavoriteTile(tab: tab, window: window, model: model) }
                 }
             }
             .frame(minHeight: ids.isEmpty ? Design.Size.tile : 0)
@@ -28,11 +28,13 @@ struct FavoritesGrid: View {
                 }
             }
             .dropDestination(for: String.self) { items, _ in
+                defer { model.endDrag() }
                 guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return false }
                 withAnimation(.spring(duration: 0.35, bounce: 0.2)) { _ = env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: .favorites, store: store) } }
                 return true
             } isTargeted: { targeted = $0 }
             .animation(.spring(duration: 0.35, bounce: 0.2), value: ids)
+            .transition(.opacity)
         }
     }
 }
@@ -41,6 +43,7 @@ struct FavoriteTile: View {
     @Environment(BrowserEnvironment.self) private var env
     let tab: BrowserTab
     let window: BrowserWindowState
+    let model: SidebarModel
     @State private var hovering = false
 
     var body: some View {
@@ -68,7 +71,10 @@ struct FavoriteTile: View {
                     env.runtime.select(tab.id, in: window)
                 }
             }
-            .onDrag { NSItemProvider(object: tab.id.uuidString as NSString) }
+            .onDrag {
+                model.beginDrag(tab.id)
+                return NSItemProvider(object: tab.id.uuidString as NSString)
+            }
             .contextMenu {
                 Button("Remove from Favorites") { env.runtime.sidebarHistory.move(tab.id) { env.runtime.tabs.unpin(tab.id, in: window.spaceID) } }
                 Button("Copy Link") {
@@ -77,6 +83,27 @@ struct FavoriteTile: View {
                 }
                 Button("Close") { env.runtime.sidebarHistory.close([tab.id], includingDescendants: false) }
             }
+    }
+}
+
+/// A tab dragged onto the address field opens the empty favorites grid under it: it takes room only once the drag
+/// heads there, so the rows below never move as a drag starts. The drop itself goes in the grid.
+struct RevealFavorites: DropDelegate {
+    let model: SidebarModel
+    let store: TabStore
+
+    func validateDrop(info: DropInfo) -> Bool {
+        guard let id = model.dragging else { return false }
+        return store.tab(id) != nil && !store.isFavorite(id)
+    }
+
+    func dropEntered(info: DropInfo) {
+        if store.favorites.isEmpty, !model.favoritesOpen { withAnimation(Design.Motion.layout) { model.favoritesOpen = true } }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        model.endDrag()
+        return false
     }
 }
 

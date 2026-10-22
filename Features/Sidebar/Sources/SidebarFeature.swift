@@ -58,8 +58,12 @@ final class SidebarModel {
     static let focusFlag = "sidebar.focus"
     @ObservationIgnored let runtime: BrowserRuntime
     var hovered: NodeID?
-    var dropTarget: (id: NodeID, zone: SidebarLogic.DropZone)?
+    /// The node dragged from any sidebar, and where it would land.
     var dragging: NodeID?
+    var dropTarget: DropTarget?
+    /// The empty favorites grid, opened by a drag reaching the address field.
+    var favoritesOpen = false
+    @ObservationIgnored private var dragWatch: Timer?
     /// Interactive two-finger swipe offset (points), per window.
     var swipeOffset: [UUID: CGFloat] = [:]
     /// The docked sidebar's slide in or out, per window, run by its column (`SidebarSlideHost`) in Core Animation.
@@ -83,6 +87,48 @@ final class SidebarModel {
     }
 
     init(runtime: BrowserRuntime) { self.runtime = runtime }
+
+    /// Where a drop's mark comes from: a list of rows, the empty space under one (drawn by the list), or the New Tab row
+    /// (the end of pinned above it, Today's start below). Each target clears only its own mark.
+    enum DropOwner: Hashable {
+        case list(Container), end(Container), newTab
+
+        var drawnBy: DropOwner {
+            if case .end(let c) = self { return .list(c) }
+            return self
+        }
+    }
+
+    struct DropTarget: Equatable {
+        let owner: DropOwner
+        let placement: SidebarLogic.DropPlacement
+    }
+
+    func beginDrag(_ id: NodeID) {
+        dragging = id
+        dragWatch?.invalidate()
+        // SwiftUI tells no one when a drag ends away from a drop target (Esc, released outside, on itself). The timer runs
+        // in the default run loop mode, so it only fires once the drag session is over.
+        dragWatch = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                if NSEvent.pressedMouseButtons & 1 == 0 { self?.endDrag() }
+            }
+        }
+    }
+
+    func endDrag() {
+        dragWatch?.invalidate()
+        dragWatch = nil
+        dropTarget = nil
+        dragging = nil
+        if favoritesOpen { withAnimation(Design.Motion.layout) { favoritesOpen = false } }
+    }
+
+    /// Shows `placement` as `owner`'s mark, or clears the mark if it's `owner`'s.
+    func target(_ placement: SidebarLogic.DropPlacement?, by owner: DropOwner) {
+        let next = placement.map { DropTarget(owner: owner, placement: $0) }
+        if let next, next != dropTarget { dropTarget = next } else if next == nil, dropTarget?.owner == owner { dropTarget = nil }
+    }
 
     /// Shows or hides the docked sidebar; the window's state changes at once, the slide follows. The page (a window of
     /// its own under Chromium) changes size once, never animated: it makes room before the sidebar slides in, and takes

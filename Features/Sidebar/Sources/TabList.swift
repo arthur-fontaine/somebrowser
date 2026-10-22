@@ -10,14 +10,19 @@ struct TabList: View {
     let model: SidebarModel
     let container: Container
 
+    /// The rows shown for `container` (focus mode keeps the selected branch).
+    static func rows(_ container: Container, in window: BrowserWindowState, store: TabStore) -> [SidebarRow] {
+        let all = store.rows(in: container)
+        return window.flags.contains(SidebarModel.focusFlag) ? SidebarLogic.focusRows(all, selected: window.selectedTabID, store: store) : all
+    }
+
     var body: some View {
         let store = env.runtime.tabs
-        let all = store.rows(in: container)
-        let rows = window.flags.contains(SidebarModel.focusFlag) ? SidebarLogic.focusRows(all, selected: window.selectedTabID, store: store) : all
+        let rows = Self.rows(container, in: window, store: store)
         let rowHeight = model.rowHeight
         Group {
             if rows.isEmpty, case .section(_, .pinned) = container {
-                EmptyPinnedDropZone(container: container)
+                EmptyPinnedDropZone(model: model, container: container)
             } else {
                 LazyVStack(alignment: .leading, spacing: SidebarModel.rowSpacing) {
                     ForEach(rows) { row in
@@ -27,6 +32,14 @@ struct TabList: View {
                                 removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .leading))))
                     }
                 }
+                .overlay(alignment: .topLeading) {
+                    DropMark(target: model.dropTarget, owner: .list(container), rows: rows, rowHeight: rowHeight)
+                }
+                .contentShape(Rectangle())  // the gaps between rows take drops too
+                .onDrop(of: [UTType.text], delegate: SidebarDropDelegate(model: model, owner: .list(container), env: env) { point, dragged in
+                    SidebarLogic.placement(at: point, rows: rows, in: container, dragged: dragged, rowHeight: rowHeight,
+                                           spacing: SidebarModel.rowSpacing, store: store)
+                })
                 .onContinuousHover { phase in
                     switch phase {
                     case .active(let p):
@@ -44,6 +57,7 @@ struct TabList: View {
 
 struct EmptyPinnedDropZone: View {
     @Environment(BrowserEnvironment.self) private var env
+    let model: SidebarModel
     let container: Container
     @State private var targeted = false
 
@@ -56,6 +70,7 @@ struct EmptyPinnedDropZone: View {
                 .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
                 .foregroundStyle(targeted ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary)))
             .dropDestination(for: String.self) { items, _ in
+                defer { model.endDrag() }
                 guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return false }
                 return env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: container, store: env.runtime.tabs) }
             } isTargeted: { targeted = $0 }
@@ -70,14 +85,12 @@ struct TabRow: View {
     let model: SidebarModel
     let rowHeight: CGFloat
 
-    /// A child's icon sits under its parent's title.
-    static let indent = Design.Size.favicon + Design.Grid.iconToText
+    static let indent = SidebarLogic.indent
 
     var body: some View {
         let store = env.runtime.tabs
         let selected = (frozenSelection.map(\.id) ?? window.selectedTabID) == row.id
         let hovered = model.hovered == row.id
-        let drop = model.dropTarget?.id == row.id ? model.dropTarget?.zone : nil
         Group {
             if let tab = store.tab(row.id) {
                 TabRowContent(tab: tab, window: window, selected: selected, hovered: hovered, renaming: isRenaming, disclosure: disclosure)
@@ -92,7 +105,6 @@ struct TabRow: View {
         .background(alignment: .leading) { guides }
         .background(Design.itemShape.fill(hovered && !selected ? Design.Fill.hover : .clear))
         .anchorPreference(key: SelectionLensAnchor.self, value: .bounds) { selected ? $0 : nil }
-        .overlay { dropIndicator(drop) }
         .contentShape(Rectangle())
         // A single click selects at once: a double-click gesture placed before it would hold every click for the
         // double-click interval (up to half a second) to rule out a second one.
@@ -100,10 +112,9 @@ struct TabRow: View {
         .simultaneousGesture(TapGesture(count: 2).onEnded { window.flags.insert("rename:\(row.id.uuidString)") })
         .contextMenu { RowMenu(id: row.id, window: window) }
         .onDrag {
-            model.dragging = row.id
+            model.beginDrag(row.id)
             return NSItemProvider(object: row.id.uuidString as NSString)
         }
-        .onDrop(of: [UTType.text], delegate: RowDropDelegate(target: row, model: model, store: store, history: env.runtime.sidebarHistory, rowHeight: rowHeight))
     }
 
     private var isRenaming: Bool { window.flags.contains("rename:\(row.id.uuidString)") }
@@ -139,20 +150,6 @@ struct TabRow: View {
         }
         runtime.select(row.id, in: window)
         runtime.shell?.focusContent(in: window)
-    }
-
-    @ViewBuilder
-    private func dropIndicator(_ zone: SidebarLogic.DropZone?) -> some View {
-        switch zone {
-        case .inside:
-            Design.itemShape.strokeBorder(.tint, lineWidth: 2)
-        case .before:
-            VStack { Capsule().fill(.tint).frame(height: 2); Spacer() }.padding(.top, -2)
-        case .after:
-            VStack { Spacer(); Capsule().fill(.tint).frame(height: 2) }.padding(.bottom, -2)
-        case nil:
-            EmptyView()
-        }
     }
 }
 
@@ -364,35 +361,80 @@ struct RowMenu: View {
     }
 }
 
-struct RowDropDelegate: DropDelegate {
-    let target: SidebarRow
+/// A drop on the sidebar: `resolve` turns the pointer (in the target's space) into a placement, drawn as `owner`'s mark.
+struct SidebarDropDelegate: DropDelegate {
     let model: SidebarModel
-    let store: TabStore
-    let history: SidebarHistory
-    let rowHeight: CGFloat
+    let owner: SidebarModel.DropOwner
+    let env: BrowserEnvironment
+    let resolve: (CGPoint, NodeID) -> SidebarLogic.DropPlacement?
 
-    func validateDrop(info: DropInfo) -> Bool { model.dragging != nil && model.dragging != target.id }
+    func validateDrop(info: DropInfo) -> Bool { model.dragging != nil }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        let zone = SidebarLogic.zone(atY: info.location.y, rowHeight: rowHeight, canNest: true)
-        if model.dropTarget?.id != target.id || model.dropTarget?.zone != zone { model.dropTarget = (target.id, zone) }
+        model.target(model.dragging.flatMap { resolve(info.location, $0) }, by: owner)
         return DropProposal(operation: .move)
     }
 
-    func dropExited(info: DropInfo) {
-        if model.dropTarget?.id == target.id { model.dropTarget = nil }
-    }
+    func dropExited(info: DropInfo) { model.target(nil, by: owner) }
 
     func performDrop(info: DropInfo) -> Bool {
-        defer { model.dropTarget = nil; model.dragging = nil }
-        guard let dragged = model.dragging else { return false }
-        let zone = SidebarLogic.zone(atY: info.location.y, rowHeight: rowHeight, canNest: true)
+        defer { model.endDrag() }
+        guard let dragged = model.dragging, let placement = resolve(info.location, dragged) else { return false }
+        let runtime = env.runtime
         var ok = false
         withAnimation(.spring(duration: 0.35, bounce: 0.15)) {
-            ok = history.move(dragged) { SidebarLogic.drop(dragged, on: target.id, zone: zone, store: store) }
+            ok = runtime.sidebarHistory.move(dragged) { SidebarLogic.drop(dragged, at: placement, store: runtime.tabs) }
         }
         if ok { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
         return ok
+    }
+}
+
+/// Where a drag would land, for one owner: a line starting at the depth's icon, which grows into an outline of the
+/// row it would nest in. One per list, gliding from gap to gap.
+struct DropMark: View {
+    let target: SidebarModel.DropTarget?
+    let owner: SidebarModel.DropOwner
+    let rows: [SidebarRow]
+    let rowHeight: CGFloat
+
+    private static let line: CGFloat = 2
+    private static let dot: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { geo in
+            if let target, target.owner.drawnBy == owner {
+                let frame = frame(target.placement.mark, width: geo.size.width)
+                let isLine = frame.height == Self.line
+                ZStack(alignment: .leading) {
+                    Design.itemShape.strokeBorder(.tint, lineWidth: Self.line)
+                    // Finder's ring at the line's start.
+                    Circle().strokeBorder(.tint, lineWidth: Self.line)
+                        .frame(width: Self.dot, height: Self.dot)
+                        .offset(x: -Self.dot + 1)
+                        .opacity(isLine ? 1 : 0)
+                }
+                .frame(width: frame.width, height: frame.height)
+                .offset(x: frame.minX, y: frame.minY)
+                .transition(.opacity)
+            }
+        }
+        .allowsHitTesting(false)
+        .animation(.spring(duration: 0.22, bounce: 0), value: target)
+    }
+
+    private func frame(_ mark: SidebarLogic.DropPlacement.Mark, width: CGFloat) -> CGRect {
+        let pitch = rowHeight + SidebarModel.rowSpacing
+        switch mark {
+        case .into(let id):
+            let i = rows.firstIndex { $0.id == id } ?? 0
+            return CGRect(x: 0, y: CGFloat(i) * pitch, width: width, height: rowHeight)
+        case .line(let gap, let depth):
+            let x = Design.Grid.iconInset + CGFloat(depth) * SidebarLogic.indent + Self.dot - 1
+            // Centred in the gap; the first one inside the list, where a scroll view's edge would cut it.
+            let y = max(0, CGFloat(gap) * pitch - SidebarModel.rowSpacing / 2 - Self.line / 2)
+            return CGRect(x: x, y: y, width: max(0, width - x), height: Self.line)
+        }
     }
 }
 
