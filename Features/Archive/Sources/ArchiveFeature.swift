@@ -163,7 +163,7 @@ struct ArchivePanel: View {
 
     var body: some View {
         let shown = window.flags.contains(ArchiveFeature.panelFlag)
-        SearchPanel("archive", in: window, isShown: shown, symbol: "archivebox", prompt: "Search Archived Tabs", query: $query,
+        ListPopover("archive", in: window, isShown: shown, title: "Archive", query: $query,
                     sections: shown ? sections() : [],
                     empty: PanelEmptyState(symbol: "archivebox", title: "Nothing Archived",
                                            detail: "Today tabs you leave alone for a while move here, and come back with a click."),

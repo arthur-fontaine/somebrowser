@@ -76,7 +76,7 @@ struct HistoryPanelOverlay: View {
     var body: some View {
         let shown = window.flags.contains(HistoryFeature.panelFlag)
         let _ = revision
-        SearchPanel("history", in: window, isShown: shown, symbol: "clock", prompt: "Search History", query: $query,
+        ListPopover("history", in: window, isShown: shown, title: "History", query: $query,
                     sections: shown ? sections() : [],
                     empty: PanelEmptyState(symbol: "clock", title: "No History",
                                            detail: window.isPrivate ? "Private windows don't keep history." : "The pages you visit show up here."),
