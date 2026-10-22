@@ -14,6 +14,12 @@ public protocol SearchService: AnyObject {
     func suggestions(for query: String) async -> [String]
     /// Display name of the current engine ("DuckDuckGo").
     var engineName: String { get }
+    /// What was searched, when the URL is one of the current engine's results pages (Chrome edits these terms, not the URL).
+    func searchTerms(in url: URL) -> String?
+}
+
+public extension SearchService {
+    func searchTerms(in url: URL) -> String? { nil }
 }
 
 /// Browsing history store.

@@ -12,6 +12,9 @@ final class StubSearch: SearchService {
         looksLikeURL(input) ? URL(string: "https://\(input)") : URL(string: "https://search.example/?q=\(input.replacingOccurrences(of: " ", with: "+"))")
     }
     func suggestions(for query: String) async -> [String] { [] }
+    func searchTerms(in url: URL) -> String? {
+        url.host() == "search.example" ? URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value : nil
+    }
 }
 
 final class StubNewTabPage: NewTabPageProvider {
@@ -87,6 +90,14 @@ struct CommandBarTests {
         model.execute(h.window)
         #expect(h.runtime.tabs.tabCount == 1)
         #expect(tab.url?.host() == "b.example")
+    }
+
+    /// On a results page the address is edited as what was searched (Chrome's).
+    @Test func editURLOnAResultsPageEditsTheSearchTerms() throws {
+        let (h, model) = try harness()
+        h.openTab("https://search.example/?q=cats")
+        try h.run("command-bar.edit-url")
+        #expect(model.session(h.window)?.query == "cats")
     }
 
     @Test func openTabsRankAsSwitchTargets() throws {

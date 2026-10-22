@@ -42,6 +42,21 @@ struct SearchTests {
         #expect(s.url(for: "cats")?.host() == "kagi.com")
     }
 
+    /// Chrome edits a results page's terms, not its URL: the current engine's, on its host or a country's.
+    @Test func readsTheTermsOfAResultsPage() throws {
+        let (h, s) = try service()
+        h.runtime.settings.set("search.engine", .string("google"))
+        #expect(s.searchTerms(in: URL(string: "https://www.google.com/search?q=hello+world&sca_esv=1&ei=x")!) == "hello world")
+        #expect(s.searchTerms(in: URL(string: "https://www.google.fr/search?client=safari&q=caf%C3%A9%20%26%20tea")!) == "café & tea")
+        #expect(s.searchTerms(in: URL(string: "https://www.google.co.uk/search?q=x")!) == "x")
+        for no in ["https://www.google.com/maps?q=paris", "https://www.google.com/search?tbm=isch", "https://google.evil.com/search?q=x",
+                   "https://duckduckgo.com/?q=cats"] {
+            #expect(s.searchTerms(in: URL(string: no)!) == nil, "\(no)")
+        }
+        h.runtime.settings.set("search.engine", .string("duckduckgo"))
+        #expect(s.searchTerms(in: URL(string: "https://duckduckgo.com/?q=cats&ia=web")!) == "cats")
+    }
+
     @Test func parsesBothSuggestionFormats() {
         #expect(DefaultSearchService.parseSuggestions(Data(#"["sw",["swift","swiftui"]]"#.utf8)) == ["swift", "swiftui"])
         #expect(DefaultSearchService.parseSuggestions(Data(#"[{"phrase":"a"},{"phrase":"b"}]"#.utf8)) == ["a", "b"])

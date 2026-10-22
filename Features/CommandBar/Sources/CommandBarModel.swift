@@ -50,7 +50,8 @@ final class CommandBarModel {
     func open(_ window: BrowserWindowState, mode: Mode, style: Style = .palette) {
         var query = ""
         if mode == .editURL, let tab = runtime.selectedTab(in: window) {
-            query = (tab.live?.url ?? tab.url)?.absoluteString ?? ""
+            let url = tab.live?.url ?? tab.url
+            query = url.flatMap { search?.searchTerms(in: $0) } ?? url?.absoluteString ?? ""
         }
         sessions[window.id] = Session(mode: mode, query: query, typed: query, style: style, initialQuery: query)
         window.flags.insert(Self.flag)

@@ -1,6 +1,6 @@
 # Command Bar
 
-**Purpose** — Arc's centered command bar. ⌘T opens it for a new tab, ⌘L edits the current address,
+**Purpose** — Arc's centered command bar. ⌘T opens it for a new tab, ⌘L edits the current address (a results page's search terms),
 ⌘⌥V pastes and goes. One list mixes: the address/search for what you typed, engine suggestions,
 open tabs ("Switch to Tab"), results from any `OmniboxProvider` (history, Safari tabs…) and every
 command as an action — so the whole browser is keyboard-drivable.

@@ -105,6 +105,34 @@ final class DefaultSearchService: SearchService {
         return Self.fill(engine.search, input)
     }
 
+    func searchTerms(in url: URL) -> String? { Self.terms(in: url, template: engine.search) }
+
+    /// The query of a results page of this template: same path and query parameter, on its host or a country's
+    /// (`google.fr` for `google.com`).
+    static func terms(in url: URL, template: String) -> String? {
+        let marker = "__terms__"
+        guard ["http", "https"].contains(url.scheme?.lowercased()),
+              let t = URLComponents(string: template.replacingOccurrences(of: "%s", with: marker)), let base = t.host?.lowercased(),
+              let name = t.queryItems?.first(where: { $0.value == marker })?.name,
+              let u = URLComponents(url: url, resolvingAgainstBaseURL: false), let host = u.host?.lowercased(),
+              u.path == t.path, sameEngine(host, base),
+              let raw = u.percentEncodedQueryItems?.first(where: { $0.name == name })?.value,
+              let terms = raw.replacingOccurrences(of: "+", with: " ").removingPercentEncoding?.trimmingCharacters(in: .whitespaces),
+              !terms.isEmpty else { return nil }
+        return terms
+    }
+
+    static func sameEngine(_ host: String, _ base: String) -> Bool {
+        let host = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        let base = base.hasPrefix("www.") ? String(base.dropFirst(4)) : base
+        if host == base { return true }
+        let stem = base.split(separator: ".").dropLast().joined(separator: ".") + "."
+        guard stem.count > 1, host.hasPrefix(stem) else { return false }
+        // A country's suffix (`fr`, `co.uk`), not another site (`google.evil.com`).
+        let suffix = host.dropFirst(stem.count).split(separator: ".")
+        return (1...2).contains(suffix.count) && suffix.allSatisfy { (2...3).contains($0.count) && $0.allSatisfy(\.isLetter) }
+    }
+
     static func fill(_ template: String, _ query: String) -> URL? {
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? query
         return URL(string: template.replacingOccurrences(of: "%s", with: encoded))
