@@ -268,7 +268,12 @@ struct SpaceTabs: View {
             VStack(alignment: .leading, spacing: Design.Space.row) {
                 if hasPinned {  // the pinned section (and its divider) only once there's something to keep
                     TabList(window: window, model: model, container: .section(space.id, .pinned))
+                    let pinned = Container.section(space.id, .pinned)
                     SectionDivider(window: window)
+                        // Pinned's end, marked under its last row.
+                        .onDrop(of: [UTType.text], delegate: SidebarDropDelegate(model: model, owner: .end(pinned), env: env) { _, dragged in
+                            SidebarLogic.endPlacement(rows: TabList.rows(pinned, in: window, store: store), in: pinned, dragged: dragged, store: store)
+                        })
                 }
                 NewTabRow(window: window, model: model)
                 TabList(window: window, model: model, container: .section(space.id, .today))

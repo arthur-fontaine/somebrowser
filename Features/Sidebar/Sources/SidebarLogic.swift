@@ -70,12 +70,11 @@ enum SidebarLogic {
         return DropPlacement(mark: .line(gap: gap, depth: depth), container: container, index: index)
     }
 
-    /// Over the New Tab row: its top half ends pinned (where the section ends, or would begin with nothing pinned), its
-    /// bottom half begins Today.
+    /// Over the New Tab row: with nothing pinned its top half pins (where the section would begin); otherwise it begins
+    /// Today (pinned tabs end at the divider above it).
     static func newTabPlacement(atY y: CGFloat, rowHeight: CGFloat, space: UUID, dragged: NodeID, store: TabStore) -> DropPlacement? {
         let pinned = Container.section(space, .pinned), today = Container.section(space, .today)
-        if y < rowHeight / 2 {
-            if store.nodes(in: pinned).last == dragged { return nil }
+        if y < rowHeight / 2, store.nodes(in: pinned).isEmpty {
             return DropPlacement(mark: .line(gap: 0, depth: 0), container: pinned, index: nil)
         }
         if store.nodes(in: today).first == dragged { return nil }

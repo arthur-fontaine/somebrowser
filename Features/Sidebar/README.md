@@ -25,8 +25,8 @@ Hiding it (⌘S) gives an almost full-screen page; the left window edge reveals 
   (`FooterLayout`) keeps the space switcher on the sidebar's axis between its leading and trailing buttons.
 - Dragging: each list is one drop target. A row's middle half nests into it; elsewhere the nearest gap, at the depth
   the pointer is over (Finder's outlines), so the line starts at that depth's icon and, under the end of a branch,
-  moving left lands after an ancestor. One mark per list glides between gaps and grows into an outline to nest. The New
-  Tab row's top half pins (even with nothing pinned yet), its bottom half starts Today. Nothing opens as a drag starts:
+  moving left lands after an ancestor. One mark per list glides between gaps and grows into an outline to nest. Dropping on
+  the divider ends pinned; with nothing pinned yet, the New Tab row's top half pins. Below it, Today begins. Nothing opens as a drag starts:
   the empty favorites grid opens only once the drag reaches the address field. `SidebarModel.endDrag` clears the drag on
   every drop, and on a drag that ends elsewhere (Esc, released outside) once the mouse button is up.
 - `SwipeCatcher` turns two-finger horizontal scrolls into an interactive space pager with a spring.

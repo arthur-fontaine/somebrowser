@@ -78,6 +78,9 @@ struct SidebarLogicTests {
         let back = try #require(SidebarLogic.newTabPlacement(atY: 28, rowHeight: 32, space: space.id, dragged: b.id, store: store))
         #expect(SidebarLogic.drop(b.id, at: back, store: store))
         #expect(titles() == ["b", "a"] && store.tab(b.id)?.pinnedURL == nil)
+        store.pin(a.id, in: space.id)
+        // With tabs pinned, they end at the divider: the whole row begins Today.
+        #expect(SidebarLogic.newTabPlacement(atY: 4, rowHeight: 32, space: space.id, dragged: b.id, store: store) == nil)
     }
 
     @Test func dropIntoFavoritesAndPinned() {

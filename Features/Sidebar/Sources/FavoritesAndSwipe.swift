@@ -101,6 +101,8 @@ struct RevealFavorites: DropDelegate {
         if store.favorites.isEmpty, !model.favoritesOpen { withAnimation(Design.Motion.layout) { model.favoritesOpen = true } }
     }
 
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
     func performDrop(info: DropInfo) -> Bool {
         model.endDrag()
         return false
