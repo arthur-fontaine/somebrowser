@@ -30,14 +30,18 @@ public struct WindowControls: NSViewRepresentable {
                 addSubview(button)
             }
             addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
-            // Their window is rarely key (the page or the browser window is), so nothing redraws them as key moves around.
+            // Their window is rarely key (the page or the browser window is), so AppKit never refreshes them as key moves
+            // around: they stayed grey until a click made it key.
             for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
-                NotificationCenter.default.addObserver(self, selector: #selector(keyDidMove), name: name, object: nil)
+                NotificationCenter.default.addObserver(self, selector: #selector(refreshKeyState), name: name, object: nil)
             }
         }
 
-        @objc private func keyDidMove() {
-            for button in buttons { button.needsDisplay = true }
+        /// What AppKit sends a window's views as its key state changes; the lights re-read it only then (a redraw alone
+        /// keeps their old colour).
+        @objc private func refreshKeyState() {
+            let refresh = NSSelectorFromString("_windowChangedKeyState")
+            for button in buttons where button.responds(to: refresh) { button.perform(refresh) }
         }
 
         public required init?(coder: NSCoder) { fatalError() }
@@ -49,6 +53,7 @@ public struct WindowControls: NSViewRepresentable {
             // The browser window: this one's parent when drawn in the overlay above its page.
             let target = window?.parent ?? window
             for button in buttons { button.target = target }
+            refreshKeyState()
         }
 
         public override func layout() {
