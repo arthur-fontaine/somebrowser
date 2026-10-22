@@ -162,37 +162,26 @@ struct ArchivePanel: View {
     @State private var query = ""
 
     var body: some View {
-        if window.flags.contains(ArchiveFeature.panelFlag) {
-            ZStack {
-                Color.black.opacity(0.12).contentShape(Rectangle()).onTapGesture { window.flags.remove(ArchiveFeature.panelFlag) }
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Archive").font(.title3.bold())
-                        Spacer()
-                        Button("Clear") { store.clear() }.buttonStyle(.borderless).disabled(store.items.isEmpty)
-                        Button { window.flags.remove(ArchiveFeature.panelFlag) } label: { Image(systemName: "xmark") }.buttonStyle(.borderless)
-                    }
-                    TextField("Search archived tabs", text: $query).textFieldStyle(.roundedBorder)
-                    List(store.items.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) || ($0.url?.absoluteString.localizedCaseInsensitiveContains(query) ?? false) }) { item in
-                        HStack {
-                            Text(item.title).lineLimit(1)
-                            Spacer()
-                            Text(item.archivedAt, style: .relative).foregroundStyle(.tertiary)
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            runtime.feature(ArchiveFeature.self)?.restore(item, in: window)
-                            window.flags.remove(ArchiveFeature.panelFlag)
-                        }
-                    }
-                    .listStyle(.inset)
-                }
-                .padding(20)
-                .frame(width: 560, height: 460)
-                .overlayKeyboardFocus("archive", in: window)
-                .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
-            }
+        let shown = window.flags.contains(ArchiveFeature.panelFlag)
+        SearchPanel("archive", in: window, isShown: shown, symbol: "archivebox", prompt: "Search Archived Tabs", query: $query,
+                    sections: shown ? sections() : [],
+                    empty: PanelEmptyState(symbol: "archivebox", title: "Nothing Archived",
+                                           detail: "Today tabs you leave alone for a while move here, and come back with a click."),
+                    close: { window.flags.remove(ArchiveFeature.panelFlag) }) {
+            if !store.items.isEmpty { PanelButton(systemImage: "trash", help: "Empty the Archive") { store.clear() } }
+        }
+        .onChange(of: shown) { if !shown { query = "" } }
+    }
+
+    private func sections() -> [PanelSection] {
+        let matches = store.items.filter {
+            query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) || ($0.url?.absoluteString.localizedCaseInsensitiveContains(query) ?? false)
+        }
+        return PanelSection.byDay(matches, date: \.archivedAt) { item in
+            PanelItem(id: item.id.uuidString, icon: runtime.favicons.image(for: item.url), title: item.title,
+                      subtitle: item.url?.host(), detail: item.archivedAt.formatted(date: .omitted, time: .shortened), url: item.url,
+                      open: { runtime.feature(ArchiveFeature.self)?.restore(item, in: window) },
+                      remove: ("Delete from Archive", { store.remove(item.id) }))
         }
     }
 }
