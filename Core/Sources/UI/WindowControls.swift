@@ -30,6 +30,14 @@ public struct WindowControls: NSViewRepresentable {
                 addSubview(button)
             }
             addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+            // Their window is rarely key (the page or the browser window is), so nothing redraws them as key moves around.
+            for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
+                NotificationCenter.default.addObserver(self, selector: #selector(keyDidMove), name: name, object: nil)
+            }
+        }
+
+        @objc private func keyDidMove() {
+            for button in buttons { button.needsDisplay = true }
         }
 
         public required init?(coder: NSCoder) { fatalError() }

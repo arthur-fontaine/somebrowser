@@ -27,6 +27,12 @@ final class OverlayWindow: NSPanel {
         guard let parent else { return false }
         return ShellWindow.isActive(parent, keyWindow: NSApp.keyWindow)
     }
+    /// The traffic lights draw in colour from these (AppKit answers from this panel's own key and main state), not
+    /// `_hasActiveAppearance`, which only the green one reads: the red and yellow went grey while the page had key.
+    @objc(_hasActiveAppearanceForStandardWindowButton:)
+    func _hasActiveAppearance(for button: NSWindow.ButtonType) -> Bool { _hasActiveAppearance }
+    @objc var _hasMainAppearance: Bool { _hasActiveAppearance }
+
     /// As the browser window does (`ShellWindow.sendEvent`): a click here while its page has key is no first click, or
     /// the floating sidebar's address took two.
     override func sendEvent(_ event: NSEvent) {
@@ -56,5 +62,8 @@ struct OverlayLayer: View {
             SlotHost(.overlay, window: window)
         }
         .ignoresSafeArea()
+        // As in the browser window (`BrowserWindowView`): this panel is rarely key, its page or the browser window is, and
+        // SwiftUI drew everything here inactive then (the floating sidebar's glass flat).
+        .environment(\.controlActiveState, window.isKeyWindow ? .key : .inactive)
     }
 }
