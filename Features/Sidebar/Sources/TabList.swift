@@ -221,15 +221,9 @@ struct TabRowContent: View {
                 Image(systemName: live.isCapturingCamera ? "video.fill" : "mic.fill").font(.system(size: 10)).foregroundStyle(.red)
             }
             if hovered || selected {
-                Button {
+                CloseTabButton {
                     withAnimation(.spring(duration: 0.32, bounce: 0.12)) { env.runtime.sidebarHistory.close([tab.id], includingDescendants: false) }
-                } label: {
-                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 20, height: 20)
-                        .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Close Tab (⌘W)")
                 .transition(.opacity)
             }
         }
@@ -239,6 +233,24 @@ struct TabRowContent: View {
         if let custom = tab.customTitle, !custom.isEmpty { return custom }
         if let t = live?.title, !t.isEmpty { return t }
         return tab.displayTitle
+    }
+}
+
+/// A row's ×: washed under the pointer, over the row's own hover or selection.
+struct CloseTabButton: View {
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).frame(width: 20, height: 20)
+                .background(Circle().fill(hovering ? Design.Fill.selection : .clear))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(hovering ? .primary : .secondary)
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
+        .help("Close Tab (⌘W)")
     }
 }
 
