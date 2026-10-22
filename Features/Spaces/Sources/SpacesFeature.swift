@@ -100,7 +100,7 @@ struct SpaceSwitcher: View {
                 }
             }
             .padding(Design.Space.segment)
-            .glassControl(in: Capsule())
+            .glassControl(in: Capsule(), hover: false)
             .animation(Design.Motion.selection, value: window.spaceID)
         }
     }

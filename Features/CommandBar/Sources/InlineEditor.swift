@@ -51,7 +51,7 @@ struct InlineEditor: View {
             .background(Color(nsColor: .windowBackgroundColor).opacity(tinted ? 0.65 : 0), in: shape)
             .background(Design.Fill.glassScrim.opacity(tinted ? 1 : 0), in: shape)
             // Collapsed, exactly the field's surface (its interactive glass, no tint), so the hand-overs don't show.
-            .glassControl(in: shape)
+            .glassControl(in: shape, hover: false)
             .background { if editing { ClickOutside { model.close(window) } } }
             .shadow(color: .black.opacity(expanded ? 0.22 : 0), radius: 24, y: 10)
             .offset(x: field.minX, y: field.minY)
@@ -72,8 +72,9 @@ struct InlineEditor: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             if editing { model.close(window) }
         }
-        .task(id: model.session(window)?.query) {
-            guard editing, let q = model.session(window)?.query, let search = model.search else { return }
+        // For what was typed: a result's text filled in by the arrows keeps the list.
+        .task(id: model.session(window)?.typed) {
+            guard editing, let q = model.session(window)?.typed, let search = model.search else { return }
             try? await Task.sleep(for: .milliseconds(120))
             guard !Task.isCancelled else { return }
             let list = await search.suggestions(for: q)

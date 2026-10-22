@@ -130,7 +130,7 @@ struct NavigationButtons: View {
                 try? commands.run("navigation.forward", window: window)
             }
         }
-        .glassControl(in: Capsule())
+        .glassControl(in: Capsule(), hover: false)
     }
 }
 
@@ -164,6 +164,7 @@ struct NavButton: View {
     let enabled: Bool
     let action: () -> Void
     @State private var bounce = 0
+    @State private var hovering = false
 
     var body: some View {
         Button {
@@ -175,11 +176,13 @@ struct NavButton: View {
                 .contentTransition(.symbolEffect(.replace))
                 .symbolEffect(.bounce, value: bounce)
                 .frame(width: Design.Size.control, height: Design.Size.control)
+                .background(Circle().fill(hovering && enabled ? Design.Fill.hover : .clear))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(enabled ? .primary : .tertiary)
         .disabled(!enabled)
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
         .help(help)
     }
 }
