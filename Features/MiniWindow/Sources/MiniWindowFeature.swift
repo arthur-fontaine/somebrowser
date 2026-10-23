@@ -39,18 +39,16 @@ public final class MiniWindowFeature: BrowserFeature {
     @discardableResult
     func open(_ url: URL?) -> BrowserWindowState? {
         guard let shell = context.shell else { return nil }
-        // Quick Look: where the pointer is, above every app, full-screen ones included. Set before the window shows: a
-        // window already on the browser's Space can't join another app's full-screen one.
-        let window = shell.openWindow(spaceID: nil, isPrivate: false, initialURL: nil) { ns in
-            let mouse = NSEvent.mouseLocation
-            if let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main {
-                ns.setFrame(Self.frame(around: mouse, in: screen.visibleFrame), display: false)
-            }
-            ns.level = .floating
-            ns.collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace]
-        }
+        // Quick Look: where the pointer is, above every app, full-screen ones included.
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main
+        let placement = BrowserWindowPlacement(frame: screen.map { Self.frame(around: mouse, in: $0.visibleFrame) }, level: .floating,
+                                        collectionBehavior: [.canJoinAllSpaces, .fullScreenAuxiliary])
+        let window = shell.openWindow(spaceID: nil, isPrivate: false, initialURL: nil, placement: placement)
         window.flags.insert(Self.flag)
         window.isSidebarVisible = false
+        window.cardInset = QuickLook.cardInset
+        window.cardRadius = QuickLook.cardRadius
         let tab = context.runtime.openTab(url, in: window)
         miniTabs[window.id] = [tab.id]
         return window
@@ -91,7 +89,21 @@ public final class MiniWindowFeature: BrowserFeature {
     }
 }
 
-/// Quick Look's bar: close, the site, then share and the way out to the main window.
+/// Quick Look's measurements (macOS 27, 2× captures), from the window's edges.
+enum QuickLook {
+    static let barHeight: CGFloat = 38
+    static let cardInset: CGFloat = 6
+    static let cardRadius: CGFloat = 14
+    /// The close and zoom glyphs' centers.
+    static let closeCenter: CGFloat = 18
+    static let zoomCenter: CGFloat = 38
+    static let titleLeading: CGFloat = 52
+    static let glyph: CGFloat = 20
+    static let buttonHeight: CGFloat = 22
+    static let trailing: CGFloat = 14
+}
+
+/// Quick Look's bar: close and zoom, the site, then Share and the way out to the main window.
 struct MiniWindowBar: View {
     let window: BrowserWindowState
     let runtime: BrowserRuntime
@@ -99,32 +111,79 @@ struct MiniWindowBar: View {
     var body: some View {
         let live = runtime.selectedTab(in: window)?.live
         let url = live?.url
-        HStack(spacing: Design.Space.block) {
-            FieldButton(help: "Close (⌘W)", action: { runtime.shell?.closeWindow(window) }) {
-                Image(systemName: "xmark").font(.system(size: 13, weight: .semibold))
+        HStack(spacing: 0) {
+            Glyph(systemImage: "xmark.circle.fill", help: "Close (⌘W)") { runtime.shell?.closeWindow(window) }
+                .padding(.leading, QuickLook.closeCenter - QuickLook.glyph / 2)
+            Glyph(systemImage: "arrow.up.left.and.arrow.down.right.circle.fill", help: "Zoom") {
+                runtime.shell?.nsWindow(for: window)?.zoom(nil)
             }
-            // The close button's center on the traffic lights' column.
-            .padding(.leading, Design.Grid.iconCenter - Design.windowInset - Design.AddressField.control / 2)
-            SiteIcon(live?.favicon ?? runtime.favicons.image(for: url))
-                .frame(width: Design.Size.favicon, height: Design.Size.favicon)
-            Text(url?.host() ?? "").font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            .padding(.leading, QuickLook.zoomCenter - QuickLook.closeCenter - QuickLook.glyph)
+            Text(url?.host() ?? "")
+                .font(.system(size: 13, weight: .bold))
+                .lineLimit(1)
+                .padding(.leading, QuickLook.titleLeading - QuickLook.zoomCenter - QuickLook.glyph / 2)
             Spacer(minLength: Design.Space.block)
             if let url {
                 ShareLink(item: url) {
-                    Image(systemName: "square.and.arrow.up").font(.system(size: 14, weight: .medium))
-                        .frame(width: Design.AddressField.control, height: Design.AddressField.control)
-                        .contentShape(Circle())
+                    Image(systemName: "square.and.arrow.up").font(.system(size: 14))
+                        .frame(width: QuickLook.glyph, height: QuickLook.glyph)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(GlyphStyle())
                 .help("Share")
+                .padding(.trailing, QuickLook.trailing)
             }
             Button("Open in Main Window") { try? runtime.commands.run("mini-window.move-to-main", window: window) }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
+                .buttonStyle(CapsuleStyle())
                 .help("Move to Main Window (⌘⌥O)")
         }
-        .padding(.trailing, Design.Space.segment)
-        .frame(height: Design.Size.control)
+        .padding(.trailing, QuickLook.trailing)
+        .frame(height: QuickLook.barHeight)
         .background { Color.clear.contentShape(Rectangle()).gesture(WindowDragGesture()) }
+        // The bar spans the window, over the card's margin.
+        .padding([.top, .horizontal], -window.cardInset)
+    }
+}
+
+private struct Glyph: View {
+    let systemImage: String
+    let help: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage).font(.system(size: 13))
+                .frame(width: QuickLook.glyph, height: QuickLook.glyph)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(GlyphStyle())
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
+/// Grey glyphs, darker under the pointer and pressed.
+private struct GlyphStyle: ButtonStyle {
+    @State private var hovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(configuration.isPressed || hovering ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+            .onHover { hovering = $0 }
+    }
+}
+
+/// "Open with Preview": text on a grey capsule.
+private struct CapsuleStyle: ButtonStyle {
+    @State private var hovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13))
+            .padding(.horizontal, 12)
+            .frame(height: QuickLook.buttonHeight)
+            .background(Capsule().fill(.primary.opacity(configuration.isPressed ? 0.16 : hovering ? 0.11 : 0.07)))
+            .contentShape(Capsule())
+            .onHover { hovering = $0 }
     }
 }

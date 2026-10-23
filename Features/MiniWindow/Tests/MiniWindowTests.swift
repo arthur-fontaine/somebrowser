@@ -11,7 +11,9 @@ final class StubShell: ShellServices {
     var closed: [UUID] = []
     init(runtime: BrowserRuntime) { self.runtime = runtime }
     var keyWindowState: BrowserWindowState? { runtime.windows.last }
-    func openWindow(spaceID: UUID?, isPrivate: Bool, initialURL: URL?, prepare: ((NSWindow) -> Void)?) -> BrowserWindowState {
+    var placements: [BrowserWindowPlacement?] = []
+    func openWindow(spaceID: UUID?, isPrivate: Bool, initialURL: URL?, placement: BrowserWindowPlacement?) -> BrowserWindowState {
+        placements.append(placement)
         let w = runtime.makeWindowState(spaceID: spaceID, isPrivate: isPrivate)
         w.viewport = runtime.engine.makeViewport(in: NSView())
         return w
@@ -36,6 +38,8 @@ struct MiniWindowTests {
         #expect(handled)
         let mini = try #require(h.runtime.windows.first { $0.flags.contains(MiniWindowFeature.flag) })
         #expect(!mini.isSidebarVisible)
+        let placement = try #require(shell.placements.last ?? nil)
+        #expect(placement.level == .floating && placement.collectionBehavior == [.canJoinAllSpaces, .fullScreenAuxiliary])
         let tabID = try #require(mini.selectedTabID)
         #expect(throws: CommandError.self) { try h.run("mini-window.move-to-main") }  // disabled outside mini windows
         h.runtime.commands.currentWindow = { mini }
