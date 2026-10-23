@@ -56,6 +56,26 @@ struct MiniWindowTests {
         #expect(h.runtime.tabs.tabCount == 0)
     }
 
+    @Test func closingThePageClosesTheMiniWindow() throws {
+        let h = try TestHarness(features: [MiniWindowFeature.self], manifestDirectory: #filePath)
+        let shell = StubShell(runtime: h.runtime)
+        h.runtime.shell = shell
+        let feature = try #require(h.runtime.feature(MiniWindowFeature.self))
+        let mini = try #require(feature.open(URL(string: "https://x.example")))
+        h.runtime.close(try #require(mini.selectedTabID), includingDescendants: true)
+        #expect(shell.closed == [mini.id])
+    }
+
+    @Test func opensOnThePointerAndStaysOnScreen() {
+        let screen = CGRect(x: 0, y: 0, width: 2000, height: 1200)
+        let centered = MiniWindowFeature.frame(around: CGPoint(x: 1000, y: 600), in: screen)
+        #expect(centered.midX == 1000 && centered.midY == 600 && centered.size == CGSize(width: 960, height: 720))
+        let corner = MiniWindowFeature.frame(around: CGPoint(x: 1990, y: 5), in: screen)
+        #expect(corner.maxX == 2000 && corner.minY == 0)
+        let second = CGRect(x: -1440, y: 0, width: 1440, height: 900)  // a screen left of the main one
+        #expect(second.contains(MiniWindowFeature.frame(around: CGPoint(x: -700, y: 450), in: second)))
+    }
+
     @Test func settingOffLetsTheShellHandleLinks() throws {
         let h = try TestHarness(features: [MiniWindowFeature.self], manifestDirectory: #filePath)
         h.runtime.shell = StubShell(runtime: h.runtime)

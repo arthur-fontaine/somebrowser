@@ -31,6 +31,7 @@ public final class MiniWindowFeature: BrowserFeature {
             if window.flags.contains(Self.flag) { MiniWindowBar(window: window, runtime: runtime) }
         }
         context.events.subscribe(WindowClosed.self) { [weak self] e in self?.windowClosed(e.windowID) }
+        context.events.subscribe(TabsClosed.self) { [weak self] e in self?.tabsClosed(e.tabIDs) }
     }
 
     private var miniTabs: [UUID: [NodeID]] = [:]
@@ -38,18 +39,29 @@ public final class MiniWindowFeature: BrowserFeature {
     @discardableResult
     func open(_ url: URL?) -> BrowserWindowState? {
         guard let shell = context.shell else { return nil }
-        let window = shell.openWindow(spaceID: nil, isPrivate: false, initialURL: nil)
-        window.flags.insert(Self.flag)
-        window.isSidebarVisible = false
-        if let ns = shell.nsWindow(for: window), let screen = ns.screen?.visibleFrame {
-            let size = CGSize(width: min(960, screen.width * 0.6), height: min(720, screen.height * 0.75))
-            ns.setFrame(CGRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2, width: size.width, height: size.height), display: true)
-            ns.level = .floating  // stays above full-screen apps like Little Arc
+        // Quick Look: where the pointer is, above every app, full-screen ones included. Set before the window shows: a
+        // window already on the browser's Space can't join another app's full-screen one.
+        let window = shell.openWindow(spaceID: nil, isPrivate: false, initialURL: nil) { ns in
+            let mouse = NSEvent.mouseLocation
+            if let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main {
+                ns.setFrame(Self.frame(around: mouse, in: screen.visibleFrame), display: false)
+            }
+            ns.level = .floating
             ns.collectionBehavior = [.fullScreenAuxiliary, .moveToActiveSpace]
         }
+        window.flags.insert(Self.flag)
+        window.isSidebarVisible = false
         let tab = context.runtime.openTab(url, in: window)
         miniTabs[window.id] = [tab.id]
         return window
+    }
+
+    /// Centered on the pointer, kept whole on its screen.
+    static func frame(around point: CGPoint, in screen: CGRect) -> CGRect {
+        let size = CGSize(width: min(960, screen.width * 0.6), height: min(720, screen.height * 0.75))
+        let x = min(max(point.x - size.width / 2, screen.minX), screen.maxX - size.width)
+        let y = min(max(point.y - size.height / 2, screen.minY), screen.maxY - size.height)
+        return CGRect(origin: CGPoint(x: x, y: y), size: size)
     }
 
     /// ⌘⌥O: the page becomes a normal tab in the most recent main window.
@@ -69,25 +81,50 @@ public final class MiniWindowFeature: BrowserFeature {
     private func windowClosed(_ id: UUID) {
         for tabID in miniTabs.removeValue(forKey: id) ?? [] { context.runtime.close(tabID, includingDescendants: true) }
     }
+
+    /// ⌘W closes the page and its window with it (the window would show another of the space's tabs).
+    private func tabsClosed(_ ids: [NodeID]) {
+        for (windowID, tabs) in miniTabs where tabs.contains(where: ids.contains) {
+            miniTabs[windowID] = nil
+            if let window = context.windows.first(where: { $0.id == windowID }) { context.shell?.closeWindow(window) }
+        }
+    }
 }
 
+/// Quick Look's bar: close, the site, then share and the way out to the main window.
 struct MiniWindowBar: View {
     let window: BrowserWindowState
     let runtime: BrowserRuntime
 
     var body: some View {
         let live = runtime.selectedTab(in: window)?.live
-        HStack(spacing: 8) {
-            Spacer().frame(width: 70)
-            Text(live?.url?.host() ?? "").font(.system(size: 12, weight: .semibold)).lineLimit(1)
-            Spacer()
-            Button { try? runtime.commands.run("mini-window.move-to-main", window: window) } label: {
-                Label("Open in Main Window", systemImage: "rectangle.portrait.and.arrow.forward").font(.system(size: 12, weight: .medium))
+        let url = live?.url
+        HStack(spacing: Design.Space.block) {
+            FieldButton(help: "Close (⌘W)", action: { runtime.shell?.closeWindow(window) }) {
+                Image(systemName: "xmark").font(.system(size: 13, weight: .semibold))
             }
-            .buttonStyle(.borderless)
-            .help("Move to Main Window (⌘⌥O)")
+            // The close button's center on the traffic lights' column.
+            .padding(.leading, Design.Grid.iconCenter - Design.windowInset - Design.AddressField.control / 2)
+            SiteIcon(live?.favicon ?? runtime.favicons.image(for: url))
+                .frame(width: Design.Size.favicon, height: Design.Size.favicon)
+            Text(url?.host() ?? "").font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            Spacer(minLength: Design.Space.block)
+            if let url {
+                ShareLink(item: url) {
+                    Image(systemName: "square.and.arrow.up").font(.system(size: 14, weight: .medium))
+                        .frame(width: Design.AddressField.control, height: Design.AddressField.control)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Share")
+            }
+            Button("Open in Main Window") { try? runtime.commands.run("mini-window.move-to-main", window: window) }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .help("Move to Main Window (⌘⌥O)")
         }
-        .padding(.horizontal, 10)
-        .frame(height: 36)
+        .padding(.trailing, Design.Space.segment)
+        .frame(height: Design.Size.control)
+        .background { Color.clear.contentShape(Rectangle()).gesture(WindowDragGesture()) }
     }
 }
