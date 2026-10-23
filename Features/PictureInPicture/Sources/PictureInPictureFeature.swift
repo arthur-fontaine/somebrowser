@@ -21,11 +21,14 @@ public final class PictureInPictureFeature: BrowserFeature {
         }) { [weak self] inv in
             guard let self else { return }
             if self.session != nil { self.close(expand: true); return }
-            guard let w = inv.window, let tab = self.context.runtime.selectedTab(in: w) else { return }
-            // Leave the tab (its content floats away) and pop it out.
-            let previous = w.mru.first { $0 != tab.id && self.context.tabs.tab($0) != nil }
-            self.context.runtime.select(previous, in: w)
-            self.popOut(tab, from: w)
+            if let w = inv.window { self.popOutSelected(in: w) }
+        }
+        // Chromium's "Picture in Picture" on a video: this panel rather than Chrome's window.
+        context.hooks.pictureInPicture = { [weak self] page, source in
+            guard let self, let w = self.context.windows.first(where: { self.context.runtime.selectedTab(in: $0)?.engineTab === page })
+            else { return false }
+            self.popOutSelected(in: w, video: source)
+            return true
         }
         context.commands.handle("pip.close", isEnabled: { [weak self] _ in self?.session != nil }) { [weak self] _ in
             self?.close(expand: false)
@@ -33,6 +36,10 @@ public final class PictureInPictureFeature: BrowserFeature {
         let runtime = context.runtime
         context.ui.contribute("site-controls.rows", id: "pip.site-row", order: 10) { window in
             PopOutRow(window: window, runtime: runtime)
+        }
+        // Before share (250), so it comes and goes without moving the others.
+        context.ui.contribute("address-bar.trailing", id: "pip.button", order: 240) { [weak self] window in
+            if let self { PiPButton(window: window, runtime: runtime) { self.popOutSelected(in: window) } }
         }
     }
 
@@ -61,7 +68,16 @@ public final class PictureInPictureFeature: BrowserFeature {
 
     // MARK: Session
 
-    func popOut(_ tab: BrowserTab, from window: BrowserWindowState) {
+    /// The user's own pop-out: the window leaves the tab (its content floats away), whatever plays in it. `video` picks
+    /// the page's video (its address), else the one playing.
+    func popOutSelected(in w: BrowserWindowState, video: URL? = nil) {
+        guard let tab = context.runtime.selectedTab(in: w) else { return }
+        let previous = w.mru.first { $0 != tab.id && context.tabs.tab($0) != nil }
+        context.runtime.select(previous, in: w)
+        popOut(tab, from: w, video: video)
+    }
+
+    func popOut(_ tab: BrowserTab, from window: BrowserWindowState, video: URL? = nil) {
         if session != nil { close(expand: false) }
         guard let engineTab = tab.engineTab, let floating = context.engine as? EngineFloating,
               let content = floating.detachForFloating(engineTab) else { return }
@@ -71,7 +87,7 @@ public final class PictureInPictureFeature: BrowserFeature {
             w.convertToScreen(window.contentFrame.isEmpty ? w.contentLayoutRect : window.contentFrame)
         }
         session = PiPSession(feature: self, tabID: tab.id, engineTab: engineTab, content: content, isCall: isCall,
-                             windowID: window.id, startFrame: startFrame,
+                             windowID: window.id, startFrame: startFrame, video: video,
                              width: CGFloat(max(240, context.settings.int("pip.width"))))
         context.runtime.holdAwake(tab.id, reason: "pip")
     }
@@ -107,7 +123,7 @@ final class PiPSession {
     private weak var feature: PictureInPictureFeature?
 
     init(feature: PictureInPictureFeature, tabID: NodeID, engineTab: EngineTab, content: FloatingContent, isCall: Bool,
-         windowID: UUID, startFrame: CGRect?, width: CGFloat) {
+         windowID: UUID, startFrame: CGRect?, video: URL?, width: CGFloat) {
         self.feature = feature
         self.tabID = tabID
         self.engineTab = engineTab
@@ -129,7 +145,7 @@ final class PiPSession {
                 presented = true
                 panel?.present(from: startFrame)
             }
-            engineTab.evaluateJavaScript(PiPScripts.enter) { [weak self] result in
+            engineTab.evaluateJavaScript(PiPScripts.enter(video: video)) { [weak self] result in
                 guard case .success(let value) = result, let d = value as? [Double], d.count == 8, d[1] > 0 else { return present() }
                 self?.panel.setAspect(CGFloat(d[0] / d[1]))
                 // It flies from where the video was on the page.
@@ -192,14 +208,19 @@ enum PiPGeometry {
 }
 
 enum PiPScripts {
-    /// Video-only presentation: the playing video (the one with sound, else the largest) fills the page; everything else hides.
-    static let enter = """
+    /// Video-only presentation: `video` (its address), else the playing video (the one with sound, else the largest),
+    /// fills the page; everything else hides.
+    static func enter(video: URL?) -> String {
+        let wanted = video.flatMap { try? String(data: JSONEncoder().encode($0.absoluteString), encoding: .utf8) } ?? "null"
+        return """
     (() => {
       const vids = [...document.querySelectorAll('video')].filter(v => v.readyState > 0);
       // The one playing with sound first, then any playing; the largest on the page among them.
       const rank = v => (v.paused ? 0 : 2) + (!v.paused && !v.muted && v.volume > 0 ? 1 : 0);
       const area = v => { const r = v.getBoundingClientRect(); return r.width * r.height; };
-      const v = vids.sort((a, b) => rank(b) - rank(a) || area(b) - area(a))[0];
+      const wanted = \(wanted);
+      const v = vids.find(v => wanted && (v.currentSrc === wanted || v.src === wanted))
+        || vids.sort((a, b) => rank(b) - rank(a) || area(b) - area(a))[0];
       if (!v) return null;
       window.__pipVideo = v;
       const r = v.getBoundingClientRect();  // where it shows, before the page shows only it
@@ -225,6 +246,7 @@ enum PiPScripts {
       return [v.videoWidth, v.videoHeight, r.left, r.top, r.width, r.height, innerWidth, innerHeight];
     })()
     """
+    }
     static let exit = """
     (() => { document.documentElement.classList.remove('__pip');
       document.querySelectorAll('.__pip_target').forEach(v => {
@@ -259,6 +281,21 @@ struct PopOutRow: View {
             }
             .padding(.horizontal, 8)
             .frame(height: 32)
+        }
+    }
+}
+
+/// Picture in Picture in the address field, while the page plays a video.
+struct PiPButton: View {
+    let window: BrowserWindowState
+    let runtime: BrowserRuntime
+    let action: () -> Void
+
+    var body: some View {
+        if runtime.selectedTab(in: window)?.live?.isPlayingVideo == true {
+            FieldButton(help: "Picture in Picture", action: action) {
+                Image(systemName: "pip.enter").font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+            }
         }
     }
 }

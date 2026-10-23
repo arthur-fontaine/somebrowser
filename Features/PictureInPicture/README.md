@@ -28,6 +28,10 @@
 - Controls: close, mute, expand back to the tab, −10s/play/+10s, scrubber.
 - Selecting the tab again closes the panel; a "Pop-out View" toggle appears in Site Controls.
 
+- By hand: the address field's Picture in Picture button (while a video plays), `pip.toggle`, or Chromium's "Picture in
+  Picture" on a video's context menu (`EngineHooks.pictureInPicture`: that video, here rather than Chrome's window; a video
+  in a frame keeps Chrome's).
+
 **Commands** — `pip.toggle` (⌃⌘P), `pip.close`. **Settings** — `pip.autoPopOut`, `pip.calls`, `pip.width`.
 
 **Tests** — `./forkctl test pip`.

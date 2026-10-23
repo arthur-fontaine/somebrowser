@@ -180,6 +180,21 @@ struct PiPFeatureTests {
         feature.close(expand: false)
     }
 
+    /// The page's "Picture in Picture" (its context menu) floats that tab here, muted or not, and the window leaves it.
+    @Test func thePagesOwnRequestFloatsHere() throws {
+        let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(PictureInPictureFeature.self))
+        let first = h.openTab("https://news.example")
+        let video = h.openTab("https://video.example/watch")
+        h.fakeTab(video).simulateMedia(audio: false, video: true)
+        let handled = h.engine.hooks.pictureInPicture?(h.fakeTab(video), URL(string: "blob:https://video.example/1"))
+        #expect(handled == true)
+        #expect(feature.session?.tabID == video.id)
+        #expect(h.window.selectedTabID == first.id)
+        #expect(PiPScripts.enter(video: URL(string: "blob:https://video.example/1")).contains(#"const wanted = "blob:https:\/\/video.example\/1""#))
+        feature.close(expand: false)
+    }
+
     /// A floating video's tab never hibernates, and stops being held once it's back.
     @Test func floatingTabIsHeldAwake() throws {
         let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)

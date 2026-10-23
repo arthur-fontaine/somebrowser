@@ -161,6 +161,10 @@ public final class EngineHooks {
     /// that need protected media to WebKit). The runtime replaces the tab's page in place.
     public var onRecreateTab: ((EngineTab, URL) -> Void)?
 
+    /// The page's context menu asked for a video in Picture in Picture (`source`: the video's address). True when the
+    /// browser shows it itself; false (or nil) leaves it to the engine's own window.
+    public var pictureInPicture: ((EngineTab, _ source: URL?) -> Bool)?
+
     // MARK: Keyboard
 
     /// "Prefer website shortcuts" (Arc): true for a ⌘/⌃ shortcut a focused page should see first. The browser runs it only

@@ -399,7 +399,11 @@ public:
     bool OnContextMenuCommand(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefContextMenuParams> params,
                               int command_id, EventFlags event_flags) override {
         CEFTab *tab = tab_;
-        if (command_id != kOpenLinkPrivately || !tab.delegate) return false;
+        if (!tab.delegate) return false;
+        // A video in a frame keeps Chrome's own window: the browser's presents the top document.
+        if (command_id == IDC_CONTENT_CONTEXT_PICTUREINPICTURE && frame->IsMain())
+            return [tab.delegate cefTab:tab pictureInPictureFor:NS(params->GetSourceUrl())];
+        if (command_id != kOpenLinkPrivately) return false;
         [tab.delegate cefTab:tab openPrivately:NS(params->GetLinkUrl())];
         return true;
     }
