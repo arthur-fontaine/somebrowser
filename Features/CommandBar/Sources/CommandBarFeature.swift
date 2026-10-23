@@ -8,8 +8,10 @@ public final class CommandBarFeature: BrowserFeature {
 
     var style: CommandBarModel.Style { CommandBarModel.Style(rawValue: context.settings.string("command-bar.style")) ?? .inline }
 
-    /// Edits in the sidebar's address field; with the sidebar hidden, it floats in for the occasion.
+    /// Edits in the sidebar's address field; with the sidebar hidden, it floats in for the occasion. A window without a
+    /// sidebar gets the palette.
     func openInline(_ w: BrowserWindowState, mode: CommandBarModel.Mode) {
+        guard w.allowsSidebar else { return model.open(w, mode: mode) }
         if !w.isSidebarVisible && !w.isSidebarPeeking {
             withAnimation(.spring(duration: 0.28, bounce: 0.1)) { w.isSidebarPeeking = true }  // the peek's own slide
             model.peeked.insert(w.id)

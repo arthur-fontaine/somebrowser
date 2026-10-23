@@ -37,7 +37,7 @@ struct MiniWindowTests {
         let handled = h.runtime.externalURLHandlers.contains { $0(URL(string: "https://link.example")!) }
         #expect(handled)
         let mini = try #require(h.runtime.windows.first { $0.flags.contains(MiniWindowFeature.flag) })
-        #expect(!mini.isSidebarVisible)
+        #expect(!mini.isSidebarVisible && !mini.allowsSidebar)
         let placement = try #require(shell.placements.last ?? nil)
         #expect(placement.level == .floating && placement.collectionBehavior == [.canJoinAllSpaces, .fullScreenAuxiliary] && placement.isPanel)
         let tabID = try #require(mini.selectedTabID)

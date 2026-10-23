@@ -47,6 +47,7 @@ public final class MiniWindowFeature: BrowserFeature {
         let window = shell.openWindow(spaceID: nil, isPrivate: false, initialURL: nil, placement: placement)
         window.flags.insert(Self.flag)
         window.isSidebarVisible = false
+        window.allowsSidebar = false
         window.cardInset = QuickLook.cardInset
         window.cardRadius = QuickLook.cardRadius
         let tab = context.runtime.openTab(url, in: window)

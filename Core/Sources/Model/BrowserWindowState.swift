@@ -24,6 +24,8 @@ public final class BrowserWindowState: Identifiable {
     public var isSidebarLeaving = false
     /// The sidebar is sliding in (the traffic lights wait for it, then fade in).
     public var isSidebarArriving = false
+    /// False for a window with no sidebar at all (a Quick Look window): not docked, not floating.
+    public var allowsSidebar = true
     /// Sidebar temporarily shown over the content while hidden (edge hover, Horse's "Shelf").
     public var isSidebarPeeking = false
     public var sidebarWidth: CGFloat = 260

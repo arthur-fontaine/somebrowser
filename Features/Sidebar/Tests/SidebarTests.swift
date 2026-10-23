@@ -120,6 +120,16 @@ struct SidebarFeatureTests {
         #expect(h.window.flags.contains(SidebarModel.focusFlag))
     }
 
+    /// A window without a sidebar (a Quick Look window) never shows it.
+    @Test func windowsWithoutASidebarKeepItHidden() throws {
+        let h = try TestHarness(features: [SidebarFeature.self], manifestDirectory: #filePath)
+        h.window.isSidebarVisible = false
+        h.window.allowsSidebar = false
+        #expect(!h.runtime.commands.canRun("sidebar.toggle", in: h.window))
+        #expect(throws: CommandError.self) { try h.run("sidebar.toggle") }
+        #expect(!h.window.isSidebarVisible)
+    }
+
     @Test func everyCommandIsHandled() throws {
         let h = try TestHarness(features: [SidebarFeature.self], manifestDirectory: #filePath)
         for d in h.runtime.manifests[0].commands { #expect(h.runtime.commands.isHandled(d.id)) }

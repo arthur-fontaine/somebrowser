@@ -17,7 +17,7 @@ struct BrowserWindowView: View {
             HStack(spacing: 0) {
                 // The page is a window of its own under some engines: its frame changes once, never animated. The sidebar
                 // animates its own arrival inside this column.
-                let docked = (window.isSidebarVisible || window.isSidebarLeaving) && !ui.views(for: .sidebar).isEmpty
+                let docked = window.allowsSidebar && (window.isSidebarVisible || window.isSidebarLeaving) && !ui.views(for: .sidebar).isEmpty
                 if docked {
                     SlotHost(.sidebar, window: window)
                         .frame(width: window.sidebarWidth)

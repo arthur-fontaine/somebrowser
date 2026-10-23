@@ -36,8 +36,8 @@ public final class SidebarFeature: BrowserFeature {
             SidebarPeekOverlay(window: window, model: model)
         }
 
-        context.commands.handle("sidebar.toggle") { inv in
-            guard let w = inv.window else { return }
+        context.commands.handle("sidebar.toggle", isEnabled: { $0.window?.allowsSidebar ?? true }) { inv in
+            guard let w = inv.window, w.allowsSidebar else { return }
             w.isSidebarPeeking = false
             model.toggle(w)
         }
