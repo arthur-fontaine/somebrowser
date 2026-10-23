@@ -64,4 +64,18 @@ struct WindowFocusTests {
         try editorOpens(app)
         try app.quit()
     }
+
+    /// With the app in the background, the floating sidebar (shown by hovering the edge) is a non-activating panel: a
+    /// click on it brought nothing forward, only one on the page did.
+    @Test func aClickOnTheFloatingSidebarBringsTheAppForward() throws {
+        let (app, _) = try launch()
+        try setSidebar(app, visible: false)
+        try app.call(["op": "deactivate"])
+        try app.waitUntil(timeout: 5) { try app.state()["appActive"] as? Bool == false }
+        try app.call(["op": "peek", "value": true])
+        try click(app, "overlay", 130, 200)
+        try app.waitUntil(timeout: 5) { try app.state()["appActive"] as? Bool == true }
+        #expect(try app.state()["keyWindow"] as? String != nil)
+        try app.quit()
+    }
 }

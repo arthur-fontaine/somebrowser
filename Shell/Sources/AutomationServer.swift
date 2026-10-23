@@ -221,6 +221,14 @@ final class AutomationServer {
             NSApp.activate(ignoringOtherApps: true)
             window.flatMap { shell?.nsWindow(for: $0) }?.makeKeyAndOrderFront(nil)
             reply(["ok": true])
+        case "deactivate":
+            // The app in the background, as when the person works in another one (clicks that must bring it back).
+            // `NSApp.deactivate()` does nothing under cooperative activation: the Finder is handed it instead.
+            guard let finder = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first else {
+                return reply(["ok": false, "error": "no Finder"])
+            }
+            NSApp.yieldActivation(to: finder)
+            reply(["ok": finder.activate(from: .current)])
         case "mouse":
             // `events`: [{type: move|down|up|drag, x, y}], points from the browser window's top-left, posted one by one
             // through the app's event queue as the window server sends them: to `window` (browser, overlay or page) as it

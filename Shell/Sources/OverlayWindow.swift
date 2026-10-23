@@ -37,11 +37,17 @@ final class OverlayWindow: NSPanel {
     @objc var hasKeyAppearance: Bool { _hasActiveAppearance }
 
     /// As the browser window does (`ShellWindow.sendEvent`): a click here while its page has key is no first click, or
-    /// the floating sidebar's address took two.
+    /// the floating sidebar's address took two. With the app in the background, this panel being non-activating, a
+    /// click (the floating sidebar shown by hovering the edge) brings the app forward as one on the browser window
+    /// would; not over a non-activating browser window (the mini window), which stays out of the app's way on purpose.
     override func sendEvent(_ event: NSEvent) {
-        if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type), !isKeyWindow, let parent,
-           let key = NSApp.keyWindow, key !== self, ShellWindow.isActive(parent, keyWindow: key) {
-            makeKey()
+        if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type), let parent {
+            if !NSApp.isActive, !parent.styleMask.contains(.nonactivatingPanel) {
+                makeKey()
+                NSApp.activate()
+            } else if !isKeyWindow, let key = NSApp.keyWindow, key !== self, ShellWindow.isActive(parent, keyWindow: key) {
+                makeKey()
+            }
         }
         super.sendEvent(event)
     }
