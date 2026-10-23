@@ -79,6 +79,17 @@ public struct KeyShortcut: Hashable, Sendable, CustomStringConvertible {
     }
 
     /// Human form, e.g. `⌃⌥⇧⌘T`.
+    /// One string per key, as keycaps show them (⌥, ⌘, N).
+    public var keycaps: [String] {
+        var caps: [String] = []
+        if modifiers.contains(.control) { caps.append("⌃") }
+        if modifiers.contains(.option) { caps.append("⌥") }
+        if modifiers.contains(.shift) { caps.append("⇧") }
+        if modifiers.contains(.command) { caps.append("⌘") }
+        if modifiers.contains(.function) { caps.append("fn") }
+        return caps + [Self.named[key]?.symbol ?? key.uppercased()]
+    }
+
     public var displayString: String {
         var s = ""
         if modifiers.contains(.control) { s += "⌃" }

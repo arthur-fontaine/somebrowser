@@ -16,19 +16,18 @@ struct SettingsPageModel: Identifiable {
     var id: String
     var title: String
     var systemImage: String
-    var color: Color
     var sections: [Section] = []
     var content: Content = .settings
 
     /// Pages known by name get their place and icon; a page only a fork's feature names comes after them.
-    static let known: [(title: String, systemImage: String, color: Color)] = [
-        ("General", "gearshape.fill", .gray),
-        ("Appearance", "paintbrush.fill", .blue),
-        ("Tabs", "square.on.square.fill", .orange),
-        ("Search", "magnifyingglass", .purple),
-        ("Privacy & Security", "hand.raised.fill", .blue),
-        ("Integrations", "app.connected.to.app.below.fill", .green),
-        ("Keyboard", "keyboard.fill", .gray),
+    static let known: [(title: String, systemImage: String)] = [
+        ("General", "switch.2"),
+        ("Appearance", "paintbrush"),
+        ("Tabs", "square.on.square"),
+        ("Search", "magnifyingglass"),
+        ("Privacy & Security", "hand.raised"),
+        ("Integrations", "link"),
+        ("Keyboard", "keyboard"),
     ]
 
     static func id(of title: String) -> String {
@@ -41,8 +40,7 @@ struct SettingsPageModel: Identifiable {
         for m in manifests where !m.settings.isEmpty {
             let title = m.settingsPage ?? "General"
             let known = Self.known.first { $0.title == title }
-            var page = pages[title] ?? SettingsPageModel(id: id(of: title), title: title, systemImage: known?.systemImage ?? "puzzlepiece.fill",
-                                                         color: known?.color ?? .gray)
+            var page = pages[title] ?? SettingsPageModel(id: id(of: title), title: title, systemImage: known?.systemImage ?? "puzzlepiece")
             for d in m.settings {
                 let section = d.section ?? m.name
                 if let i = page.sections.firstIndex(where: { $0.title == section }) {
@@ -56,7 +54,7 @@ struct SettingsPageModel: Identifiable {
         }
         for title in pages.keys { pages[title]?.sections.sort { ($0.order, $0.title) < ($1.order, $1.title) } }
         if pages["Keyboard"] == nil {
-            pages["Keyboard"] = SettingsPageModel(id: "keyboard", title: "Keyboard", systemImage: "keyboard.fill", color: .gray)
+            pages["Keyboard"] = SettingsPageModel(id: "keyboard", title: "Keyboard", systemImage: "keyboard")
         }
         pages["Keyboard"]?.content = .keyboard
 
@@ -64,28 +62,42 @@ struct SettingsPageModel: Identifiable {
         let main = pages.values.sorted { a, b in
             let (i, j) = (order.firstIndex(of: a.title) ?? order.count, order.firstIndex(of: b.title) ?? order.count)
             return (i, a.title) < (j, b.title)
-        } + panes.map { SettingsPageModel(id: $0.id, title: $0.title, systemImage: $0.systemImage, color: .gray, content: .pane($0)) }
-        let features = SettingsPageModel(id: "features", title: "Features", systemImage: "shippingbox.fill", color: .brown, content: .features)
+        } + panes.map { SettingsPageModel(id: $0.id, title: $0.title, systemImage: $0.systemImage, content: .pane($0)) }
+        let features = SettingsPageModel(id: "features", title: "Features", systemImage: "puzzlepiece.extension", content: .features)
         return (main, [features])
     }
 
-    /// The page's sections narrowed to settings matching `query` (all of them when the page's title matches).
-    func sections(matching query: String) -> [Section] {
-        guard !query.isEmpty, !title.localizedCaseInsensitiveContains(query) else { return sections }
-        return sections.compactMap { s in
-            if s.title.localizedCaseInsensitiveContains(query) { return s }
-            var s = s
-            s.settings = s.settings.filter { Self.matches($0, query) }
-            return s.settings.isEmpty ? nil : s
+    /// A search hit in the sidebar: a page, a setting or a command, with where it lives.
+    struct SearchResult: Identifiable, Equatable {
+        var id: String
+        var title: String
+        var breadcrumb: String
+        var pageID: String
+        var systemImage: String
+    }
+
+    /// Pages, then settings, then commands whose words contain `query`.
+    static func results(for query: String, in pages: [SettingsPageModel], commands: [CommandDescriptor]) -> [SearchResult] {
+        let query = query.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return [] }
+        func hit(_ words: String?...) -> Bool { words.contains { $0?.localizedCaseInsensitiveContains(query) == true } }
+        var out = pages.filter { hit($0.title) }.map {
+            SearchResult(id: "page:\($0.id)", title: $0.title, breadcrumb: "Settings", pageID: $0.id, systemImage: $0.systemImage)
         }
-    }
-
-    static func matches(_ d: SettingDescriptor, _ query: String) -> Bool {
-        [d.title, d.description ?? ""].contains { $0.localizedCaseInsensitiveContains(query) }
-            || d.optionTitles.contains { $0.localizedCaseInsensitiveContains(query) }
-    }
-
-    static func matches(_ c: CommandDescriptor, _ query: String) -> Bool {
-        query.isEmpty || c.title.localizedCaseInsensitiveContains(query) || c.keywords.contains { $0.localizedCaseInsensitiveContains(query) }
+        for page in pages {
+            for section in page.sections {
+                for d in section.settings where hit(d.title, d.description, section.title) || d.optionTitles.contains(where: { hit($0) }) {
+                    out.append(SearchResult(id: "setting:\(d.key)", title: d.title, breadcrumb: "\(page.title) › \(section.title)",
+                                            pageID: page.id, systemImage: page.systemImage))
+                }
+            }
+        }
+        if let keyboard = pages.first(where: { if case .keyboard = $0.content { true } else { false } }) {
+            for c in commands where hit(c.title) || c.keywords.contains(where: { hit($0) }) {
+                out.append(SearchResult(id: "command:\(c.id)", title: c.title, breadcrumb: "\(keyboard.title) › Shortcuts",
+                                        pageID: keyboard.id, systemImage: keyboard.systemImage))
+            }
+        }
+        return out
     }
 }

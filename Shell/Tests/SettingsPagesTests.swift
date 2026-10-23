@@ -26,18 +26,23 @@ struct SettingsPagesTests {
         #expect(pages.advanced.map(\.id) == ["features"])
     }
 
-    @Test func searchNarrowsAPageToMatchingSettings() {
-        let m = FeatureManifest(id: "a", name: "Alpha", settings: [setting("a.x", "Block ads"), setting("a.y", "Hide placeholders")])
-        let page = SettingsPageModel.build(manifests: [m], panes: []).main[0]
-        #expect(page.sections(matching: "ads").first?.settings.map(\.key) == ["a.x"])
-        #expect(page.sections(matching: "general").first?.settings.count == 2)  // the page's title: everything
-        #expect(page.sections(matching: "nothing").isEmpty)
+    @Test func searchFindsPagesSettingsAndCommands() {
+        let m = FeatureManifest(id: "a", name: "Alpha", settings: [setting("a.x", "Block ads"), setting("a.y", "Hide placeholders")],
+                                settingsPage: "Privacy & Security")
+        let pages = SettingsPageModel.build(manifests: [m], panes: [])
+        let commands = [CommandDescriptor(id: "a.tab", title: "New Tab", keywords: ["ads"])]
+        let hits = SettingsPageModel.results(for: "ads", in: pages.main + pages.advanced, commands: commands)
+        #expect(hits.map(\.id) == ["setting:a.x", "command:a.tab"])
+        #expect(hits[0].breadcrumb == "Privacy & Security › Alpha" && hits[0].pageID == "privacy-security")
+        #expect(hits[1].pageID == "keyboard")
+        #expect(SettingsPageModel.results(for: "keyboard", in: pages.main, commands: []).map(\.id) == ["page:keyboard"])
+        #expect(SettingsPageModel.results(for: "  ", in: pages.main, commands: commands).isEmpty)
     }
 
     @Test func listEditorsRoundTripTheStoredString() {
         let items = ListSettingEditor.items(of: "yt=https://y.com/?q=%s, gh=https://g.com/search?q=%s,", editor: .pairs)
         #expect(items.map(\.key) == ["yt", "gh"] && items[0].value == "https://y.com/?q=%s")
-        var edited = items + [ListSettingEditor.Item()]  // a new row, still empty, isn't stored
+        var edited = items + [ListSettingEditor.Item()]  // an empty item isn't stored
         #expect(ListSettingEditor.string(of: edited, editor: .pairs) == "yt=https://y.com/?q=%s,gh=https://g.com/search?q=%s")
         edited[1].key = ""
         #expect(ListSettingEditor.string(of: edited, editor: .pairs) == "yt=https://y.com/?q=%s")

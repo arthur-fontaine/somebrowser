@@ -8,6 +8,7 @@ struct SettingsRootView: View {
     @Environment(BrowserEnvironment.self) private var env
     @State private var selection: String?
     @State private var query = ""
+    @State private var highlighted: String?
     @State private var back: [String] = []
     @State private var forward: [String] = []
     /// Set while going back or forward, so that move isn't recorded as a new one.
@@ -23,18 +24,26 @@ struct SettingsRootView: View {
         let all = pages.main + pages.advanced
         let page = all.first { $0.id == selection } ?? all[0]
         NavigationSplitView {
-            List(selection: $selection) {
-                Section { ForEach(pages.main.filter { matches($0) }) { SidebarRow(page: $0) } }
-                let advanced = pages.advanced.filter { matches($0) }
-                if !advanced.isEmpty {
-                    Section("Advanced") { ForEach(advanced) { SidebarRow(page: $0) } }
+            Group {
+                if query.isEmpty {
+                    List(selection: $selection) {
+                        Section("Browser") { ForEach(pages.main) { SidebarRow(page: $0, isSelected: $0.id == selection) } }
+                        Section("Advanced") { ForEach(pages.advanced) { SidebarRow(page: $0, isSelected: $0.id == selection) } }
+                    }
+                } else {
+                    results(SettingsPageModel.results(for: query, in: all, commands: runtime.commands.descriptors))
                 }
             }
+            .listStyle(.sidebar)
+            // Pinned before mounting: the implicit sidebar style paints icons a frame late.
+            .labelStyle(.titleAndIcon)
             .searchable(text: $query, placement: .sidebar, prompt: "Search")
-            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+            // The column width alone isn't kept in this window.
+            .frame(minWidth: 220)
+            .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
             .toolbar(removing: .sidebarToggle)
         } detail: {
-            SettingsPageView(page: page, query: query)
+            SettingsPageView(page: page)
                 .id(page.id)
                 .navigationTitle(page.title)
                 .toolbar {
@@ -54,34 +63,69 @@ struct SettingsRootView: View {
         }
     }
 
+    @ViewBuilder private func results(_ results: [SettingsPageModel.SearchResult]) -> some View {
+        if results.isEmpty {
+            ContentUnavailableView.search(text: query).frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            // Its own `List`: result ids and page ids never share a selection.
+            List(selection: $highlighted) {
+                Section("Results") {
+                    ForEach(results) { result in
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(result.title).lineLimit(1)
+                                Text(result.breadcrumb).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        } icon: {
+                            SettingsIcon(systemImage: result.systemImage, tint: .accentColor)
+                        }
+                        .tag(result.id)
+                    }
+                }
+            }
+            // Moving through the results moves the page along, as System Settings does.
+            .onChange(of: highlighted) { _, id in
+                if let result = results.first(where: { $0.id == id }) { selection = result.pageID }
+            }
+        }
+    }
+
     private func go(from stack: inout [String], to other: inout [String]) {
         guard let target = stack.popLast() else { return }
         if let selection { other.append(selection) }
         traversing = true
         selection = target
     }
+}
 
-    private func matches(_ page: SettingsPageModel) -> Bool {
-        guard !query.isEmpty else { return true }
-        if page.title.localizedCaseInsensitiveContains(query) || !page.sections(matching: query).isEmpty { return true }
-        if case .keyboard = page.content { return env.runtime.commands.descriptors.contains { SettingsPageModel.matches($0, query) } }
-        return false
+/// A symbol on a pale tile of its own tint.
+struct SettingsIcon: View {
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        // Sized here: a sidebar scales a label's icon up to its own size.
+        Image(systemName: systemImage)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 14, height: 14)
+            .foregroundStyle(tint)
+            .padding(4)
+            .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
-/// A System Settings row: the page's symbol, white on its color.
 struct SidebarRow: View {
+    @Environment(\.appearsActive) private var appearsActive
     let page: SettingsPageModel
+    let isSelected: Bool
 
     var body: some View {
         Label {
             Text(page.title)
         } icon: {
-            Image(systemName: page.systemImage)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 22, height: 22)
-                .background(page.color.gradient, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            // On the selected row's accent the tile goes white; in a background window everything greys.
+            SettingsIcon(systemImage: page.systemImage, tint: appearsActive ? (isSelected ? .primary : .accentColor) : .secondary)
         }
         .tag(page.id)
     }
@@ -90,7 +134,6 @@ struct SidebarRow: View {
 struct SettingsPageView: View {
     @Environment(BrowserEnvironment.self) private var env
     let page: SettingsPageModel
-    let query: String
 
     var body: some View {
         let store = env.runtime.settings
@@ -101,12 +144,12 @@ struct SettingsPageView: View {
             FeaturesPane()
         case .settings, .keyboard:
             Form {
-                ForEach(page.sections(matching: query)) { section in
+                ForEach(page.sections) { section in
                     Section(section.title) {
                         ForEach(section.settings) { SettingControl(descriptor: $0, store: store) }
                     }
                 }
-                if case .keyboard = page.content { ShortcutSections(query: page.title.localizedCaseInsensitiveContains(query) ? "" : query) }
+                if case .keyboard = page.content { ShortcutSections() }
             }
             .formStyle(.grouped)
         }
@@ -121,6 +164,27 @@ struct SettingLabel: View {
     var body: some View {
         Text(descriptor.title)
         if let help = descriptor.description { Text(help) }
+    }
+}
+
+/// A list row: a title, maybe a subtitle under it, and controls at the end. Not `LabeledContent`, whose selectable
+/// text takes the clicks a recorder needs.
+struct SettingsListRow<Trailing: View>: View {
+    let title: String
+    var subtitle: String?
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).lineLimit(1)
+                if let subtitle {
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).help(subtitle)
+                }
+            }
+            Spacer(minLength: 10)
+            trailing
+        }
     }
 }
 
@@ -171,43 +235,54 @@ struct SettingControl: View {
     }
 }
 
-/// A comma-separated string edited one item per row (`pairs`: `key=value` items, as two fields).
+/// A comma-separated string as a list: a row per item with edit and delete, items added and edited in a sheet
+/// (`pairs`: `key=value` items, the value under the key).
 struct ListSettingEditor: View {
     let descriptor: SettingDescriptor
     let editor: SettingEditor
     let store: SettingsStore
-    /// Rows being edited, an empty new one included (the stored string leaves empty items out).
-    @State private var items: [Item] = []
+    @State private var draft: Draft?
 
-    struct Item: Identifiable, Equatable {
-        let id = UUID()
+    struct Item: Equatable {
         var key = ""
         var value = ""
     }
 
-    var body: some View {
-        LabeledContent {
-            Button("Add", systemImage: "plus") { items.append(Item()) }.labelStyle(.iconOnly)
-        } label: {
-            SettingLabel(descriptor: descriptor)
-        }
-        .onAppear { items = Self.items(of: store.string(descriptor.key), editor: editor) }
-        ForEach($items) { $item in
-            HStack(spacing: 8) {
-                if editor == .pairs {
-                    TextField("Keyword", text: $item.key).frame(width: 90)
-                    TextField("URL with %s", text: $item.value)
-                } else {
-                    TextField("Item", text: $item.value)
-                }
-                Button("Remove", systemImage: "minus.circle.fill") { items.removeAll { $0.id == item.id } }
-                    .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
-            }
-            .labelsHidden()
-            .textFieldStyle(.roundedBorder)
-        }
-        .onChange(of: items) { _, items in store.set(descriptor.key, .string(Self.string(of: items, editor: editor))) }
+    /// The item being added (`index` nil) or edited.
+    struct Draft: Identifiable {
+        let id = UUID()
+        var index: Int?
+        var item: Item
     }
+
+    var body: some View {
+        let items = Self.items(of: store.string(descriptor.key), editor: editor)
+        // Styled here: forms only style a control's label as title and subtitle.
+        VStack(alignment: .leading, spacing: 2) {
+            Text(descriptor.title)
+            if let help = descriptor.description { Text(help).font(.subheadline).foregroundStyle(.secondary) }
+        }
+        ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+            SettingsListRow(title: editor == .pairs ? item.key : item.value, subtitle: editor == .pairs ? item.value : nil) {
+                Button { draft = Draft(index: index, item: item) } label: { Image(systemName: "pencil") }
+                    .buttonStyle(.plain).help("Edit")
+                Button { save(items.enumerated().filter { $0.offset != index }.map(\.element)) } label: {
+                    Image(systemName: "trash").foregroundStyle(.red)
+                }
+                .buttonStyle(.plain).help("Delete")
+            }
+        }
+        Button(editor == .pairs ? "Add Keyword…" : "Add…") { draft = Draft(item: Item()) }
+            .sheet(item: $draft) { draft in
+                ListItemSheet(editor: editor, draft: draft) { item in
+                    var items = items
+                    if let i = draft.index { items[i] = item } else { items.append(item) }
+                    save(items)
+                }
+            }
+    }
+
+    private func save(_ items: [Item]) { store.set(descriptor.key, .string(Self.string(of: items, editor: editor))) }
 
     static func items(of string: String, editor: SettingEditor) -> [Item] {
         string.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.map { part in
@@ -225,29 +300,71 @@ struct ListSettingEditor: View {
     }
 }
 
+struct ListItemSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let editor: SettingEditor
+    let save: (ListSettingEditor.Item) -> Void
+    @State private var item: ListSettingEditor.Item
+    private let isNew: Bool
+
+    init(editor: SettingEditor, draft: ListSettingEditor.Draft, save: @escaping (ListSettingEditor.Item) -> Void) {
+        self.editor = editor
+        self.save = save
+        _item = State(initialValue: draft.item)
+        isNew = draft.index == nil
+    }
+
+    var body: some View {
+        let fields = editor == .pairs ? [item.key, item.value] : [item.value]
+        // The list is stored comma-separated.
+        let hasComma = fields.contains { $0.contains(",") }
+        VStack(alignment: .leading, spacing: 16) {
+            Text(isNew ? "Add" : "Edit").font(.headline)
+            Form {
+                if editor == .pairs {
+                    TextField("Keyword", text: $item.key, prompt: Text("yt"))
+                    TextField("URL", text: $item.value, prompt: Text("https://www.youtube.com/results?search_query=%s"))
+                } else {
+                    TextField("Value", text: $item.value)
+                }
+            }
+            if hasComma { Text("Commas aren't allowed.").font(.caption).foregroundStyle(.red) }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(isNew ? "Add" : "Save") { save(item); dismiss() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(hasComma || fields.contains { $0.trimmingCharacters(in: .whitespaces).isEmpty })
+            }
+        }
+        .padding(20)
+        .frame(width: 440)
+    }
+}
+
 /// Every command with its shortcut, a section per menu; click to record a new one (Arc: everything is remappable).
 struct ShortcutSections: View {
     @Environment(BrowserEnvironment.self) private var env
-    let query: String
     @State private var recording: String?
 
     static let menus = ["File", "Edit", "View", "History", "Tabs", "Window", "Help"]
 
     var body: some View {
         let commands = env.runtime.commands
-        let matching = commands.descriptors.filter { SettingsPageModel.matches($0, query) }
-        let groups = Dictionary(grouping: matching) { $0.menu ?? "" }
+        let groups = Dictionary(grouping: commands.descriptors) { $0.menu ?? "" }
         let order = Self.menus + groups.keys.filter { !Self.menus.contains($0) && !$0.isEmpty }.sorted() + [""]
         ForEach(order.filter { groups[$0] != nil }, id: \.self) { menu in
             Section(menu.isEmpty ? "Other Commands" : "\(menu) Menu") {
                 ForEach(groups[menu] ?? []) { d in
-                    LabeledContent(d.title) {
-                        HStack(spacing: 6) {
-                            if commands.userShortcuts[d.id] != nil {
-                                Button("Reset") { commands.resetUserShortcut(for: d.id) }.buttonStyle(.link)
+                    SettingsListRow(title: d.title) {
+                        if commands.userShortcuts[d.id] != nil {
+                            Button { commands.resetUserShortcut(for: d.id) } label: {
+                                Image(systemName: "arrow.uturn.backward").foregroundStyle(.secondary)
                             }
-                            ShortcutRecorder(id: d.id, isRecording: recording == d.id) { recording = $0 ? d.id : nil }
+                            .buttonStyle(.plain)
+                            .help("Restore the default shortcut")
                         }
+                        ShortcutRecorder(id: d.id, isRecording: recording == d.id) { recording = $0 ? d.id : nil }
                     }
                 }
             }
@@ -255,21 +372,63 @@ struct ShortcutSections: View {
     }
 }
 
+/// A shortcut well: each key on its own cap, "Record Shortcut" when there's none; click, then type the new one (esc
+/// cancels, delete clears).
 struct ShortcutRecorder: View {
     @Environment(BrowserEnvironment.self) private var env
     let id: String
     let isRecording: Bool
     let setRecording: (Bool) -> Void
     @State private var monitor: Any?
+    @State private var hovered = false
 
     var body: some View {
-        let shortcut = env.runtime.commands.shortcut(for: id)
-        Button(isRecording ? "Type shortcut…" : (shortcut?.displayString ?? "—")) {
-            isRecording ? stop() : start()
+        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        content
+            .padding(.horizontal, 7)
+            // One width whatever the shortcut, so the column lines up.
+            .frame(width: 120, height: 24)
+            .background(shape.fill(Color.primary.opacity(0.045)))
+            .overlay(shape.strokeBorder(isRecording ? Color.accentColor : Color.primary.opacity(0.1), lineWidth: isRecording ? 1.5 : 1))
+            .clipShape(shape)
+            .contentShape(shape)
+            .onTapGesture { isRecording ? stop() : start() }
+            .onHover { hovered = $0 }
+            .onDisappear { stop() }
+            .animation(.easeOut(duration: 0.12), value: hovered)
+    }
+
+    @ViewBuilder private var content: some View {
+        if isRecording {
+            Text("Listening…").font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+        } else if let shortcut = env.runtime.commands.shortcut(for: id) {
+            HStack(spacing: 4) {
+                ForEach(Array(shortcut.keycaps.enumerated()), id: \.offset) { _, cap in
+                    Text(cap)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                        .frame(minWidth: 16, minHeight: 16)
+                        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.primary.opacity(0.08)))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            // Over the caps, not beside them, so it costs them no width.
+            .overlay(alignment: .trailing) {
+                Button { env.runtime.commands.setUserShortcut(nil, for: id) } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 11)).foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Remove the shortcut")
+                .opacity(hovered ? 1 : 0)
+                .allowsHitTesting(hovered)
+            }
+        } else {
+            Text("Record Shortcut")
+                .font(.caption)
+                .foregroundStyle(hovered ? .secondary : .tertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .monospaced()
-        .frame(minWidth: 110)
-        .onDisappear { stop() }
     }
 
     private func start() {
