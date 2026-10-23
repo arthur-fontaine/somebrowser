@@ -454,11 +454,16 @@ final class PiPPanel: NSPanel {
         stillRefresh?.invalidate()
         stillRefresh = nil
         guard on, !dismissed else { return }
-        refreshStill()
-        stillRefresh = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+        // Not as the pointer arrives: reading the still back takes the main thread a few frames, which the controls'
+        // fade-in needs.
+        let timer = Timer(fire: Date(timeIntervalSinceNow: Self.stillDelay), interval: 1.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshStill() }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        stillRefresh = timer
     }
+
+    static let stillDelay: TimeInterval = 0.35
 
     private func refreshStill() {
         guard !isSizing else { return }

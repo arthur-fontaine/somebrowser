@@ -29,8 +29,8 @@
 - A pinch begun over the panel is its own until the fingers lift, and scales around the pointer (which so stays over
   it). While a pinch or a drag changes the size, a still of the page (`EngineTab.snapshot`) stands in and the page
   waits: Chromium draws a new size frames late, black strips meanwhile. It takes the size at the end. The still is
-  kept ready while the pointer is over the panel (refreshed every 1.5 s, decoded off the main thread): taken as the
-  pinch began, it came late and its decoding stalled the first frames.
+  kept ready while the pointer is over the panel (from 0.35 s in, after the controls' fade-in, then every 1.5 s; decoded off
+  the main thread): taken as the pinch began, it came late and its decoding stalled the first frames.
 - Resize, with no permission: drag an edge or a corner (`PiPPhysics.edges`, `resized(_:edges:by:)`); the video's shape
   is kept and the opposite side holds still.
 - Controls, in Liquid Glass: close, mute, back to the tab, −10s/play/+10s in one capsule, scrubber in another.
