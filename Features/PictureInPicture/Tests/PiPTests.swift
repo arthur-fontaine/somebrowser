@@ -24,13 +24,48 @@ struct PiPPhysicsTests {
 
     @Test func throwingPastAnEdgeStashes() {
         let frame = CGRect(origin: CGPoint(x: 1000, y: 300), size: size)
-        guard case .stashed(let left, _) = PiPPhysics.rest(frame: frame, velocity: CGVector(dx: 4000, dy: 0), in: screen) else {
+        guard case .stashed(let left, _, _) = PiPPhysics.rest(frame: frame, velocity: CGVector(dx: 4000, dy: 0), in: screen) else {
             Issue.record("expected stash")
             return
         }
         #expect(!left)
-        let stashed = PiPPhysics.frame(for: .stashed(left: false, y: 100), size: size, in: screen)
+        let stashed = PiPPhysics.frame(for: .stashed(left: false, y: 100, screen: screen), size: size, in: screen)
         #expect(stashed.minX == screen.maxX - PiPPhysics.stashVisible)
+    }
+
+    /// Two displays side by side: the panel goes across where they meet, and tucks into the outer edges only.
+    @Test func thePanelGoesFromOneDisplayToTheNext() {
+        let left = PiPPhysics.Display(frame: CGRect(x: 0, y: 0, width: 1440, height: 900), visible: CGRect(x: 0, y: 0, width: 1440, height: 875))
+        let right = PiPPhysics.Display(frame: CGRect(x: 1440, y: 0, width: 1920, height: 1080), visible: CGRect(x: 1440, y: 0, width: 1920, height: 1080))
+        let displays = [left, right]
+        // Dragged across the seam, it isn't held back as at an outer edge.
+        let crossing = PiPPhysics.neverLost(CGRect(origin: CGPoint(x: 1400, y: 300), size: size), in: displays)
+        #expect(crossing.minX == 1400)
+        let outer = PiPPhysics.neverLost(CGRect(origin: CGPoint(x: 3500, y: 300), size: size), in: displays)
+        #expect(outer.minX == right.visible.maxX - PiPPhysics.stashVisible)
+
+        // Thrown across, it lands on the other display; thrown past an outer edge, it tucks in there.
+        let frame = CGRect(origin: CGPoint(x: 1000, y: 300), size: size)
+        let across = PiPPhysics.rest(frame: frame, velocity: CGVector(dx: 1500, dy: 0), in: displays)
+        let landed = PiPPhysics.frame(for: across, size: size, in: displays)
+        #expect(right.visible.contains(landed))
+        guard case .stashed(let tuckedLeft, _, let screen) = PiPPhysics.rest(frame: frame, velocity: CGVector(dx: -4000, dy: 0), in: displays) else {
+            Issue.record("expected a tuck")
+            return
+        }
+        #expect(tuckedLeft && screen == left.visible)
+
+        // A display above another (as a laptop under its monitor): up across the seam, held at the top's free edge.
+        let laptop = PiPPhysics.Display(frame: CGRect(x: 0, y: 0, width: 1512, height: 982), visible: CGRect(x: 0, y: 0, width: 1512, height: 949))
+        let monitor = PiPPhysics.Display(frame: CGRect(x: -555, y: 982, width: 2560, height: 1440), visible: CGRect(x: -555, y: 982, width: 2560, height: 1440))
+        let up = PiPPhysics.neverLost(CGRect(origin: CGPoint(x: 600, y: 900), size: size), in: [laptop, monitor])
+        #expect(up.minY == 900)
+        let thrownUp = PiPPhysics.rest(frame: CGRect(origin: CGPoint(x: 600, y: 600), size: size), velocity: CGVector(dx: 0, dy: 2000), in: [laptop, monitor])
+        #expect(monitor.visible.contains(PiPPhysics.frame(for: thrownUp, size: size, in: [laptop, monitor])))
+
+        // Past a bottom edge no display continues: it stops there.
+        let low = PiPPhysics.neverLost(CGRect(origin: CGPoint(x: 1500, y: -400), size: size), in: displays)
+        #expect(low.minY == right.visible.minY)
     }
 
     @Test func aNewPanelAppearsInTheBottomRightCorner() {
@@ -97,6 +132,7 @@ struct PiPPanelTests {
         let page = NSWindow(contentRect: CGRect(x: 100, y: 100, width: 800, height: 600), styleMask: [.borderless], backing: .buffered, defer: false)
         browser.orderFront(nil)
         let panel = PiPPanel(content: .window(page), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.displays = { [.mainOnly] }  // one display, whatever this Mac has
         panel.present(from: nil)
         #expect(page.parent === panel)
         panel.dismiss()
@@ -134,6 +170,7 @@ struct PiPPanelTests {
         _ = NSApplication.shared
         let page = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 320, height: 180), styleMask: [.borderless], backing: .buffered, defer: false)
         let panel = PiPPanel(content: .window(page), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.displays = { [.mainOnly] }  // one display, whatever this Mac has
         panel.takeStill = { done in done(stillImage()) }
         panel.present(from: nil)
         let screen = panel.screenFrame
@@ -163,6 +200,7 @@ struct PiPPanelTests {
     @Test func aStillIsReadyBeforeThePinch() async throws {
         _ = NSApplication.shared
         let panel = PiPPanel(content: .view(NSView()), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.displays = { [.mainOnly] }  // one display, whatever this Mac has
         panel.takeStill = { done in done(stillImage()) }
         panel.present(from: nil)
         panel.keepStillReady(true)
@@ -178,11 +216,28 @@ struct PiPPanelTests {
         panel.dismiss()
     }
 
+    /// From a window no longer on screen, the page waits out of sight (not over other apps where its window was), then
+    /// rises with the panel on the display it's given.
+    @Test func aPageFromAHiddenWindowShowsOnlyWithThePanel() throws {
+        _ = NSApplication.shared
+        let page = NSWindow(contentRect: CGRect(x: 100, y: 100, width: 800, height: 600), styleMask: [.borderless], backing: .buffered, defer: false)
+        page.orderFront(nil)
+        let panel = PiPPanel(content: .window(page), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false), flies: false)
+        panel.displays = { [.mainOnly] }
+        #expect(page.alphaValue == 0 && page.parent === panel)
+        let screen = PiPPhysics.Display.mainOnly.visible
+        panel.present(from: nil, on: screen)
+        #expect(page.alphaValue == 1 && page.parent === panel && page.frame == panel.frame)
+        panel.dismiss()
+        panel.fadedOut()
+    }
+
     /// An edge takes the mouse before the controls, resizes around the opposite corner, and the panel rests at its new
     /// size; tucked into a side, its edges resize nothing.
     @Test func draggingAnEdgeResizesThePanel() throws {
         _ = NSApplication.shared
         let panel = PiPPanel(content: .view(NSView()), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.displays = { [.mainOnly] }  // one display, whatever this Mac has
         panel.present(from: nil)
         let screen = panel.screenFrame
         panel.moveBy(screen.midX - panel.frame.midX, screen.midY - panel.frame.midY)
@@ -220,6 +275,7 @@ struct PiPSwipeTests {
     @Test func swipesKeepMovingThePanelWhileThePointerStays() throws {
         _ = NSApplication.shared
         let panel = PiPPanel(content: .view(NSView()), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.displays = { [.mainOnly] }  // one display, whatever this Mac has
         panel.present(from: nil)
         let screen = panel.screenFrame
         panel.moveBy(screen.midX - panel.frame.midX, screen.midY - panel.frame.midY)  // in the middle
@@ -428,5 +484,12 @@ struct PiPFeatureTests {
         #expect(thrown.frame.minX - start.minX > 40 && thrown.frame.minX > still.frame.minX)
         for _ in 0..<120 { thrown.advance(by: 1.0 / 60) }
         #expect(thrown.isSettled && abs(thrown.frame.minX - target.minX) < 0.5)
+    }
+}
+
+extension PiPPhysics.Display {
+    static var mainOnly: PiPPhysics.Display {
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        return PiPPhysics.Display(frame: screen.frame, visible: screen.visibleFrame)
     }
 }

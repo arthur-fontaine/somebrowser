@@ -28,7 +28,8 @@ final class PiPPanel: NSPanel {
     private var targetSize: CGSize
     private(set) var resting: PiPPhysics.Resting = .placed(.zero)
 
-    init(content: FloatingContent, size: CGSize, model: PiPControlsModel) {
+    /// `flies`: from the page where it is; otherwise (its window isn't on screen) the page waits out of sight.
+    init(content: FloatingContent, size: CGSize, model: PiPControlsModel, flies: Bool = true) {
         self.model = model
         self.content = content
         targetSize = size
@@ -74,6 +75,7 @@ final class PiPPanel: NSPanel {
             w.level = .floating
             w.collectionBehavior = collectionBehavior
             addChildWindow(w, ordered: .below)
+            if !flies { w.alphaValue = 0 }  // above other apps meanwhile, where its window was
             w.orderFront(nil)
         }
     }
@@ -88,22 +90,30 @@ final class PiPPanel: NSPanel {
         return nil
     }
 
-    var screenFrame: CGRect { (screen ?? NSScreen.main)?.visibleFrame ?? .zero }
+    /// Every display: the panel goes from one to the next (tests set them).
+    var displays: () -> [PiPPhysics.Display] = {
+        NSScreen.screens.map { PiPPhysics.Display(frame: $0.frame, visible: $0.visibleFrame) }
+    }
+
+    /// The display the panel is on (its visible frame).
+    var screenFrame: CGRect { PiPPhysics.display(at: CGPoint(x: frame.midX, y: frame.midY), in: displays()).visible }
 
     func setAspect(_ ratio: CGFloat) {
         guard ratio.isFinite, ratio > 0.3, ratio < 4 else { return }
         aspect = ratio
         targetSize = CGSize(width: targetSize.width, height: (targetSize.width / ratio).rounded())
-        if isVisible { settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame)) }  // else `present` uses it
+        if isVisible { settle(PiPPhysics.frame(for: resting, size: targetSize, in: displays())) }  // else `present` uses it
     }
 
     private var dismissed = false
 
-    /// Flies from `start` (the video where it was on the page) into the bottom-right corner; without one, rises there.
-    func present(from start: CGRect?) {
+    /// Flies from `start` (the video where it was on the page) into the bottom-right corner of `screen` (a display's
+    /// visible frame; the main one by default); without a start, rises there.
+    func present(from start: CGRect?, on screen: CGRect? = nil) {
         guard !dismissed else { return }  // closed before it flew (back to the tab at once)
-        resting = .placed(PiPPhysics.cornerOrigin(size: targetSize, in: screenFrame))
-        let target = PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame)
+        let screen = screen ?? NSScreen.main?.visibleFrame ?? .zero
+        resting = .placed(PiPPhysics.cornerOrigin(size: targetSize, in: screen))
+        let target = PiPPhysics.frame(for: resting, size: targetSize, in: displays())
         if let start {
             setFrame(start, display: false)
             alphaValue = 1
@@ -116,6 +126,7 @@ final class PiPPanel: NSPanel {
         if let w = pageWindow {
             w.contentView?.layer?.cornerRadius = Design.windowRadius  // the browser sets its card's back when shown there
             w.setFrame(frame, display: false)
+            w.alphaValue = 1
             w.orderFront(nil)
         }
         settle(target)
@@ -186,7 +197,7 @@ final class PiPPanel: NSPanel {
     }
 
     private func place(_ f: CGRect) {
-        let f = PiPPhysics.neverLost(f, in: screenFrame)
+        let f = PiPPhysics.neverLost(f, in: displays())
         setFrame(f, display: true)
         if let still, let root = contentView {
             still.frame = root.bounds  // the page, hidden, takes the new size at the end
@@ -198,7 +209,7 @@ final class PiPPanel: NSPanel {
     /// Moves with the pointer or the fingers. Past a side edge it goes as far as tucked in, no further.
     func moveBy(_ dx: CGFloat, _ dy: CGFloat) {
         stopSpring()
-        let moved = PiPPhysics.neverLost(frame.offsetBy(dx: dx, dy: dy), in: screenFrame)
+        let moved = PiPPhysics.neverLost(frame.offsetBy(dx: dx, dy: dy), in: displays())
         setFrameOrigin(moved.origin)
         pageWindow?.setFrameOrigin(frame.origin)
         if model.stashed { model.stashed = false }
@@ -207,18 +218,18 @@ final class PiPPanel: NSPanel {
     /// Released with a velocity (points/second): it glides on to where the throw ends, or tucks into the edge it's
     /// thrown past. Still fingers leave it where it is.
     func release(velocity: CGVector) {
-        resting = PiPPhysics.rest(frame: CGRect(origin: frame.origin, size: targetSize), velocity: velocity, in: screenFrame)
+        resting = PiPPhysics.rest(frame: CGRect(origin: frame.origin, size: targetSize), velocity: velocity, in: displays())
         if case .stashed = resting { model.stashed = true } else { model.stashed = false }
-        settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame), velocity: velocity)
+        settle(PiPPhysics.frame(for: resting, size: targetSize, in: displays()), velocity: velocity)
     }
 
     /// Back out of the edge it's tucked into.
     func unstash() {
-        guard case .stashed(let left, let y) = resting else { return }
-        let x = left ? screenFrame.minX + PiPPhysics.margin : screenFrame.maxX - targetSize.width - PiPPhysics.margin
+        guard case .stashed(let left, let y, let screen) = resting else { return }
+        let x = left ? screen.minX + PiPPhysics.margin : screen.maxX - targetSize.width - PiPPhysics.margin
         resting = .placed(CGPoint(x: x, y: y))
         model.stashed = false
-        settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame))
+        settle(PiPPhysics.frame(for: resting, size: targetSize, in: displays()))
     }
 
     // MARK: Two-finger moves
@@ -388,7 +399,7 @@ final class PiPPanel: NSPanel {
         pinchAnchor = nil
         if case .placed = resting { resting = .placed(frame.origin) }
         endSizing()
-        settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame))
+        settle(PiPPhysics.frame(for: resting, size: targetSize, in: displays()))
     }
 
     /// Scales around `anchor`, which keeps its place in the panel: the pointer stays over it, pinch after pinch.

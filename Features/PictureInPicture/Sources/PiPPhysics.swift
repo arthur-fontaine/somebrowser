@@ -10,10 +10,42 @@ enum PiPPhysics {
     /// Width left visible when the panel is tucked into a screen edge.
     static let stashVisible: CGFloat = 28
 
-    /// Where the panel rests: placed anywhere on screen, or tucked into a side edge, a strip still showing.
+    /// Where the panel rests: placed anywhere on screen, or tucked into a side edge of a display (its visible frame), a
+    /// strip still showing.
     enum Resting: Equatable {
         case placed(CGPoint)  // origin
-        case stashed(left: Bool, y: CGFloat)
+        case stashed(left: Bool, y: CGFloat, screen: CGRect)
+    }
+
+    /// A display: all of it (where displays meet) and what windows may use (menu bar and Dock left out).
+    struct Display: Equatable {
+        var frame: CGRect
+        var visible: CGRect
+    }
+
+    enum Side { case left, right, bottom, top }
+
+    /// The display a point is on, else the nearest one.
+    static func display(at p: CGPoint, in displays: [Display]) -> Display {
+        if let d = displays.first(where: { $0.frame.contains(p) }) { return d }
+        func distance(_ d: Display) -> CGFloat {
+            hypot(p.x - min(max(p.x, d.frame.minX), d.frame.maxX), p.y - min(max(p.y, d.frame.minY), d.frame.maxY))
+        }
+        return displays.min { distance($0) < distance($1) } ?? Display(frame: .zero, visible: .zero)
+    }
+
+    /// Whether another display continues `d` past its `side` where `p` crosses it: the panel goes across rather than
+    /// stopping (or tucking in) there.
+    static func continues(_ d: Display, past side: Side, at p: CGPoint, in displays: [Display]) -> Bool {
+        displays.contains { o in
+            guard o != d else { return false }
+            switch side {
+            case .left: return abs(o.frame.maxX - d.frame.minX) < 2 && (o.frame.minY...o.frame.maxY).contains(p.y)
+            case .right: return abs(o.frame.minX - d.frame.maxX) < 2 && (o.frame.minY...o.frame.maxY).contains(p.y)
+            case .bottom: return abs(o.frame.maxY - d.frame.minY) < 2 && (o.frame.minX...o.frame.maxX).contains(p.x)
+            case .top: return abs(o.frame.minY - d.frame.maxY) < 2 && (o.frame.minX...o.frame.maxX).contains(p.x)
+            }
+        }
     }
 
     /// Where a throw would end: p + v·d/(1−d) (WWDC 2018 "Designing Fluid Interfaces"), v in points/second.
@@ -28,35 +60,64 @@ enum PiPPhysics {
     }
 
     /// Where a panel released at `frame` with `velocity` comes to rest. Its center past a side edge once the throw
-    /// ends: tucked into it. Otherwise where the throw ends, on screen; fingers that had stopped leave it where it is.
-    static func rest(frame: CGRect, velocity: CGVector, in screen: CGRect) -> Resting {
-        let projected = projection(of: CGPoint(x: frame.midX, y: frame.midY), velocity: velocity)
-        if projected.x < screen.minX || projected.x > screen.maxX {
-            let y = min(max(projected.y - frame.height / 2, screen.minY + margin), screen.maxY - frame.height - margin)
-            return .stashed(left: projected.x < screen.minX, y: y)
+    /// ends, where no display continues: tucked into it. Otherwise where the throw ends, on the display it ends on (or
+    /// the nearest); fingers that had stopped leave it where it is.
+    static func rest(frame: CGRect, velocity: CGVector, in displays: [Display]) -> Resting {
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        let projected = projection(of: center, velocity: velocity)
+        let placed = Resting.placed(CGPoint(x: projected.x - frame.width / 2, y: projected.y - frame.height / 2))
+        if displays.contains(where: { $0.frame.contains(projected) }) { return placed }
+        let from = display(at: center, in: displays)
+        let screen = from.visible
+        let y = min(max(projected.y - frame.height / 2, screen.minY + margin), screen.maxY - frame.height - margin)
+        let edgePoint = CGPoint(x: projected.x, y: min(max(projected.y, from.frame.minY), from.frame.maxY))
+        if projected.x < screen.minX, !continues(from, past: .left, at: edgePoint, in: displays) {
+            return .stashed(left: true, y: y, screen: screen)
         }
-        return .placed(CGPoint(x: projected.x - frame.width / 2, y: projected.y - frame.height / 2))
+        if projected.x > screen.maxX, !continues(from, past: .right, at: edgePoint, in: displays) {
+            return .stashed(left: false, y: y, screen: screen)
+        }
+        return placed
     }
 
-    static func frame(for resting: Resting, size: CGSize, in screen: CGRect) -> CGRect {
+    static func rest(frame: CGRect, velocity: CGVector, in screen: CGRect) -> Resting {
+        rest(frame: frame, velocity: velocity, in: [Display(frame: screen, visible: screen)])
+    }
+
+    /// Placed: wholly on the display its center is on (or the nearest).
+    static func frame(for resting: Resting, size: CGSize, in displays: [Display]) -> CGRect {
         switch resting {
         case .placed(let origin):
+            let screen = display(at: CGPoint(x: origin.x + size.width / 2, y: origin.y + size.height / 2), in: displays).visible
             let x = min(max(origin.x, screen.minX), screen.maxX - size.width)
             let y = min(max(origin.y, screen.minY), screen.maxY - size.height)
             return CGRect(x: x, y: y, width: size.width, height: size.height)
-        case .stashed(let left, let y):
+        case .stashed(let left, let y, let screen):
             let x = left ? screen.minX - size.width + stashVisible : screen.maxX - stashVisible
             return CGRect(x: x, y: y, width: size.width, height: size.height)
         }
     }
 
+    static func frame(for resting: Resting, size: CGSize, in screen: CGRect) -> CGRect {
+        frame(for: resting, size: size, in: [Display(frame: screen, visible: screen)])
+    }
+
     /// The panel is never further off screen than tucked in: a strip stays on screen sideways, all of it vertically.
-    /// Moves stop there, and so does a spring's overshoot.
-    static func neverLost(_ frame: CGRect, in screen: CGRect) -> CGRect {
+    /// Moves stop there, and so does a spring's overshoot; where another display continues, it goes across.
+    static func neverLost(_ frame: CGRect, in displays: [Display]) -> CGRect {
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        let d = display(at: center, in: displays)
+        let screen = d.visible
         var f = frame
-        f.origin.x = min(max(f.minX, screen.minX - f.width + stashVisible), screen.maxX - stashVisible)
-        f.origin.y = min(max(f.minY, screen.minY), screen.maxY - f.height)
+        if !continues(d, past: .left, at: center, in: displays) { f.origin.x = max(f.minX, screen.minX - f.width + stashVisible) }
+        if !continues(d, past: .right, at: center, in: displays) { f.origin.x = min(f.minX, screen.maxX - stashVisible) }
+        if !continues(d, past: .bottom, at: center, in: displays) { f.origin.y = max(f.minY, screen.minY) }
+        if !continues(d, past: .top, at: center, in: displays) { f.origin.y = min(f.minY, screen.maxY - f.height) }
         return f
+    }
+
+    static func neverLost(_ frame: CGRect, in screen: CGRect) -> CGRect {
+        neverLost(frame, in: [Display(frame: screen, visible: screen)])
     }
 
     /// Scroll points to screen points: two fingers carry the panel a little further than they travel (1 felt slow, 2

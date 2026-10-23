@@ -12,6 +12,10 @@
   Space) floats its selected tab's video the same way, the tab staying selected; a window still showing anywhere (on
   another display, beside another app's) keeps it, whichever app is in front. Hidden for 0.3 s first (switching windows
   hides one for an instant). Showing again, the window takes that video back, playing on.
+- Displays: the panel goes from one to the next (dragged, swiped or thrown); a side tucks in, and an edge holds it,
+  only where no other display continues. A pop-out appears on the browser window's display, or, when the window
+  stopped showing, on the display of the window now in front (`CGWindowListCopyWindowInfo`: bounds and owner only, no
+  permission), else the pointer's.
 - The page content comes from the engine through `EngineFloating` (WebKit moves the `WKWebView`; CEF
   hands over the tab's own window), so playback never restarts.
 - The panel flies into the bottom-right corner from the video's own place on the page (`PiPGeometry`), once the page

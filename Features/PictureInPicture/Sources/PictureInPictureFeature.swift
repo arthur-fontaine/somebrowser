@@ -81,11 +81,12 @@ public final class PictureInPictureFeature: BrowserFeature {
 
     private func occlusionChanged(_ ns: NSWindow) {
         guard let w = context.windows.first(where: { context.shell?.nsWindow(for: $0) === ns }) else { return }
-        if isShowing(w) { return windowShown(w) }
-        // Switching windows or Spaces hides a window for an instant: only one hidden still a moment later counts.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self, weak w] in
-            guard let self, let w, !self.isShowing(w) else { return }
-            self.windowHidden(w)
+        // Switching windows or Spaces (Mission Control too) hides or shows a window for an instant: only what still
+        // holds a moment later counts.
+        let showing = isShowing(w)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (showing ? 0.15 : 0.3)) { [weak self, weak w] in
+            guard let self, let w, self.isShowing(w) == showing else { return }
+            if showing { self.windowShown(w) } else { self.windowHidden(w) }
         }
     }
 
@@ -119,11 +120,14 @@ public final class PictureInPictureFeature: BrowserFeature {
               let content = floating.detachForFloating(engineTab) else { return }
         let isCall = tab.live?.isCapturingCamera == true || tab.live?.isCapturingMicrophone == true
         // The page's area on screen (the video's place in it comes from the page).
-        let startFrame = !fromPage ? nil : context.shell?.nsWindow(for: window).map { w in
+        let nsWindow = context.shell?.nsWindow(for: window)
+        let startFrame = !fromPage ? nil : nsWindow.map { w in
             w.convertToScreen(window.contentFrame.isEmpty ? w.contentLayoutRect : window.contentFrame)
         }
+        // On the window's display; once the window stopped showing, where the user went: the window now in front.
+        let screen = fromPage ? nsWindow?.screen?.visibleFrame : PiPGeometry.frontWindowScreen() ?? PiPGeometry.pointerScreen()
         session = PiPSession(feature: self, tabID: tab.id, engineTab: engineTab, content: content, isCall: isCall,
-                             windowID: window.id, startFrame: startFrame, video: video,
+                             windowID: window.id, startFrame: startFrame, screen: screen, video: video,
                              width: CGFloat(max(240, context.settings.int("pip.width"))))
         context.runtime.holdAwake(tab.id, reason: "pip")
     }
@@ -161,7 +165,7 @@ final class PiPSession {
     private weak var feature: PictureInPictureFeature?
 
     init(feature: PictureInPictureFeature, tabID: NodeID, engineTab: EngineTab, content: FloatingContent, isCall: Bool,
-         windowID: UUID, startFrame: CGRect?, video: URL?, width: CGFloat) {
+         windowID: UUID, startFrame: CGRect?, screen: CGRect?, video: URL?, width: CGFloat) {
         self.feature = feature
         self.tabID = tabID
         self.engineTab = engineTab
@@ -169,14 +173,14 @@ final class PiPSession {
         self.isCall = isCall
         model = PiPControlsModel(isCall: isCall)
         let size = CGSize(width: width, height: (width * 9 / 16).rounded())
-        panel = PiPPanel(content: content, size: size, model: model)
+        panel = PiPPanel(content: content, size: size, model: model, flies: startFrame != nil)
         model.perform = { [weak self] action in self?.perform(action) }
         panel.takeStill = { [weak engineTab] done in
             guard let engineTab else { return done(nil) }
             engineTab.snapshot(maxWidth: 1920, completion: done)
         }
         if isCall {
-            panel.present(from: startFrame)
+            panel.present(from: startFrame, on: screen)
         } else {
             // The flight starts once the page shows only the video, in its shape: re-aimed midway, it stuttered. A page
             // slow to answer doesn't hold it up.
@@ -185,7 +189,7 @@ final class PiPSession {
             let present = { [weak panel] in
                 guard !presented else { return }
                 presented = true
-                panel?.present(from: startFrame)
+                panel?.present(from: startFrame, on: screen)
             }
             engineTab.evaluateJavaScript(PiPScripts.enter(video: video)) { [weak self] result in
                 guard case .success(let value) = result, let d = value as? [Double], d.count == 8, d[1] > 0 else { return present() }
@@ -238,6 +242,32 @@ final class PiPSession {
 }
 
 enum PiPGeometry {
+    /// The display (visible frame) of the frontmost app's front window: where the user went. Window bounds and owners
+    /// are readable without the screen-recording permission (titles aren't, and aren't needed).
+    static func frontWindowScreen() -> CGRect? {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        // Front to back; layer 0: regular windows (not menus, panels, ours floating). Invisible ones skipped: a full-screen
+        // app's title bar waits above its display, clear.
+        for info in list where (info[kCGWindowOwnerPID as String] as? pid_t) == app.processIdentifier
+            && (info[kCGWindowLayer as String] as? Int) == 0 && (info[kCGWindowAlpha as String] as? Double ?? 1) > 0 {
+            guard let bounds = info[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+                  let screen = screen(containing: CGPoint(x: rect.midX, y: rect.midY), quartzTopLeft: true) else { continue }
+            return screen
+        }
+        return nil
+    }
+
+    static func pointerScreen() -> CGRect? { screen(containing: NSEvent.mouseLocation, quartzTopLeft: false) }
+
+    /// Quartz measures from the main display's top-left, y down; AppKit from its bottom-left, y up.
+    static func screen(containing p: CGPoint, quartzTopLeft: Bool) -> CGRect? {
+        let point = quartzTopLeft ? CGPoint(x: p.x, y: (NSScreen.screens.first?.frame.height ?? 0) - p.y) : p
+        return NSScreen.screens.first { $0.frame.contains(point) }?.visibleFrame
+    }
+
     /// A rect of the page (CSS pixels from the viewport's top-left) on screen, the viewport shown in `page` (screen
     /// points, y up): what of it is visible, nil if nothing is.
     static func screenRect(ofPageRect r: CGRect, viewport: CGSize, shownIn page: CGRect) -> CGRect? {
