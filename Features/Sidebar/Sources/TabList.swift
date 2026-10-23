@@ -104,6 +104,8 @@ struct TabRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(alignment: .leading) { guides }
         .background(Design.itemShape.fill(hovered && !selected ? Design.Fill.hover : .clear))
+        // Claude at work in the tab: its page's glow, around the row.
+        .overlay { AgentGlow(Design.itemShape, activeUntil: store.tab(row.id)?.agentActedAt?.addingTimeInterval(BrowserTab.agentActivityWindow)) }
         .anchorPreference(key: SelectionLensAnchor.self, value: .bounds) { selected ? $0 : nil }
         .contentShape(Rectangle())
         // A single click selects at once: a double-click gesture placed before it would hold every click for the
@@ -210,7 +212,6 @@ struct TabRowContent: View {
             if let acted = tab.agentActedAt {
                 AgentSpark(activeUntil: acted.addingTimeInterval(BrowserTab.agentActivityWindow), hidesWhenIdle: true)
                     .frame(width: 12, height: 12)
-                    .foregroundStyle(Self.claude)
                     .help("Claude is working in this tab")
             }
             if let live, live.isPlayingAudio || live.isMuted {
@@ -231,9 +232,6 @@ struct TabRowContent: View {
             }
         }
     }
-
-    /// Claude's terracotta, as its apps draw the working spark.
-    static let claude = Color(red: 0xD9 / 255, green: 0x77 / 255, blue: 0x57 / 255)
 
     private func title(_ live: EngineTabState?) -> String {
         if let custom = tab.customTitle, !custom.isEmpty { return custom }
