@@ -353,6 +353,10 @@ final class AutomationServer {
             default: nil
             }
             reply(["ok": true])
+        case "settings":
+            // The Settings window, on a page (`"pane": "tabs"`); its window number for screenshots.
+            shell?.showSettings(paneID: req["pane"] as? String)
+            reply(["ok": true, "windowNumber": shell?.settingsWindow?.windowNumber ?? 0])
         case "quit":
             reply(["ok": true])
             NSApp.terminate(nil)

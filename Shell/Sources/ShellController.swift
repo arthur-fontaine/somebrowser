@@ -143,18 +143,21 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
     func contentLayoutDidChange(in window: BrowserWindowState) { window.viewport?.layoutDidChange() }
 
     func showSettings(paneID: String?) {
-        if settingsWindow == nil {
-            let w = SettingsWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 640),
-                             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-                             backing: .buffered, defer: false)
-            w.title = "\(Brand.name) Settings"
-            w.isReleasedWhenClosed = false
-            w.contentMinSize = NSSize(width: 700, height: 460)
-            w.titlebarAppearsTransparent = true
-            w.toolbarStyle = .unified
+        // A page asked for opens on it even when the window is already open.
+        if settingsWindow == nil || paneID != nil {
+            let w = settingsWindow ?? SettingsWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 640),
+                                                     styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                                                     backing: .buffered, defer: false)
+            if settingsWindow == nil {
+                w.title = "\(Brand.name) Settings"
+                w.isReleasedWhenClosed = false
+                w.contentMinSize = NSSize(width: 700, height: 460)
+                w.titlebarAppearsTransparent = true
+                w.toolbarStyle = .unified
+                w.center()
+                settingsWindow = w
+            }
             w.contentView = NSHostingView(rootView: SettingsRootView(initialPane: paneID).environment(BrowserEnvironment(runtime: runtime)))
-            w.center()
-            settingsWindow = w
         }
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
