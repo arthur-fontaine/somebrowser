@@ -17,7 +17,7 @@ struct SafariStartSection: View {
             EmptyView()  // the connect card is a start-page suggestion
         case .some(true):
             if !model.favorites.isEmpty || !model.devices.isEmpty || !model.tabGroups.isEmpty {
-                PageSection("Safari") {
+                PageSection("iCloud Favorites") {
                     if !model.favorites.isEmpty {
                         LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 16) {
                             ForEach(model.favorites.prefix(16)) { favorite in

@@ -47,7 +47,9 @@ in the feature's data folder. Both folders are watched, so changes show up live.
 folder; clicking Allow is explicit consent, which macOS honors for Safari's protected data. `SafariAccess` keeps the
 grants as security-scoped bookmarks (`Grants/` in the feature's data folder), so it's two clicks once. Cancelling the
 second panel keeps Favorites and history. "Disconnect from Safari" stops using Safari's folders and deletes the
-stored grants.
+stored grants. Sync runs only once connected (`Grants/connected`): importing from Safari (the Import sheet, through
+`BrowserImportSource`) asks for Safari's library alone, worded for importing, reads it once and doesn't turn sync on.
+The start page's section is "iCloud Favorites".
 
 **Status (macOS 27, real data, 2026-10-15)** — Reading: verified, including a favorite added on the iPhone (it
 reached this Mac's Bookmarks.plist and `SafariStore.favorites()`, which the start page lists) and the iPhone's

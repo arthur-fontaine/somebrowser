@@ -344,7 +344,7 @@ struct AccessTests {
     @Test func eachFolderIsAskedOnceThenRemembered() throws {
         let home = try makeHome(), grants = grants()
         var asked: [SafariAccess.Folder] = []
-        let access = SafariAccess(grants: grants, home: home) { folder, url in asked.append(folder); return url }
+        let access = SafariAccess(grants: grants, home: home) { folder, url, _ in asked.append(folder); return url }
         #expect(access.restore() == nil)
         #expect(access.request() == folders(home))
         #expect(asked == [.library, .container])
@@ -352,19 +352,19 @@ struct AccessTests {
         #expect(asked.count == 2)
 
         // Next launch: no panel.
-        let later = SafariAccess(grants: grants, home: home) { _, _ in Issue.record("asked again"); return nil }
+        let later = SafariAccess(grants: grants, home: home) { _, _, _ in Issue.record("asked again"); return nil }
         #expect(later.restore() == folders(home))
         later.forget()
-        #expect(SafariAccess(grants: grants, home: home) { _, _ in nil }.restore() == nil)
+        #expect(SafariAccess(grants: grants, home: home) { _, _, _ in nil }.restore() == nil)
     }
 
     @Test func anotherFolderOrCancelDoesNotCount() throws {
         let home = try makeHome()
-        let wrong = SafariAccess(grants: grants(), home: home) { _, _ in home }
+        let wrong = SafariAccess(grants: grants(), home: home) { _, _, _ in home }
         #expect(wrong.request() == nil)
 
         // Cancelling the second panel keeps favorites and history.
-        let partial = SafariAccess(grants: grants(), home: home) { folder, url in folder == .library ? url : nil }
+        let partial = SafariAccess(grants: grants(), home: home) { folder, url, _ in folder == .library ? url : nil }
         #expect(partial.request() == SafariFolders(library: folders(home).library, container: nil))
     }
 }
@@ -472,10 +472,28 @@ nonisolated final class Counter: @unchecked Sendable {
 
 @MainActor
 struct FeatureTests {
+    /// Importing asks for Safari's library alone, worded for importing, and doesn't turn sync on (now or next launch).
+    @Test func importingDoesNotConnect() async throws {
+        let home = try makeHome()
+        let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
+        var asked: [(SafariAccess.Folder, SafariAccess.Purpose)] = []
+        let access = SafariAccess(grants: h.context.dataDirectory, home: home) { folder, url, purpose in asked.append((folder, purpose)); return url }
+        let feature = SafariFeature(context: h.context, access: access)
+        feature.activate()
+        let data = await SafariImportSource(feature: feature).importData()
+        #expect(data?.bookmarks.isEmpty == false)
+        #expect(asked.map(\.0) == [.library] && asked.allSatisfy { $0.1 == .import })
+        #expect(feature.store == nil && feature.model.hasAccess == false && !access.isConnected)
+
+        let relaunched = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, _, _ in nil })
+        relaunched.activate()
+        #expect(relaunched.store == nil && relaunched.model.hasAccess == false)
+    }
+
     @Test func connectingShowsSafariDataAndEditsFlowBack() async throws {
         let home = try makeHome()
         let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
-        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
+        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url, _ in url })
         let asked = Counter()
         feature.askSafariToSync = { asked.increment() }
         feature.backgroundSync.app = FakeSafari()
@@ -519,7 +537,7 @@ struct FeatureTests {
         try h.run("safari.disconnect")
         #expect(feature.model.hasAccess == false)
         #expect(feature.model.favorites.isEmpty)
-        #expect(SafariAccess(grants: h.context.dataDirectory, home: home) { _, _ in nil }.restore() == nil)
+        #expect(SafariAccess(grants: h.context.dataDirectory, home: home) { _, _, _ in nil }.restore() == nil)
     }
 
     /// Open tabs become the Tab Group named after this Mac (not listed among Safari's here), visits go to Safari's
@@ -531,7 +549,7 @@ struct FeatureTests {
         try FileManager.default.removeItem(at: tabsFile)
         _ = try #require(SafariTabGroupWriter(database: tabsFile, createIfNeeded: true))
         let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
-        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
+        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url, _ in url })
         feature.mirrorDelay = .milliseconds(10)
         feature.visitFlushDelay = .milliseconds(10)
         feature.backgroundSync.app = FakeSafari()
@@ -568,7 +586,7 @@ struct FeatureTests {
         try FileManager.default.removeItem(at: tabsFile)
         let iPhone = try #require(SafariTabGroupWriter(database: tabsFile, createIfNeeded: true))
         let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
-        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
+        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url, _ in url })
         feature.mirrorDelay = .milliseconds(10)
         feature.remoteCloseDelay = 0.05
         feature.backgroundSync.app = FakeSafari()
@@ -616,7 +634,7 @@ struct FeatureTests {
     @Test func offersSafariForImport() async throws {
         let home = try makeHome()
         let h = try TestHarness(features: [SafariFeature.self], manifestDirectory: #filePath, activate: false)
-        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url in url })
+        let feature = SafariFeature(context: h.context, access: SafariAccess(grants: h.context.dataDirectory, home: home) { _, url, _ in url })
         feature.activate()
         let source = try #require(h.runtime.capabilities.all(BrowserImportSource.self).first)
         #expect(source.name == "Safari")

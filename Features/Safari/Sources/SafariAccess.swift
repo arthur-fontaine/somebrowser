@@ -15,6 +15,9 @@ nonisolated struct SafariFolders: Equatable, Sendable {
 /// click per folder.
 @MainActor
 final class SafariAccess {
+    /// What the grant is asked for: syncing, or reading once to import.
+    enum Purpose { case sync, `import` }
+
     enum Folder: String, CaseIterable, Sendable {
         case library, container
 
@@ -25,10 +28,11 @@ final class SafariAccess {
             }
         }
 
-        var message: String {
-            switch self {
-            case .library: "\(Brand.name) syncs with Safari on your iPhone through Safari's own iCloud data. Click Allow to share Safari's bookmarks and history."
-            case .container: "Click Allow to share the iPhone's open tabs (iCloud Tabs)."
+        func message(for purpose: Purpose) -> String {
+            switch (self, purpose) {
+            case (.library, .sync): "\(Brand.name) syncs with Safari on your iPhone through Safari's own iCloud data. Click Allow to share Safari's bookmarks and history."
+            case (.library, .import): "Click Allow to import Safari's bookmarks and history."
+            case (.container, _): "Click Allow to share the iPhone's open tabs (iCloud Tabs)."
             }
         }
     }
@@ -36,11 +40,11 @@ final class SafariAccess {
     let grants: URL
     let home: URL
     /// Shows the open panel on a folder; returns what the user picked.
-    var choose: (Folder, URL) -> URL?
+    var choose: (Folder, URL, Purpose) -> URL?
     /// Granted folders, as the URLs that carry the grant (stopped on `forget`).
     private var opened: [Folder: URL] = [:]
 
-    init(grants: URL, home: URL = FileManager.default.homeDirectoryForCurrentUser, choose: ((Folder, URL) -> URL?)? = nil) {
+    init(grants: URL, home: URL = FileManager.default.homeDirectoryForCurrentUser, choose: ((Folder, URL, Purpose) -> URL?)? = nil) {
         self.grants = grants
         self.home = home
         self.choose = choose ?? Self.panel
@@ -54,12 +58,25 @@ final class SafariAccess {
         return folders
     }
 
-    /// Asks for each folder not granted yet. Picking another folder than Safari's doesn't count.
-    func request() -> SafariFolders? {
+    /// The user turned sync on (`SafariFeature.connect`). A grant alone doesn't: importing from Safari asks for one too.
+    var isConnected: Bool {
+        get { FileManager.default.fileExists(atPath: connectedFile.path) }
+        set {
+            if newValue {
+                try? FileManager.default.createDirectory(at: grants, withIntermediateDirectories: true)
+                FileManager.default.createFile(atPath: connectedFile.path, contents: Data())
+            } else {
+                try? FileManager.default.removeItem(at: connectedFile)
+            }
+        }
+    }
+
+    /// Asks for each of `wanted` not granted yet. Picking another folder than Safari's doesn't count.
+    func request(_ wanted: [Folder] = Folder.allCases, for purpose: Purpose = .sync) -> SafariFolders? {
         _ = restore()
-        for folder in Folder.allCases where opened[folder] == nil {
+        for folder in wanted where opened[folder] == nil {
             let expected = folder.url(home: home)
-            guard let chosen = choose(folder, expected) else { break }
+            guard let chosen = choose(folder, expected, purpose) else { break }
             guard Self.same(chosen, expected) else { continue }
             if let data = try? chosen.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
                 try? FileManager.default.createDirectory(at: grants, withIntermediateDirectories: true)
@@ -74,6 +91,7 @@ final class SafariAccess {
         for url in opened.values { url.stopAccessingSecurityScopedResource() }
         opened = [:]
         for folder in Folder.allCases { try? FileManager.default.removeItem(at: file(folder)) }
+        isConnected = false
     }
 
     private var folders: SafariFolders? {
@@ -82,6 +100,7 @@ final class SafariAccess {
     }
 
     private func file(_ folder: Folder) -> URL { grants.appendingPathComponent("\(folder.rawValue).grant") }
+    private var connectedFile: URL { grants.appendingPathComponent("connected") }
 
     private func resolve(_ folder: Folder) -> URL? {
         guard let data = try? Data(contentsOf: file(folder)) else { return nil }
@@ -99,14 +118,14 @@ final class SafariAccess {
         a.standardizedFileURL.resolvingSymlinksInPath().path == b.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
-    static func panel(_ folder: Folder, at url: URL) -> URL? {
+    static func panel(_ folder: Folder, at url: URL, for purpose: Purpose) -> URL? {
         let panel = NSOpenPanel()
         panel.directoryURL = url
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Allow"
-        panel.message = folder.message
+        panel.message = folder.message(for: purpose)
         return panel.runModal() == .OK ? panel.url : nil
     }
 }

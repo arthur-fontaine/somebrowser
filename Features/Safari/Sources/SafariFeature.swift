@@ -82,15 +82,23 @@ public final class SafariFeature: BrowserFeature {
         startSharing()
         backgroundSync.isPending = { [weak self] in self?.somethingWaits() ?? false }
         backgroundSync.whenLaunched = { [weak self] in self?.uploadEdits() }
-        if let folders = access.restore() { use(folders) } else { model.hasAccess = false }
+        if access.isConnected, let folders = access.restore() { use(folders) } else { model.hasAccess = false }
     }
 
     /// Asks for whatever folder isn't granted yet; true once Safari's library is readable.
     @discardableResult
     func connect() -> Bool {
         guard let folders = access.request() else { return false }
+        access.isConnected = true
         use(folders)
         return true
+    }
+
+    /// Safari's library to import from, without syncing: only the library folder is asked for, for importing.
+    func importStore() -> SafariStore? {
+        if let store { return store }
+        guard let folders = access.restore() ?? access.request([.library], for: .import) else { return nil }
+        return SafariStore(folders: folders, backups: context.dataDirectory.appendingPathComponent("Backups"), localDeviceName: nil)
     }
 
     func disconnect() {
@@ -257,7 +265,7 @@ final class SafariImportSource: BrowserImportSource {
     init(feature: SafariFeature) { self.feature = feature }
 
     func importData() async -> ImportableData? {
-        guard let feature, feature.store != nil || feature.connect(), let store = feature.store else { return nil }
+        guard let store = feature?.importStore() else { return nil }
         return await Task.detached(priority: .userInitiated) {
             guard store.hasAccess else { return nil }
             return ImportableData(bookmarks: (try? store.bookmarkTree()) ?? [], history: (try? store.history(limit: 200_000)) ?? [])
