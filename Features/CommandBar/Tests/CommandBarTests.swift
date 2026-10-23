@@ -165,6 +165,17 @@ struct CommandBarTests {
         #expect(!h.window.isSidebarPeeking)
     }
 
+    /// Claude's tabs are Claude's to drive: their address can't be edited.
+    @Test func claudesSpaceDoesntEditTheAddress() throws {
+        let (h, model) = try harness()
+        let tab = h.openTab("https://a.example/")
+        try h.runtime.tabs.move(tab.id, to: .section(h.runtime.tabs.ensureSpace(.claude).id, .today), at: 0)
+        h.runtime.select(tab.id, in: h.window)
+        #expect(!h.runtime.commands.canRun("command-bar.edit-url", in: h.window))
+        #expect(throws: CommandError.self) { try h.run("command-bar.edit-url") }
+        #expect(model.session(h.window) == nil)
+    }
+
     /// Inline (the default): ⌘T opens the new tab, then its address is typed in the sidebar's field.
     @Test func newTabOpensFirstThenItsAddressIsTyped() throws {
         let (h, model) = try harness()

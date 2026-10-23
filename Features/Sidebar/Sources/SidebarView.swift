@@ -276,12 +276,12 @@ struct SpaceTabs: View {
                             SidebarLogic.endPlacement(rows: TabList.rows(pinned, in: window, store: store), in: pinned, dragged: dragged, store: store)
                         })
                 }
-                if space.kind.takesNewTabs { NewTabRow(window: window, model: model) }
+                if space.kind.isUserDriven { NewTabRow(window: window, model: model) }
                 TabList(window: window, model: model, container: .section(space.id, .today))
                 Color.clear.frame(height: 40)
                     .contentShape(Rectangle())
                     .onTapGesture(count: 2) {  // Arc: double-click empty space
-                        if space.kind.takesNewTabs { env.runtime.openTab(nil, in: window) }
+                        if space.kind.isUserDriven { env.runtime.openTab(nil, in: window) }
                     }
                     // Today's end, marked under its last row.
                     .onDrop(of: [UTType.text], delegate: SidebarDropDelegate(model: model, owner: .end(today), env: env) { _, dragged in

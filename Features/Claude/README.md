@@ -1,7 +1,7 @@
 # Claude
 
 **Purpose** — The tabs Claude controls gather in a Claude space (its symbol shows in the sidebar's space switcher
-once it exists), apart from your own. It holds only those: a tab you open while it shows goes to your space. Claude drives the browser through the Claude in Chrome extension, from Claude
+once it exists), apart from your own. It holds only those: a tab you open while it shows goes to your space, and its tabs' addresses can't be edited. Claude drives the browser through the Claude in Chrome extension, from Claude
 Code (`claude --chrome`) or the Claude apps; the CEF engine mirrors Chrome's native messaging manifests into its
 profile so they reach it (`NativeMessagingHosts`).
 
