@@ -209,11 +209,6 @@ struct TabRowContent: View {
                     .foregroundStyle(tab.isLoaded || selected ? .primary : .secondary)
             }
             Spacer(minLength: 2)
-            if let acted = tab.agentActedAt {
-                AgentSpark(activeUntil: acted.addingTimeInterval(BrowserTab.agentActivityWindow), hidesWhenIdle: true)
-                    .frame(width: 12, height: 12)
-                    .help("Claude is working in this tab")
-            }
             if let live, live.isPlayingAudio || live.isMuted {
                 Button { tab.engineTab?.isMuted.toggle() } label: {
                     Image(systemName: live.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
