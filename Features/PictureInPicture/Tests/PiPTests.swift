@@ -309,6 +309,30 @@ struct PiPFeatureTests {
         feature.close(expand: false)
     }
 
+    /// The window stops showing: its playing video floats, the tab still selected there; showing again, the window
+    /// takes it back. A video that floated from a tab switch stays out.
+    @Test func aHiddenWindowsVideoFloatsUntilItShowsAgain() throws {
+        let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(PictureInPictureFeature.self))
+        let silent = h.openTab("https://landing.example")
+        h.fakeTab(silent).simulateMedia(audio: false, video: true)
+        feature.windowHidden(h.window)
+        #expect(feature.session == nil)
+
+        let video = h.openTab("https://video.example/watch")
+        h.fakeTab(video).simulateMedia(audio: true, video: true)
+        feature.windowHidden(h.window)
+        #expect(feature.session?.tabID == video.id && h.window.selectedTabID == video.id)
+        feature.windowShown(h.window)
+        #expect(feature.session == nil && h.window.selectedTabID == video.id)
+
+        _ = h.openTab("https://news.example")  // leaving the video: it floats
+        #expect(feature.session?.tabID == video.id)
+        feature.windowShown(h.window)
+        #expect(feature.session?.tabID == video.id)
+        feature.close(expand: false)
+    }
+
     /// The page's "Picture in Picture" (its context menu) floats that tab here, muted or not, and the window leaves it.
     @Test func thePagesOwnRequestFloatsHere() throws {
         let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)

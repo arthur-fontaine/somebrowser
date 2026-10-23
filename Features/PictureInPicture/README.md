@@ -8,6 +8,10 @@
   floating `NSPanel` on every Space. Regular videos switch to a video-only presentation (injected CSS,
   the video in the top layer so no ancestor's box crops it);
   calls keep their page (Meet's own controls).
+- A window that stops showing (`NSWindow.occlusionState`: fully covered, minimized, hidden with the app, on another
+  Space) floats its selected tab's video the same way, the tab staying selected; a window still showing anywhere (on
+  another display, beside another app's) keeps it, whichever app is in front. Hidden for 0.3 s first (switching windows
+  hides one for an instant). Showing again, the window takes that video back, playing on.
 - The page content comes from the engine through `EngineFloating` (WebKit moves the `WKWebView`; CEF
   hands over the tab's own window), so playback never restarts.
 - The panel flies into the bottom-right corner from the video's own place on the page (`PiPGeometry`), once the page

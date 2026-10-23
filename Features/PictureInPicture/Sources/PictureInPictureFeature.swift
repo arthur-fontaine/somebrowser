@@ -11,6 +11,10 @@ public final class PictureInPictureFeature: BrowserFeature {
 
     public func activate() {
         context.events.subscribe(TabSelected.self) { [weak self] e in self?.tabSelected(e) }
+        NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: nil, queue: .main) { [weak self] note in
+            let window = note.object as? NSWindow
+            MainActor.assumeIsolated { if let window { self?.occlusionChanged(window) } }
+        }
         context.events.subscribe(TabsClosed.self) { [weak self] e in
             guard let self, let s = self.session, e.tabIDs.contains(s.tabID) else { return }
             self.close(expand: false)
@@ -66,6 +70,38 @@ public final class PictureInPictureFeature: BrowserFeature {
         popOut(previous, from: window)
     }
 
+    // MARK: Window visibility
+
+    /// Whether macOS shows any of the window: fully covered, minimized, hidden with the app or on another Space, it
+    /// doesn't. A window still showing anywhere (another display, beside another app's) keeps its video, even when
+    /// another app is in front.
+    private func isShowing(_ w: BrowserWindowState) -> Bool {
+        context.shell?.nsWindow(for: w)?.occlusionState.contains(.visible) ?? true
+    }
+
+    private func occlusionChanged(_ ns: NSWindow) {
+        guard let w = context.windows.first(where: { context.shell?.nsWindow(for: $0) === ns }) else { return }
+        if isShowing(w) { return windowShown(w) }
+        // Switching windows or Spaces hides a window for an instant: only one hidden still a moment later counts.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self, weak w] in
+            guard let self, let w, !self.isShowing(w) else { return }
+            self.windowHidden(w)
+        }
+    }
+
+    /// The window stopped showing: its playing video floats, the tab staying selected in it.
+    func windowHidden(_ w: BrowserWindowState) {
+        guard session == nil, let tab = context.runtime.selectedTab(in: w), shouldPopOut(tab) else { return }
+        popOut(tab, from: w, fromPage: false)  // the window isn't on screen: it rises in its corner
+        session?.returnsWithWindow = true
+    }
+
+    /// Showing again, the window takes back the video that left with it, playing on.
+    func windowShown(_ w: BrowserWindowState) {
+        guard let s = session, s.returnsWithWindow, s.windowID == w.id, w.selectedTabID == s.tabID else { return }
+        close(expand: false, reselecting: true)
+    }
+
     // MARK: Session
 
     /// The user's own pop-out: the window leaves the tab (its content floats away), whatever plays in it. `video` picks
@@ -77,13 +113,13 @@ public final class PictureInPictureFeature: BrowserFeature {
         popOut(tab, from: w, video: video)
     }
 
-    func popOut(_ tab: BrowserTab, from window: BrowserWindowState, video: URL? = nil) {
+    func popOut(_ tab: BrowserTab, from window: BrowserWindowState, video: URL? = nil, fromPage: Bool = true) {
         if session != nil { close(expand: false) }
         guard let engineTab = tab.engineTab, let floating = context.engine as? EngineFloating,
               let content = floating.detachForFloating(engineTab) else { return }
         let isCall = tab.live?.isCapturingCamera == true || tab.live?.isCapturingMicrophone == true
         // The page's area on screen (the video's place in it comes from the page).
-        let startFrame = context.shell?.nsWindow(for: window).map { w in
+        let startFrame = !fromPage ? nil : context.shell?.nsWindow(for: window).map { w in
             w.convertToScreen(window.contentFrame.isEmpty ? w.contentLayoutRect : window.contentFrame)
         }
         session = PiPSession(feature: self, tabID: tab.id, engineTab: engineTab, content: content, isCall: isCall,
@@ -106,7 +142,7 @@ public final class PictureInPictureFeature: BrowserFeature {
                 context.shell?.nsWindow(for: window)?.makeKeyAndOrderFront(nil)
                 NSApp.activate()
             }
-        } else if reselecting, let w = context.windows.first(where: { $0.selectedTabID == s.tabID }) {
+        } else if let w = context.windows.first(where: { $0.selectedTabID == s.tabID }) {  // reselected, or never left
             w.viewport?.present(s.engineTab)
         }
     }
@@ -118,6 +154,8 @@ final class PiPSession {
     let engineTab: EngineTab
     let windowID: UUID
     let isCall: Bool
+    /// Floated because its window stopped showing: back in it when the window shows again.
+    var returnsWithWindow = false
     let panel: PiPPanel
     let model: PiPControlsModel
     private weak var feature: PictureInPictureFeature?
