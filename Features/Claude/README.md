@@ -6,8 +6,9 @@ Code (`claude --chrome`) or the Claude apps; the CEF engine mirrors Chrome's nat
 profile so they reach it (`NativeMessagingHosts`).
 
 **How it works** — the extension marks the pages it acts on (its glow `#claude-agent-glow-border`, its Stop button
-`#claude-agent-stop-container`, and on its other tabs `#claude-static-indicator-container`). A main-frame script
-watches for those elements and tells the feature, which moves the tab (with its children) to the top of the Claude
+`#claude-agent-stop-container`, and on its other tabs `#claude-static-indicator-container`). Since 1.0.102 they sit in
+a closed shadow root, so only its host shows: a `div` with no attributes or children at the end of `<body>`, computed
+`display: contents`. A main-frame script watches for those elements or that host and tells the feature, which moves the tab (with its children) to the top of the Claude
 space; a window showing it follows. Private tabs never move. Move to Your Tabs (row menu) brings one back. Setting
 `claude.space`.
 
