@@ -1,0 +1,14 @@
+{
+  "id": "share",
+  "name": "Share",
+  "summary": "One line describing what Share does.",
+  "entry": "ShareFeature",
+  "provides": [],
+  "requires": [],
+  "commands": [
+    { "id": "share.hello", "title": "Share: Hello", "menu": "View", "group": "share" }
+  ],
+  "settings": [
+    { "key": "share.enabled", "title": "Enable Share", "type": "bool", "default": true }
+  ]
+}
