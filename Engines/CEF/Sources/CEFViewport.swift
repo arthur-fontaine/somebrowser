@@ -6,7 +6,6 @@ import BrowserCore
 final class CEFViewport: EngineViewport {
     private weak var container: NSView?
     private(set) var presentedTab: EngineTab?
-    static let cornerRadius = Design.cardRadius
 
     /// Pages from the protected-media engine (WebKit) show through its own viewport in the same container.
     private let makeAlternate: (NSView) -> EngineViewport?
@@ -46,7 +45,11 @@ final class CEFViewport: EngineViewport {
 
     private func attach() {
         guard let page, let w = page.window, let container, let host = container.window else { return }
-        style(w)
+        style(w, radius: container.layer?.cornerRadius ?? Design.cardRadius)
+        // A child window keeps its own Spaces, and the window it's in can't go where it can't: one floating over other
+        // apps' full-screen Spaces stayed on the browser's.
+        w.level = host.level
+        w.collectionBehavior = host.collectionBehavior.subtracting(.fullScreenPrimary).union(.fullScreenAuxiliary)
         w.setFrame(screenRect(of: container), display: false)
         if w.parent !== host {
             w.parent?.removeChildWindow(w)
@@ -57,13 +60,14 @@ final class CEFViewport: EngineViewport {
         if host.isKeyWindow { focusContent() }
     }
 
-    private func style(_ w: NSWindow) {
-        guard let view = w.contentView, view.layer?.cornerRadius != Self.cornerRadius else { return }
+    /// `radius`: the content area's, which the window it's in sets.
+    private func style(_ w: NSWindow, radius: CGFloat) {
+        guard let view = w.contentView, view.layer?.cornerRadius != radius else { return }
         // macOS rounds every window with its own radius (about 17 pt here), wider than the card's, so a crescent of
         // the card's background showed in each corner (dark in Dark). The window's corner is set to the card's.
-        Self.setWindowCornerRadius(w, Self.cornerRadius)
+        Self.setWindowCornerRadius(w, radius)
         view.wantsLayer = true
-        view.layer?.cornerRadius = Self.cornerRadius
+        view.layer?.cornerRadius = radius
         view.layer?.cornerCurve = .continuous
         view.layer?.masksToBounds = true
         w.hasShadow = false
@@ -99,6 +103,7 @@ final class CEFViewport: EngineViewport {
             w.orderOut(nil)
             return
         }
+        style(w, radius: container.layer?.cornerRadius ?? Design.cardRadius)
         let target = screenRect(of: container)
         if w.frame != target { w.setFrame(target, display: true) }
         if !w.isVisible { attach() }

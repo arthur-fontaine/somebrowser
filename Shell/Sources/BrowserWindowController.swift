@@ -39,11 +39,11 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private var overlay: OverlayWindow?
     private var toolbar: NSToolbar?
 
-    init(state: BrowserWindowState, runtime: BrowserRuntime, shell: ShellController) {
+    init(state: BrowserWindowState, runtime: BrowserRuntime, shell: ShellController, placement: BrowserWindowPlacement? = nil) {
         self.state = state
         self.runtime = runtime
         self.shell = shell
-        let frame = state.frameDescriptor.map(NSRectFromString) ?? Self.defaultFrame()
+        let frame = placement?.frame ?? state.frameDescriptor.map(NSRectFromString) ?? Self.defaultFrame()
         let window = ShellWindow(contentRect: frame, styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                                  backing: .buffered, defer: false)
         window.titlebarAppearsTransparent = true
@@ -53,12 +53,13 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         window.toolbarStyle = .unified
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 480, height: 360)
-        window.collectionBehavior = [.fullScreenPrimary]
+        window.level = placement?.level ?? .normal
+        window.collectionBehavior = placement?.collectionBehavior ?? [.fullScreenPrimary]
         window.tabbingMode = .disallowed
         window.backgroundColor = .clear
         window.isOpaque = false
         window.title = state.isPrivate ? "Private" : Brand.name
-        if state.frameDescriptor == nil { window.center() }
+        if placement?.frame == nil, state.frameDescriptor == nil { window.center() }
         super.init(window: window)
         window.delegate = self
         let childWindows = runtime.engine.capabilities.contains(.childWindowContent)
@@ -83,6 +84,7 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
             let overlay = OverlayWindow(state: state, runtime: runtime)
             self.overlay = overlay
             window.addChildWindow(overlay, ordered: .above)
+            childWindowsFollowWindow()
             layoutOverlay()
         }
         observeChrome()
@@ -179,6 +181,13 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     func windowDidBecomeKey(_ notification: Notification) { refreshActiveState() }
     func windowDidResignKey(_ notification: Notification) { DispatchQueue.main.async { self.refreshActiveState() } }
     func windowDidResize(_ notification: Notification) { state.viewport?.layoutDidChange(); layoutOverlay(); persistFrame() }
+
+    /// The overlay goes where the window goes (its level, its Spaces); engines do the same for their page windows.
+    private func childWindowsFollowWindow() {
+        guard let window, let overlay, window.level != .normal || !window.collectionBehavior.contains(.fullScreenPrimary) else { return }
+        overlay.level = window.level
+        overlay.collectionBehavior = window.collectionBehavior.subtracting(.fullScreenPrimary).union(.fullScreenAuxiliary)
+    }
 
     private func layoutOverlay() {
         guard let overlay, let window else { return }

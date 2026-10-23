@@ -29,8 +29,8 @@ struct BrowserWindowView: View {
                         SlotHost(.contentTrailing, window: window)
                     }
                 }
-                .padding([.top, .bottom, .trailing], Design.windowInset)
-                .padding(.leading, docked ? 0 : Design.windowInset)
+                .padding([.top, .bottom, .trailing], window.cardInset)
+                .padding(.leading, docked ? 0 : window.cardInset)
             }
             if overlaysInline { SlotHost(.overlay, window: window) }
         }
@@ -62,7 +62,7 @@ struct BrowserWindowView: View {
             }
             if overlaysInline { SlotHost(.contentOverlay, window: window) }
         }
-        .clipShape(RoundedRectangle(cornerRadius: Design.cardRadius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: window.cardRadius, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
     }
 }
@@ -87,6 +87,7 @@ struct ContentArea: NSViewRepresentable {
 
     func makeNSView(context: Context) -> ContentContainerView {
         let v = ContentContainerView()
+        v.layer?.cornerRadius = window.cardRadius
         v.onAttach = { [weak window, weak runtime] view in
             guard let window, let runtime, view.viewport == nil else { return }
             let viewport = runtime.engine.makeViewport(in: view)
@@ -108,7 +109,9 @@ struct ContentArea: NSViewRepresentable {
         return v
     }
 
-    func updateNSView(_ nsView: ContentContainerView, context: Context) {}
+    func updateNSView(_ nsView: ContentContainerView, context: Context) {
+        if nsView.layer?.cornerRadius != window.cardRadius { nsView.layer?.cornerRadius = window.cardRadius }
+    }
 }
 
 final class ContentContainerView: NSView {

@@ -27,6 +27,9 @@ public final class BrowserWindowState: Identifiable {
     /// Sidebar temporarily shown over the content while hidden (edge hover, Horse's "Shelf").
     public var isSidebarPeeking = false
     public var sidebarWidth: CGFloat = 260
+    /// The page card: its margin to the window's edges and its corner (a Quick Look window has its own).
+    public var cardInset: CGFloat = Design.windowInset
+    public var cardRadius: CGFloat = Design.cardRadius
     public var isFullscreen = false
     public var isKeyWindow = false
     /// Arbitrary per-window flags features need (e.g. "command-bar.open"), observable.
