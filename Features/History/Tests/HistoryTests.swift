@@ -57,6 +57,20 @@ struct HistoryTests {
         #expect(provider.items(for: "kitt", in: h.window).isEmpty)
     }
 
+    /// The editor opens on the page's address: found by prefix, and a prefix shared by many pages still finds the latest.
+    @Test func addressesAreFoundByPrefix() throws {
+        let store = HistoryStore(path: ":memory:")
+        let now = Date()
+        store.importEntries((0..<500).map { i in
+            HistoryEntry(url: URL(string: "https://busy.example/page/\(i)")!, title: "", lastVisit: now.addingTimeInterval(Double(i)), visitCount: 1)
+        })
+        store.record(url: URL(string: "https://claude.example/new")!, title: "New chat")
+        #expect(store.search("https://claude.example/new", limit: 5).map(\.title) == ["New chat"])
+        #expect(store.search("https://claude.example/n", limit: 5).count == 1)
+        #expect(store.search("https://nowhere.example/", limit: 5).isEmpty)
+        #expect(store.search("https://busy.example/page/", limit: 1).first?.url.lastPathComponent == "499")
+    }
+
     @Test func frecencyDecays() {
         let now = Date()
         let fresh = HistoryEntry(url: URL(string: "https://a.example")!, title: "", lastVisit: now, visitCount: 1)

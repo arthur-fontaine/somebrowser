@@ -96,9 +96,18 @@ final class HistoryStore: HistoryService {
         guard !q.isEmpty else { return recent(limit: limit) }
         // Candidates by LIKE, ranked by frecency in Swift (cheap for a bounded candidate set).
         let words = q.split(separator: " ").prefix(4).map(String.init)
-        let clause = words.indices.map { "(url LIKE ?\($0 + 1) OR title LIKE ?\($0 + 1))" }.joined(separator: " AND ")
-        let stmt = prepare("SELECT url, title, last_visit, visit_count FROM pages WHERE \(clause) ORDER BY last_visit DESC LIMIT 400") { s in
-            for (i, w) in words.enumerated() { sqlite3_bind_text(s, Int32(i + 1), "%\(w)%", -1, transient) }
+        let stmt: OpaquePointer?
+        if words.count == 1, q.contains("://"), prefixCount(q, upTo: 401) <= 400 {
+            // An address (the editor opens on the page's own) matches a few rows, and `LIKE '%…%'` reads every row before
+            // it can tell: on a large imported history, ~50 ms. A prefix is a lookup in the url index.
+            stmt = prepare("SELECT url, title, last_visit, visit_count FROM pages WHERE url >= ?1 AND url < ?2 ORDER BY last_visit DESC") { s in
+                self.bindPrefix(q, to: s)
+            }
+        } else {
+            let clause = words.indices.map { "(url LIKE ?\($0 + 1) OR title LIKE ?\($0 + 1))" }.joined(separator: " AND ")
+            stmt = prepare("SELECT url, title, last_visit, visit_count FROM pages WHERE \(clause) ORDER BY last_visit DESC LIMIT 400") { s in
+                for (i, w) in words.enumerated() { sqlite3_bind_text(s, Int32(i + 1), "%\(w)%", -1, transient) }
+            }
         }
         let now = Date()
         return rows(stmt)
@@ -109,6 +118,21 @@ final class HistoryStore: HistoryService {
             .sorted { $0.1 > $1.1 }
             .prefix(limit)
             .map(\.0)
+    }
+
+    /// Pages whose url starts with `prefix`, counted up to `limit`.
+    private func prefixCount(_ prefix: String, upTo limit: Int) -> Int {
+        let stmt = prepare("SELECT count(*) FROM (SELECT 1 FROM pages WHERE url >= ?1 AND url < ?2 LIMIT ?3)") { s in
+            bindPrefix(prefix, to: s)
+            sqlite3_bind_int(s, 3, Int32(limit))
+        }
+        defer { sqlite3_finalize(stmt) }
+        return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : 0
+    }
+
+    private func bindPrefix(_ prefix: String, to stmt: OpaquePointer?) {
+        sqlite3_bind_text(stmt, 1, prefix, -1, transient)
+        sqlite3_bind_text(stmt, 2, prefix + "\u{10FFFF}", -1, transient)
     }
 
     /// Visit count with a recency decay (half-life of two weeks).
