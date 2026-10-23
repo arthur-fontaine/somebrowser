@@ -2,6 +2,7 @@ import BrowserCore
 import BrowserTesting
 import CryptoKit
 import Foundation
+import os
 import SQLite3
 import Testing
 @testable import FeatureImport
@@ -190,6 +191,36 @@ struct ImportFlowTests {
         #expect(h.runtime.tabs.tab(inside[0])?.engineTab == nil)  // imported, not loaded
         #expect(history.imported.count == 2)
         #expect(feature.model.result?.bookmarks == 3)
+    }
+
+    /// Cookies go to the engine once the source's Keychain item is read; refused, the rest is imported anyway.
+    @Test func importsCookiesWithTheSourcesKey() async throws {
+        let appSupport = try makeUserData()
+        try makeCookies(in: appSupport.appendingPathComponent("Google/Chrome/Default"))
+        let h = try TestHarness(features: [ImportFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(ImportFeature.self))
+        feature.discover = { ChromiumImport.profiles(applicationSupport: appSupport) }
+        let asked = OSAllocatedUnfairLock<[String]>(initialState: [])
+        feature.keychainPassword = { service in asked.withLock { $0.append(service) }; return Data("peanuts".utf8) }
+        try h.run("import.open")
+        #expect(feature.model.canImportCookies)
+        let profile = try #require(feature.model.selected)
+        for _ in 0..<100 where feature.model.preview == nil { try await Task.sleep(for: .milliseconds(20)) }
+        let data = try #require(feature.model.preview)
+        #expect(data.cookies.count == 2)
+        await feature.importData(data, from: profile, into: h.window)
+        #expect(asked.withLock { $0 } == ["Chrome Safe Storage"])
+        #expect(h.engine.addedCookies.map(\.value) == ["s3cr3t", "visible"])
+        #expect(feature.model.result?.cookies == 2 && feature.model.result?.cookiesLocked == false)
+
+        feature.keychainPassword = { _ in nil }
+        await feature.importData(data, from: profile, into: h.window)
+        #expect(h.engine.addedCookies.count == 2)
+        #expect(feature.model.result?.cookiesLocked == true && feature.model.result?.bookmarks == 3)
+
+        feature.model.includeCookies = false
+        feature.keychainPassword = { _ in Issue.record("asked without cookies"); return nil }
+        await feature.importData(data, from: profile, into: h.window)
     }
 
     /// Another feature's source (e.g. Safari) is listed first and read through it.

@@ -11,6 +11,7 @@ public final class ImportFeature: BrowserFeature {
     /// Overridable in tests.
     var discover: () -> [SourceProfile] = { ChromiumImport.profiles() }
     var reader: @Sendable (URL) -> ImportedData = { ChromiumImport.read($0) }
+    var keychainPassword: @Sendable (String) -> Data? = { ChromiumCookies.password(service: $0) }
     private var contributed: [String: BrowserImportSource] = [:]
     static let sheetFlag = "import.sheet"
 
@@ -40,6 +41,7 @@ public final class ImportFeature: BrowserFeature {
         }
         contributed = Dictionary(uniqueKeysWithValues: zip(offered.map(\.id), sources))
         model.profiles = offered + discover()
+        model.canImportCookies = context.engine is EngineCookieStore
         model.result = nil
         window.flags.insert(Self.sheetFlag)
         if let first = model.profiles.first { select(first) }
@@ -90,6 +92,16 @@ public final class ImportFeature: BrowserFeature {
             }
             result.history = data.history.count
         }
+        if model.includeCookies, !data.cookies.isEmpty, let store = context.engine as? EngineCookieStore {
+            // Off the main thread: reading the Keychain waits for the user to answer macOS's prompt.
+            let rows = data.cookies, service = profile.source.keychainService, password = keychainPassword
+            let cookies = await Task.detached(priority: .userInitiated) { () -> [BrowserCookie]? in
+                guard let password = password(service) else { return nil }
+                let key = ChromiumCookies.key(password: password)
+                return rows.compactMap { ChromiumCookies.cookie($0, key: key) }
+            }.value
+            if let cookies { result.cookies = await store.addCookies(cookies) } else { result.cookiesLocked = true }
+        }
         result.extensions = model.includeExtensions && context.engine.capabilities.contains(.chromeExtensions) ? data.extensions : []
         model.result = result
         context.notify("Imported from \(profile.source.name)", systemImage: "square.and.arrow.down")
@@ -123,6 +135,9 @@ final class ImportModel {
     struct Result: Equatable {
         var bookmarks = 0
         var history = 0
+        var cookies = 0
+        /// The source's Keychain item couldn't be read (the user refused, or it isn't there).
+        var cookiesLocked = false
         var extensions: [BrowserExtension] = []
     }
 
@@ -132,6 +147,8 @@ final class ImportModel {
     var includeBookmarks = true
     var includeHistory = true
     var includeExtensions = true
+    var includeCookies = true
+    var canImportCookies = false
     var isImporting = false
     var result: Result?
     var added: Set<String> = []

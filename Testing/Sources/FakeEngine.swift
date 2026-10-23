@@ -11,6 +11,8 @@ public final class FakeEngine: BrowserEngine, EngineExtensions, EngineFloating {
     public private(set) var viewports: [FakeViewport] = []
     /// Loads stay in progress until the tab's `finishLoad()` (pages that take time).
     public var holdsLoads = false
+    /// What `addCookies` was given.
+    public private(set) var addedCookies: [BrowserCookie] = []
 
     public init(options: [String: SettingValue] = [:]) {}
 
@@ -240,4 +242,12 @@ extension FakeEngine {
     public func actionBadges(in tab: EngineTab) -> [String: String] { badges }
 
     func recordCreated(_ t: FakeEngineTab) { createdTabs.append(t) }
+}
+
+/// Cookies set from outside a page are kept, in order.
+extension FakeEngine: EngineCookieStore {
+    public func addCookies(_ cookies: [BrowserCookie]) async -> Int {
+        addedCookies += cookies
+        return cookies.count
+    }
 }

@@ -56,6 +56,11 @@ struct ImportSheet: View {
             Toggle(isOn: Binding(get: { model.includeExtensions }, set: { model.includeExtensions = $0 })) {
                 label("Extensions", preview?.extensions.count, detail: "added from the Chrome Web Store")
             }
+            if model.canImportCookies, model.selected?.isContributed == false {
+                Toggle(isOn: Binding(get: { model.includeCookies }, set: { model.includeCookies = $0 })) {
+                    label("Cookies", preview?.cookies.count, detail: "stay signed in; macOS asks to unlock the browser's key")
+                }
+            }
             HStack {
                 Spacer()
                 Button(action: start) {
@@ -65,6 +70,12 @@ struct ImportSheet: View {
                 .disabled(preview == nil || model.isImporting)
             }
         }
+    }
+
+    func summary(_ result: ImportModel.Result) -> String {
+        var parts = ["\(result.bookmarks.formatted()) bookmarks", "\(result.history.formatted()) history entries"]
+        if result.cookies > 0 { parts.append("\(result.cookies.formatted()) cookies") }
+        return parts.dropLast().joined(separator: ", ") + " and " + parts.last! + " imported."
     }
 
     func label(_ title: String, _ count: Int?, detail: String?) -> some View {
@@ -77,8 +88,11 @@ struct ImportSheet: View {
     }
 
     @ViewBuilder func done(_ result: ImportModel.Result) -> some View {
-        Label("\(result.bookmarks.formatted()) bookmarks and \(result.history.formatted()) history entries imported.", systemImage: "checkmark.circle.fill")
+        Label(summary(result), systemImage: "checkmark.circle.fill")
             .symbolRenderingMode(.multicolor)
+        if result.cookiesLocked {
+            Text("Cookies weren't imported: the browser's key in the Keychain couldn't be read.").font(.callout).foregroundStyle(.secondary)
+        }
         if !result.extensions.isEmpty {
             Text("Add your extensions:").font(.headline)
             ScrollView {
