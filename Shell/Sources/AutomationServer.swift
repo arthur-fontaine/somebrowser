@@ -341,6 +341,11 @@ final class AutomationServer {
             }
             reply(["ok": true, "views": dump(root, 0), "children": ns.childWindows?.map { NSStringFromRect($0.frame) } ?? [],
                    "windows": windows, "keyWindow": key.map { "\(type(of: $0))#\($0.identifier?.rawValue ?? "")" } ?? NSNull()])
+        case "fullscreen":
+            // Into (or out of) native full screen, as the green light does; the window gets its own Space.
+            guard let window, let ns = shell?.nsWindow(for: window) else { return reply(["ok": false, "error": "no window"]) }
+            if (req["value"] as? Bool ?? true) != ns.styleMask.contains(.fullScreen) { ns.toggleFullScreen(nil) }
+            reply(["ok": true])
         case "peek":
             // The hidden sidebar shown as a floating panel, as hovering the window's left edge does (design screenshots).
             guard let window else { return reply(["ok": false, "error": "no window"]) }
