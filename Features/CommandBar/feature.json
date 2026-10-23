@@ -48,6 +48,7 @@
       "order": 1
     }
   ],
+  "settingsPage": "Search", "settingsOrder": 20,
   "settings": [
     {
       "key": "command-bar.style",
@@ -71,7 +72,8 @@
     },
     {
       "key": "command-bar.switchToOpenTabs",
-      "title": "Prefer switching to an already-open tab",
+      "title": "Switch to open tabs",
+      "description": "A result that is already open goes to its tab.",
       "type": "bool",
       "default": true
     }

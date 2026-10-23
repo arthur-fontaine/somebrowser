@@ -365,6 +365,7 @@
       "order": 2
     }
   ],
+  "settingsPage": "Tabs", "settingsOrder": 10,
   "settings": [
     {
       "key": "tabs.closeKeepsChildren",

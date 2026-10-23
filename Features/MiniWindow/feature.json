@@ -7,6 +7,7 @@
     { "id": "mini-window.new", "title": "New Mini Window", "shortcut": "cmd+opt+n", "menu": "File", "group": "new", "order": 3 },
     { "id": "mini-window.move-to-main", "title": "Move to Main Window", "shortcut": "cmd+opt+o", "menu": "File", "group": "move", "order": 1 }
   ],
+  "settingsPage": "General", "settingsOrder": 40,
   "settings": [
     { "key": "mini-window.forExternalLinks", "title": "Open links from other apps in a mini window", "type": "bool", "default": true }
   ]

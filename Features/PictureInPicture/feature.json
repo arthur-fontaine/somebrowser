@@ -8,9 +8,10 @@
     { "id": "pip.toggle", "title": "Picture in Picture", "shortcut": "ctrl+cmd+p", "menu": "View", "group": "media", "order": 1, "keywords": ["pop out", "float", "mini player"] },
     { "id": "pip.close", "title": "Close Picture in Picture", "menu": "View", "group": "media", "order": 2, "palette": false }
   ],
+  "settingsPage": "Tabs", "settingsOrder": 70,
   "settings": [
-    { "key": "pip.autoPopOut", "title": "Pop out playing videos when you switch tabs", "type": "bool", "default": true },
-    { "key": "pip.calls", "title": "Pop out video calls (Meet, Zoom…) when you switch tabs", "type": "bool", "default": true },
-    { "key": "pip.width", "title": "Picture in Picture width", "type": "int", "default": 400 }
+    { "key": "pip.autoPopOut", "title": "Pop out playing videos", "description": "When you switch tabs.", "type": "bool", "default": true },
+    { "key": "pip.calls", "title": "Pop out video calls", "description": "Meet, Zoom… when you switch tabs.", "type": "bool", "default": true },
+    { "key": "pip.width", "title": "Window width", "unit": "pt", "type": "int", "default": 400 }
   ]
 }

@@ -6,8 +6,9 @@
   "provides": [],
   "requires": [],
   "commands": [],
+  "settingsPage": "Keyboard", "settingsOrder": 10,
   "settings": [
     { "key": "website-shortcuts.prefer", "title": "Prefer website shortcuts", "type": "bool", "default": false,
-      "description": "A page that uses a shortcut (⌘F in a document, ⌘D in a design tool…) gets it; press it twice quickly, or on a page that doesn't use it, for the browser's. Tab and window shortcuts always stay the browser's." }
+      "description": "A page that uses a shortcut (⌘F in a document, ⌘D in a design tool…) gets it; press it twice quickly for the browser's. Tab and window shortcuts always stay the browser's." }
   ]
 }

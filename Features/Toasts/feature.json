@@ -4,7 +4,8 @@
   "summary": "Small animated confirmations (tab closed, copied, zoom…) with optional undo.",
   "entry": "ToastsFeature",
   "provides": ["toasts"],
+  "settingsPage": "General", "settingsOrder": 50,
   "settings": [
-    { "key": "toasts.duration", "title": "Toast duration (seconds)", "type": "double", "default": 2.4 }
+    { "key": "toasts.duration", "title": "Show toasts for", "unit": "seconds", "type": "double", "default": 2.4 }
   ]
 }

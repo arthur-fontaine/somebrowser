@@ -6,7 +6,8 @@
   "provides": [],
   "requires": [],
   "commands": [],
+  "settingsPage": "Integrations", "settingsOrder": 50,
   "settings": [
-    { "key": "claude.space", "title": "Put the tabs Claude controls in their own space", "type": "bool", "default": true }
+    { "key": "claude.space", "title": "Give Claude its own space", "description": "The tabs Claude controls open there.", "type": "bool", "default": true }
   ]
 }

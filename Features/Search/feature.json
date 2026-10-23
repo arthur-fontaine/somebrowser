@@ -4,6 +4,7 @@
   "summary": "Turns typed text into a URL or a search with your engine (DuckDuckGo by default), with keyword site search and private suggestions.",
   "entry": "SearchFeature",
   "provides": ["search"],
+  "settingsPage": "Search", "settingsOrder": 10,
   "settings": [
     { "key": "search.engine", "title": "Search engine", "type": "choice", "default": "duckduckgo",
       "options": ["duckduckgo", "kagi", "brave", "startpage", "ecosia", "bing", "google", "perplexity"],
@@ -12,6 +13,6 @@
       "description": "Sends what you type to the search engine to get suggestions." },
     { "key": "search.keywords", "title": "Site search keywords", "type": "string",
       "default": "yt=https://www.youtube.com/results?search_query=%s,gh=https://github.com/search?q=%s,w=https://en.wikipedia.org/w/index.php?search=%s,maps=https://maps.apple.com/?q=%s,so=https://stackoverflow.com/search?q=%s",
-      "description": "keyword=URL with %s, comma-separated. Type the keyword then Tab or a space." }
+      "description": "Type a keyword, then Tab or a space, to search that site; %s stands for what you type.", "editor": "pairs" }
   ]
 }

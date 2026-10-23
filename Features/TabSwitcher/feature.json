@@ -7,6 +7,7 @@
     { "id": "tab-switcher.next", "title": "Switch to Recent Tab", "shortcut": "ctrl+tab", "menu": "Tabs", "group": "switch", "order": 3 },
     { "id": "tab-switcher.previous", "title": "Switch to Recent Tab (Backwards)", "shortcut": "ctrl+shift+tab", "alternateShortcuts": ["ctrl+backtick"], "menu": "Tabs", "group": "switch", "order": 4 }
   ],
+  "settingsPage": "Tabs", "settingsOrder": 40,
   "settings": [
     { "key": "tab-switcher.allSpaces", "title": "Include tabs from every space", "type": "bool", "default": false }
   ]

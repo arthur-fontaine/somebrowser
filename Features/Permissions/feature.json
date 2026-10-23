@@ -4,6 +4,7 @@
   "summary": "Asks before a site uses the camera, microphone, location or notifications, remembers your answer per site, and logs every decision.",
   "entry": "PermissionsFeature",
   "provides": ["permissions"],
+  "settingsPage": "Privacy & Security", "settingsOrder": 30,
   "settings": [
     { "key": "permissions.rememberByDefault", "title": "Remember permission answers for each site", "type": "bool", "default": true }
   ]

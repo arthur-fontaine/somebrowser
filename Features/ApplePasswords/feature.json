@@ -7,6 +7,7 @@
     { "id": "passwords.open-app", "title": "Open Passwords", "menu": "Tools", "group": "passwords", "order": 1 },
     { "id": "passwords.connect", "title": "Connect to Passwords…", "menu": "Tools", "group": "passwords", "order": 2 }
   ],
+  "settingsPage": "Integrations", "settingsOrder": 10,
   "settings": [
     { "key": "passwords.enabled", "title": "Use Apple Passwords", "type": "bool", "default": true },
     { "key": "passwords.offerToSave", "title": "Offer to save passwords", "type": "bool", "default": true },

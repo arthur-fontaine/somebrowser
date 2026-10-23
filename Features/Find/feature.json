@@ -9,7 +9,8 @@
     { "id": "find.previous", "title": "Find Previous", "shortcut": "cmd+shift+g", "menu": "Edit", "group": "find", "order": 3 },
     { "id": "find.hide", "title": "Hide Find Bar", "menu": "Edit", "group": "find", "order": 4, "palette": false }
   ],
+  "settingsPage": "General", "settingsOrder": 10,
   "settings": [
-    { "key": "find.caseSensitive", "title": "Case-sensitive find", "type": "bool", "default": false }
+    { "key": "find.caseSensitive", "title": "Match case in Find in Page", "section": "Browsing", "type": "bool", "default": false }
   ]
 }

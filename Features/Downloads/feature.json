@@ -9,6 +9,7 @@
     { "id": "downloads.open-folder", "title": "Open Downloads Folder", "menu": "Tools", "group": "panels", "order": 2 },
     { "id": "downloads.clear", "title": "Clear Downloads List", "menu": "Tools", "group": "panels", "order": 3 }
   ],
+  "settingsPage": "General", "settingsOrder": 30,
   "settings": [
     { "key": "downloads.askWhereToSave", "title": "Ask where to save each file", "type": "bool", "default": false },
     { "key": "downloads.flyAnimation", "title": "Animate new downloads into the sidebar", "type": "bool", "default": true }

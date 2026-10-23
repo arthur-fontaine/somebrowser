@@ -9,10 +9,11 @@
     { "id": "safari.connect", "title": "Connect to Safari…", "menu": "Bookmarks", "group": "safari", "order": 3, "keywords": ["iphone", "sync", "icloud"] },
     { "id": "safari.disconnect", "title": "Disconnect from Safari", "group": "safari", "order": 4, "keywords": ["iphone", "sync"] }
   ],
+  "settingsPage": "Integrations", "settingsOrder": 30,
   "settings": [
     { "key": "safari.enabled", "title": "Sync with Safari on your iPhone", "type": "bool", "default": true },
-    { "key": "safari.share-tabs", "title": "Show this browser's tabs on your iPhone (a Tab Group named after this Mac)", "type": "bool", "default": true },
-    { "key": "safari.share-history", "title": "Add this browser's history to Safari's, on your iPhone too", "type": "bool", "default": true },
-    { "key": "safari.background-sync", "title": "When Safari isn't running, open it hidden to sync, then quit it", "type": "bool", "default": true }
+    { "key": "safari.share-tabs", "title": "Show this browser's tabs on your iPhone", "description": "In a Tab Group named after this Mac.", "type": "bool", "default": true },
+    { "key": "safari.share-history", "title": "Share history with Safari", "description": "Your iPhone sees it too.", "type": "bool", "default": true },
+    { "key": "safari.background-sync", "title": "Sync when Safari isn't running", "description": "Opens Safari hidden to sync, then quits it.", "type": "bool", "default": true }
   ]
 }

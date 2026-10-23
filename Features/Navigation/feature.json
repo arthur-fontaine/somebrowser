@@ -21,8 +21,9 @@
     { "id": "navigation.copy-url", "title": "Copy URL", "shortcut": "cmd+shift+c", "menu": "Edit", "group": "copy", "order": 1, "keywords": ["share", "link", "super copy"] },
     { "id": "navigation.copy-markdown", "title": "Copy URL as Markdown", "shortcut": "cmd+opt+shift+c", "menu": "Edit", "group": "copy", "order": 2 }
   ],
+  "settingsPage": "General", "settingsOrder": 10,
   "settings": [
-    { "key": "navigation.stripTrackers", "title": "Remove tracking parameters when copying links", "type": "bool", "default": true },
-    { "key": "navigation.rememberZoom", "title": "Remember zoom level per website", "type": "bool", "default": true }
+    { "key": "navigation.stripTrackers", "title": "Remove tracking parameters when copying links", "section": "Browsing", "type": "bool", "default": true },
+    { "key": "navigation.rememberZoom", "title": "Remember zoom level per website", "section": "Browsing", "type": "bool", "default": true }
   ]
 }

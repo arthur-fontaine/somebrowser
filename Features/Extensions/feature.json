@@ -15,8 +15,9 @@
     { "id": "extensions.store", "title": "Chrome Web Store", "menu": "Tools", "group": "extensions", "order": 3 },
     { "id": "extensions.side-panel", "title": "Extension Side Panel", "menu": "View", "group": "extensions", "order": 1, "keywords": ["sidebar", "panel", "chrome.sidePanel"] }
   ],
+  "settingsPage": "Integrations", "settingsOrder": 40,
   "settings": [
     { "key": "extensions.showPinned", "title": "Show pinned extensions in the sidebar", "type": "bool", "default": true },
-    { "key": "extensions.newTabPage", "title": "Open new tabs on an extension's new tab page (instead of the command bar)", "type": "bool", "default": true }
+    { "key": "extensions.newTabPage", "title": "Use an extension's new tab page", "description": "Instead of the command bar.", "type": "bool", "default": true }
   ]
 }

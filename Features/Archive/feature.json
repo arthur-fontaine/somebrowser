@@ -8,9 +8,10 @@
     { "id": "archive.show", "title": "Show Archive", "shortcut": "cmd+opt+a", "menu": "History", "group": "panel", "order": 2, "keywords": ["archived tabs"] },
     { "id": "archive.run-now", "title": "Archive Idle Tabs Now", "menu": "Tabs", "group": "clear", "order": 3 }
   ],
+  "settingsPage": "Tabs", "settingsOrder": 50,
   "settings": [
     { "key": "archive.after", "title": "Archive Today tabs after", "type": "choice", "default": "12h", "options": ["1h", "6h", "12h", "24h", "7d", "never"],
       "optionTitles": ["1 hour", "6 hours", "12 hours", "24 hours", "7 days", "Never"] },
-    { "key": "archive.keepDays", "title": "Keep archived tabs for (days)", "type": "int", "default": 30 }
+    { "key": "archive.keepDays", "title": "Keep archived tabs for", "unit": "days", "type": "int", "default": 30 }
   ]
 }
