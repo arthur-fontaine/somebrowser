@@ -243,7 +243,9 @@ public final class BrowserRuntime {
 
     private func insert(_ tab: BrowserTab, placement: NewTabPlacement, window: BrowserWindowState) {
         switch placement {
-        case .automatic: tabs.insert(tab, into: .section(window.spaceID, .today), at: 0)
+        case .automatic:
+            let space = tabs.space(window.spaceID).map { $0.kind.takesNewTabs ? $0.id : tabs.normalSpace.id } ?? window.spaceID
+            tabs.insert(tab, into: .section(space, .today), at: 0)
         case .childOf(let parent): tabs.insertChild(tab, of: parent)
         case .after(let sibling): tabs.insert(tab, after: sibling)
         case .container(let c, let i): tabs.insert(tab, into: c, at: i)

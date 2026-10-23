@@ -201,6 +201,17 @@ struct RuntimeTests {
         #expect(h.selectedTab?.id == first.id)
     }
 
+    /// The Claude space holds only Claude's tabs: one the user opens while it shows goes to the normal space, and the
+    /// window with it.
+    @Test func theUsersTabsStayOutOfTheClaudeSpace() throws {
+        let h = try harness()
+        let claude = h.runtime.tabs.ensureSpace(.claude)
+        h.runtime.switchSpace(claude.id, in: h.window)
+        let tab = h.openTab("https://a.example")
+        #expect(h.runtime.tabs.spaceID(of: tab.id) == h.runtime.tabs.normalSpace.id && claude.today.isEmpty)
+        #expect(h.window.spaceID == h.runtime.tabs.normalSpace.id && h.selectedTab?.id == tab.id)
+    }
+
     /// Open Link in Private Tab (a page's context menu) opens the link in the window's private space.
     @Test func linksOpenPrivatelyInThePrivateSpace() throws {
         let h = try harness()

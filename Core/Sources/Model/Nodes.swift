@@ -90,6 +90,10 @@ public enum SidebarSection: String, Codable, Sendable, CaseIterable {
 /// while they hold tabs; the sidebar shows a switcher only then.
 public enum SpaceKind: String, Codable, Sendable, CaseIterable {
     case normal, `private`, claude
+
+    /// The user opens tabs here. The Claude space holds only the tabs Claude opens or acts on: a tab the user opens
+    /// while it's showing goes to the normal space.
+    public var takesNewTabs: Bool { self != .claude }
 }
 
 /// A set of pinned and today tabs (Arc Spaces / Horse Trailheads), one per kind.
