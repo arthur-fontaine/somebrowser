@@ -94,16 +94,15 @@ enum QuickLook {
     static let barHeight: CGFloat = 38
     static let cardInset: CGFloat = 6
     static let cardRadius: CGFloat = 14
-    /// The close and zoom glyphs' centers.
     static let closeCenter: CGFloat = 18
-    static let zoomCenter: CGFloat = 38
-    static let titleLeading: CGFloat = 52
+    /// 8 pt past the close glyph's 12 pt circle, as Quick Look's title sits past its last glyph.
+    static let titleLeading: CGFloat = 32
     static let glyph: CGFloat = 20
     static let buttonHeight: CGFloat = 22
     static let trailing: CGFloat = 14
 }
 
-/// Quick Look's bar: close and zoom, the site, then Share and the way out to the main window.
+/// Quick Look's bar: close, the site, then Share and the way out to the main window.
 struct MiniWindowBar: View {
     let window: BrowserWindowState
     let runtime: BrowserRuntime
@@ -114,14 +113,10 @@ struct MiniWindowBar: View {
         HStack(spacing: 0) {
             Glyph(systemImage: "xmark.circle.fill", help: "Close (⌘W)") { runtime.shell?.closeWindow(window) }
                 .padding(.leading, QuickLook.closeCenter - QuickLook.glyph / 2)
-            Glyph(systemImage: "arrow.up.left.and.arrow.down.right.circle.fill", help: "Zoom") {
-                runtime.shell?.nsWindow(for: window)?.zoom(nil)
-            }
-            .padding(.leading, QuickLook.zoomCenter - QuickLook.closeCenter - QuickLook.glyph)
             Text(url?.host() ?? "")
                 .font(.system(size: 13, weight: .bold))
                 .lineLimit(1)
-                .padding(.leading, QuickLook.titleLeading - QuickLook.zoomCenter - QuickLook.glyph / 2)
+                .padding(.leading, QuickLook.titleLeading - QuickLook.closeCenter - QuickLook.glyph / 2)
             Spacer(minLength: Design.Space.block)
             if let url {
                 ShareLink(item: url) {

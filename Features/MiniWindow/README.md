@@ -4,7 +4,7 @@
 
 **How it works** — the window opens centered on the pointer, on its screen, floating above every app and joining
 whichever Space shows there, full-screen ones included (`BrowserWindowPlacement`, applied as the shell creates it). It is
-Quick Look's window, measured: a 38 pt bar with close and zoom, the site, Share and Open in Main Window, and the page
+Quick Look's window, measured: a 38 pt bar with close, the site, Share and Open in Main Window, and the page
 card 6 pt inside the edges with 14 pt corners (`cardInset`, `cardRadius`). Closing the page (⌘W) closes the window.
 
 **Commands**
