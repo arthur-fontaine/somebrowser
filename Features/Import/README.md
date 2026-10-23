@@ -3,7 +3,7 @@
 **Purpose** — "Switch with all your data" (Radian): bookmarks, history, extensions and cookies from Chrome, Arc, Dia,
 ChatGPT Atlas, Helium, Brave, Edge, Vivaldi and Chromium, and Safari (offered by the Safari feature).
 
-**How it works** — Chromium browsers keep profiles under `~/Library/Application Support` (not privacy-protected):
+**How it works** — Chromium browsers keep profiles under `~/Library/Application Support` (Chrome's is protected on macOS 27: see Protected folders):
 `Local State` names the profiles, `Bookmarks` is JSON, `History` is SQLite (read from a copy: the browser may be
 running), extensions come from `Secure Preferences` (Core's `ChromiumExtensions`). Bookmarks become a collapsed pinned
 folder in the current space, as Arc does; history goes through `HistoryService.importEntries`; Web Store extensions
