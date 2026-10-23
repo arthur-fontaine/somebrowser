@@ -202,4 +202,10 @@ struct ExtensionsTests {
         #expect(feature.model.details["x"]?.siteAccess == ExtensionDetails.SiteAccess.onClick)
         #expect(feature.model.extensions.first?.isEnabled == false)
     }
+
+    @Test func pinnedButtonsLeaveRoomForTheFieldsOtherControls() {
+        // 260 pt sidebar: two pinned beside the puzzle and reload, one once share is there too.
+        #expect(ExtensionButtons.visibleCount(sidebarWidth: 260, neighbours: 1) == 2)
+        #expect(ExtensionButtons.visibleCount(sidebarWidth: 260, neighbours: 2) == 1)
+    }
 }

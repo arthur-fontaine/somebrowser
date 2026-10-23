@@ -56,6 +56,7 @@ public final class ExtensionsFeature: BrowserFeature {
         context.capabilities.provide(NewTabPageProvider.self, self)
 
         let model = self.model, settings = context.settings
+        model.fieldNeighbours = { [ui = context.ui] in max(0, ui.views(for: "address-bar.trailing").count - 1) }
         context.ui.contribute(.overlay, id: "extensions.panel", order: 55) { [weak self] window in
             ExtensionsPanel(model: model, window: window, run: { self?.run($0, in: window) },
                             pin: { self?.engine?.setPinned($0, $1) }, open: { self?.open($0, in: window) },
@@ -203,6 +204,8 @@ final class ExtensionsModel {
     /// Turned on: these run, and have buttons.
     var enabled: [BrowserExtension] { extensions.filter(\.isEnabled) }
     var pinned: [BrowserExtension] { enabled.filter(\.isPinned) }
+    /// How many other features' controls share the address field's end (reload, share…).
+    @ObservationIgnored var fieldNeighbours: () -> Int = { 1 }
 }
 
 /// Pinned actions and the extensions menu, next to the navigation buttons; Chrome opens popups beside them.
@@ -215,19 +218,19 @@ struct ExtensionButtons: View {
     let run: (String) -> Void
     let menu: () -> Void
 
-    /// Pinned extensions with room in a sidebar this wide: the field's width less the address's minimum, reload and the
-    /// puzzle.
-    static func visibleCount(sidebarWidth: CGFloat) -> Int {
+    /// Pinned extensions with room in a sidebar this wide: the field's width less the address's minimum, the puzzle and
+    /// the `neighbours` beside it (reload, share…).
+    static func visibleCount(sidebarWidth: CGFloat, neighbours: Int) -> Int {
         let field = sidebarWidth - 2 * Design.Grid.edge
         let taken = Design.Grid.textColumn - Design.Grid.edge + Design.AddressField.minimumText
-            + 2 * Design.AddressField.control + Design.AddressField.trailingInset
+            + CGFloat(1 + neighbours) * Design.AddressField.control + Design.AddressField.trailingInset
         return max(0, Int((field - taken) / Design.AddressField.control))
     }
 
     var body: some View {
         if !model.extensions.isEmpty {
             let pinned = showPinned ? model.pinned : []
-            let shown = pinned.prefix(Self.visibleCount(sidebarWidth: window.sidebarWidth))
+            let shown = pinned.prefix(Self.visibleCount(sidebarWidth: window.sidebarWidth, neighbours: model.fieldNeighbours()))
             let hiddenBadge = pinned.dropFirst(shown.count).contains { !(model.badges[window.id]?[$0.id] ?? "").isEmpty }
             HStack(spacing: 0) {
                 ForEach(shown) { ext in
@@ -327,7 +330,8 @@ struct ExtensionsPanel: View {
     }
 
     private var list: some View {
-        let overflow = model.pinned.dropFirst(ExtensionButtons.visibleCount(sidebarWidth: window.sidebarWidth))
+        let overflow = model.pinned.dropFirst(ExtensionButtons.visibleCount(sidebarWidth: window.sidebarWidth,
+                                                                            neighbours: model.fieldNeighbours()))
         return VStack(alignment: .leading, spacing: 2) {
             Text("Extensions").font(.headline).padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 4)
             if !overflow.isEmpty {
