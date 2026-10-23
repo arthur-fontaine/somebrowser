@@ -161,8 +161,10 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
     private func updateTrafficLights() {
         let hasSidebar = !runtime.ui.views(for: .sidebar).isEmpty
         let docked = state.isSidebarVisible && !state.isSidebarArriving  // they'd sit over the sidebar sliding under them
-        // The floating sidebar draws its own in their place (it covers these).
-        let visible = !hasSidebar || docked || (!state.isSidebarPeeking && (!state.titlebarRequests.isEmpty || state.isFullscreen))
+        // The floating sidebar draws its own in their place (it covers these), and so does the docked one in full screen
+        // (these only come down with the menu bar there, beside its own).
+        let visible = (!hasSidebar || docked || (!state.isSidebarPeeking && (!state.titlebarRequests.isEmpty || state.isFullscreen)))
+            && !(hasSidebar && docked && state.isFullscreen)
         let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap { window?.standardWindowButton($0) }
         let appearing = visible && buttons.contains(where: \.isHidden)
         for button in buttons {
@@ -244,7 +246,9 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if let toolbar { window?.toolbar = toolbar }
         state.isFullscreen = false; state.viewport?.layoutDidChange(); layoutOverlay(); updateTrafficLights()
     }
-    func windowDidEnterFullScreen(_ notification: Notification) { state.isFullscreen = true; state.viewport?.layoutDidChange(); layoutOverlay() }
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        state.isFullscreen = true; state.viewport?.layoutDidChange(); layoutOverlay(); updateTrafficLights()
+    }
     func windowDidChangeScreen(_ notification: Notification) { state.viewport?.layoutDidChange() }
 
     func windowWillClose(_ notification: Notification) {

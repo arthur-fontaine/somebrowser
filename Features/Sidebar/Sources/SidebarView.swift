@@ -35,12 +35,13 @@ struct SidebarView: View {
 
     /// The traffic lights' row: the shell centers them in it (the system's toolbar height).
     private var header: some View {
-        GlassGroup(spacing: 6) {
+        // The traffic lights live here (full-size content view). The floating sidebar covers the window's own, and in full
+        // screen they're in the menu bar's titlebar, out of sight: then it draws its own in their place.
+        let drawsLights = isFloating || window.isFullscreen
+        return GlassGroup(spacing: 6) {
             HStack(spacing: Design.Space.block) {
-                // The traffic lights live here (full-size content view). The floating sidebar covers the window's own, so it
-                // draws its own in their place.
-                if isFloating { WindowControls(leading: Design.Grid.edge).frame(width: WindowControls.width, height: Design.Size.header) }
-                Spacer(minLength: isFloating ? Design.Space.block : 72)
+                if drawsLights { WindowControls(leading: Design.Grid.edge).frame(width: WindowControls.width, height: Design.Size.header) }
+                Spacer(minLength: drawsLights ? Design.Space.block : 72)
                 SlotHost(.sidebarHeader, window: window)
                 SidebarIconButton(systemImage: "sidebar.left", help: "Toggle Sidebar (⌘S)") {
                     try? env.runtime.commands.run("sidebar.toggle", window: window)

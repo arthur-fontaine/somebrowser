@@ -53,6 +53,8 @@ public struct WindowControls: NSViewRepresentable {
             // The browser window: this one's parent when drawn in the overlay above its page.
             let target = window?.parent ?? window
             for button in buttons { button.target = target }
+            // A full-screen window doesn't minimize: the yellow light is off, as the window's own is.
+            buttons[1].isEnabled = target?.styleMask.contains(.fullScreen) != true
             refreshKeyState()
         }
 
