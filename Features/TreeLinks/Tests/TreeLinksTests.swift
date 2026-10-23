@@ -29,6 +29,14 @@ struct TreeLinksTests {
         #expect(h.engine.hooks.decide(upload) == .allow)
     }
 
+    /// Claude clicks in the tab it drives and reads what loads there.
+    @Test func claudesTabsStayInPlace() throws {
+        let h = try harness()
+        let a = h.openTab("https://news.example/")
+        try h.runtime.tabs.move(a.id, to: .section(h.runtime.tabs.ensureSpace(.claude).id, .today), at: 0)
+        #expect(click(a, "https://news.example/story/1", h) == .allow)
+    }
+
     @Test func scriptsAnchorsAndNonWebLinksStayInPlace() throws {
         let h = try harness()
         let a = h.openTab("https://docs.example/page")

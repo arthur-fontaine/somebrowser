@@ -33,12 +33,14 @@ public final class TreeLinksFeature: BrowserFeature {
 
     /// A link click becomes a child tab (Horse), unless it stays on the same page, targets an app-like
     /// site, or the tab opens links in place. A form sent (a search, an upload such as Google Lens's) stays in place:
-    /// its data can't be sent again from a new tab.
+    /// its data can't be sent again from a new tab. Claude's tabs too: Claude follows its own clicks in the tab it
+    /// drives, and a child tab would be one it doesn't know.
     func decide(_ action: NavigationAction) -> NavigationPolicy {
         guard context.settings.bool("tree-links.enabled"), action.isMainFrame, action.userGesture, !action.isFormSubmission,
               ["http", "https"].contains(action.url.scheme ?? ""),
               let source = action.sourceTab, let current = source.state.url,
-              let tab = context.tabs.allTabs.first(where: { $0.engineTab === source }), !tab.opensLinksInPlace
+              let tab = context.tabs.allTabs.first(where: { $0.engineTab === source }), !tab.opensLinksInPlace,
+              context.tabs.spaceID(of: tab.id).flatMap(context.tabs.space)?.kind != .claude
         else { return .allow }
         // In-page anchors and identical URLs navigate normally.
         if Self.samePage(current, action.url) { return .allow }
