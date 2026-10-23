@@ -27,6 +27,21 @@ struct ClaudeFeatureTests {
         #expect(h.runtime.tabs.space(kind: .claude)?.today == [worked.id])
     }
 
+    /// A session's tab (the extension opens Chrome's new-tab page in the background) is Claude's from the start; a page's
+    /// background tab stays with its opener.
+    @Test func claudesNewTabsStartInTheirSpace() throws {
+        let h = try harness()
+        let mine = h.openTab("https://a.example")
+        let page = h.fakeTab(mine)
+        page.simulateOpen(URL(string: "https://b.example")!, disposition: .backgroundTab)
+        #expect(h.runtime.tabs.space(kind: .claude) == nil)
+        page.simulateOpen(URL(string: "chrome://newtab/")!, disposition: .backgroundTab, userGesture: false)
+        h.runtime.engine.hooks.onEngineOpenedPage?(h.engine.makeTab(EngineTabRequest(url: nil)), nil, .backgroundTab)
+        let claude = try #require(h.runtime.tabs.space(kind: .claude))
+        #expect(claude.today.count == 2)
+        #expect(h.selectedTab?.id == mine.id && h.window.spaceID == h.runtime.tabs.normalSpace.id)
+    }
+
     /// Private tabs stay private; marks from frames don't count; the setting turns it off.
     @Test func privateFramesAndTheSettingAreLeftAlone() throws {
         let h = try harness()
