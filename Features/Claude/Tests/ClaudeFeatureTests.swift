@@ -42,6 +42,30 @@ struct ClaudeFeatureTests {
         #expect(h.selectedTab?.id == mine.id && h.window.spaceID == h.runtime.tabs.normalSpace.id)
     }
 
+    /// Claude's input and navigations on a tab of its space say it's working there; the user's tabs say nothing.
+    @Test func claudesActionsMarkItsTabsAndSpaceAsWorked() throws {
+        let h = try harness()
+        let mine = h.openTab("https://a.example")
+        let worked = h.openTab("https://b.example")
+        func acted(_ tab: BrowserTab) {
+            h.runtime.engine.hooks.dispatch(ClaudeFeature.actedMessage, from: h.fakeTab(tab),
+                                            ScriptMessage(body: [String: Any](), isMainFrame: true, frameURL: tab.url))
+        }
+        acted(mine)
+        h.fakeTab(mine).load(URL(string: "https://a.example/next")!)
+        #expect(mine.agentActedAt == nil)
+        claudeMarks(worked, in: h)
+        let claude = try #require(h.runtime.tabs.space(kind: .claude))
+        let marked = try #require(worked.agentActedAt)
+        #expect(claude.agentActedAt == marked)
+        worked.agentActedAt = nil
+        acted(worked)
+        #expect(worked.agentActedAt != nil)
+        worked.agentActedAt = nil
+        h.fakeTab(worked).load(URL(string: "https://b.example/next")!)
+        #expect(worked.agentActedAt != nil && mine.agentActedAt == nil)
+    }
+
     /// Private tabs stay private; marks from frames don't count; the setting turns it off.
     @Test func privateFramesAndTheSettingAreLeftAlone() throws {
         let h = try harness()
