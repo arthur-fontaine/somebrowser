@@ -57,7 +57,12 @@ struct ExtensionAPITests {
 
     func launch() throws -> Session? {
         let data = FileManager.default.temporaryDirectory.appendingPathComponent("e2e-api-\(UUID().uuidString.prefix(6))")
-        let server = try TestHTTPServer(pages: Self.pages)
+        let server = try TestHTTPServer(pages: Self.pages, responders: [
+            "/echo": { request in
+                let origin = request.components(separatedBy: "\r\n").first { $0.lowercased().hasPrefix("origin:") }
+                return ([], origin.map { String($0.dropFirst(7)).trimmingCharacters(in: .whitespaces) } ?? "none")
+            },
+        ])
         let app = try AppDriver(executable: AppDriver.executableFromEnvironment!, extraEnvironment: ["BROWSER_DATA_DIR": data.path],
                                 arguments: ["--load-extension=\(Self.fixture.path)"])
         guard try app.state()["engine"] as? String == "cef-chrome" else {
@@ -77,6 +82,20 @@ struct ExtensionAPITests {
         #expect(try s.probe("auth").contains("chromiumapp.org/cb?code=42"))
         #expect(try s.probe("update").hasPrefix("\"ok "))
         try s.app.waitUntil(timeout: 15) { try s.app.eval("document.title") as? String == "Three" }
+        try s.finish()
+    }
+
+    /// An extension's fetches say where they come from: Chrome sends no Origin on a GET it has host permissions for, and
+    /// the extension's origin on a POST. Stock CEF sent `Origin: null` for both (its proxy loader sanitized the origin
+    /// as a referrer), which 1Password's servers answer with 5xx. Runs when BROWSER_E2E_CEF_PATCHES lists cef/0003.
+    @Test func extensionFetchesSendTheirOrigin() throws {
+        guard ProcessInfo.processInfo.environment["BROWSER_E2E_CEF_PATCHES"]?.contains("cef/0003") == true, let s = try launch() else { return }
+        try s.openProbePage()
+        let answer = try s.probe("origin")
+        let origins = try #require(try JSONSerialization.jsonObject(with: Data(answer.utf8)) as? [String: String], "\(answer)")
+        let origin = try #require(origins["self"])
+        #expect(["none", origin].contains(origins["get"]))
+        #expect(origins["post"] == origin)
         try s.finish()
     }
 

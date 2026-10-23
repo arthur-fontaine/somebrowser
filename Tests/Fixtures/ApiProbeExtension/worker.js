@@ -58,6 +58,15 @@ const probes = {
       return await chrome.runtime.sendMessage({ target: 'offscreen', html: '<p>hi</p>' });
     } catch (e) { return err(e); }
   },
+  // The Origin the server sees for the worker's fetches (the test server echoes it).
+  async origin(sender) {
+    const echo = new URL('/echo', sender.tab.url).href;
+    try {
+      const get = await (await fetch(echo)).text();
+      const post = await (await fetch(echo, { method: 'POST', body: 'x' })).text();
+      return { get, post, self: location.origin };
+    } catch (e) { return err(e); }
+  },
   async auth(sender) {
     const url = new URL('/auth?n=' + Date.now() + '&to=' + encodeURIComponent(chrome.identity.getRedirectURL('cb')), sender.tab.url).href;
     try { return await chrome.identity.launchWebAuthFlow({ url, interactive: true }); } catch (e) { return err(e); }
