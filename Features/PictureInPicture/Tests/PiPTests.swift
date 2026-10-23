@@ -154,6 +154,32 @@ struct PiPFeatureTests {
         #expect(!feature.shouldPopOut(video))
     }
 
+    /// A muted video (a landing page's backdrop) stays in its tab, as does one in a muted tab.
+    @Test func onlyVideosWithSoundPopOut() throws {
+        let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(PictureInPictureFeature.self))
+        let backdrop = h.openTab("https://landing.example")
+        h.fakeTab(backdrop).simulateMedia(audio: false, video: true)
+        #expect(!feature.shouldPopOut(backdrop))
+        h.fakeTab(backdrop).simulateMedia(audio: true, video: true)
+        h.fakeTab(backdrop).isMuted = true
+        #expect(!feature.shouldPopOut(backdrop))
+    }
+
+    /// Leaving another playing tab leaves the floating video where it is.
+    @Test func aFloatingVideoIsNeverReplacedAutomatically() throws {
+        let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(PictureInPictureFeature.self))
+        let stream = h.openTab("https://stream.example/live")
+        h.fakeTab(stream).simulateMedia(audio: true, video: true)
+        let other = h.openTab("https://video.example/watch")
+        #expect(feature.session?.tabID == stream.id)
+        h.fakeTab(other).simulateMedia(audio: true, video: true)
+        _ = h.openTab("https://news.example")
+        #expect(feature.session?.tabID == stream.id)
+        feature.close(expand: false)
+    }
+
     /// A floating video's tab never hibernates, and stops being held once it's back.
     @Test func floatingTabIsHeldAwake() throws {
         let h = try TestHarness(features: [PictureInPictureFeature.self], manifestDirectory: #filePath)

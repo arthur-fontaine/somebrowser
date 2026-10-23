@@ -10,7 +10,7 @@
   ],
   "settingsPage": "Tabs", "settingsOrder": 70,
   "settings": [
-    { "key": "pip.autoPopOut", "title": "Pop out playing videos", "description": "When you switch tabs.", "type": "bool", "default": true },
+    { "key": "pip.autoPopOut", "title": "Pop out playing videos", "description": "Videos playing with sound, when you switch tabs.", "type": "bool", "default": true },
     { "key": "pip.calls", "title": "Pop out video calls", "description": "Meet, Zoom… when you switch tabs.", "type": "bool", "default": true },
     { "key": "pip.width", "title": "Window width", "unit": "pt", "type": "int", "default": 400 }
   ]

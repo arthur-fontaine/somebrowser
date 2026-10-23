@@ -3,8 +3,10 @@
 **Purpose** — Radian's system-wide PiP: leave a playing video and it floats over every app; move it with the trackpad, tuck it into an edge, control it without coming back.
 
 **How it works**
-- Leaving a tab whose video plays (or a video call) pops its page into `PiPPanel`, a non-activating
-  floating `NSPanel` on every Space. Regular videos switch to a video-only presentation (injected CSS);
+- Leaving a tab whose video plays with sound (as Chrome's automatic PiP: a muted backdrop video stays), or a video
+  call, pops its page into `PiPPanel` (never in place of one already floating: only `pip.toggle` replaces it), a non-activating
+  floating `NSPanel` on every Space. Regular videos switch to a video-only presentation (injected CSS,
+  the video in the top layer so no ancestor's box crops it);
   calls keep their page (Meet's own controls).
 - The page content comes from the engine through `EngineFloating` (WebKit moves the `WKWebView`; CEF
   hands over the tab's own window), so playback never restarts.

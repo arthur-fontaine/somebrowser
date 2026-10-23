@@ -38,12 +38,13 @@ public final class PictureInPictureFeature: BrowserFeature {
 
     // MARK: Triggers
 
+    /// As Chrome's automatic PiP: a video playing with sound (a muted one, a landing page's backdrop, stays), or a call.
     func shouldPopOut(_ tab: BrowserTab) -> Bool {
         guard let live = tab.live, context.settings.bool("pip.autoPopOut") else { return false }
         if let site = SiteSettingsStore.site(for: live.url), context.siteSettings.bool(Self.siteKey, for: site) == false { return false }
         let inCall = live.isCapturingCamera || live.isCapturingMicrophone
         if inCall { return context.settings.bool("pip.calls") }
-        return live.isPlayingVideo
+        return live.isPlayingVideo && live.isPlayingAudio && !live.isMuted
     }
 
     func tabSelected(_ e: TabSelected) {
@@ -51,7 +52,8 @@ public final class PictureInPictureFeature: BrowserFeature {
             close(expand: false, reselecting: true)
             return
         }
-        guard let previousID = e.previousTabID, previousID != e.tabID, session?.tabID != previousID,
+        // A floating video stays: only the user replaces it (`pip.toggle`).
+        guard session == nil, let previousID = e.previousTabID, previousID != e.tabID,
               let previous = context.tabs.tab(previousID), shouldPopOut(previous),
               let window = context.runtime.window(e.windowID) else { return }
         popOut(previous, from: window)
@@ -190,11 +192,14 @@ enum PiPGeometry {
 }
 
 enum PiPScripts {
-    /// Video-only presentation: the largest playing video fills the page; everything else hides.
+    /// Video-only presentation: the playing video (the one with sound, else the largest) fills the page; everything else hides.
     static let enter = """
     (() => {
       const vids = [...document.querySelectorAll('video')].filter(v => v.readyState > 0);
-      const v = vids.filter(v => !v.paused).sort((a, b) => b.videoWidth * b.videoHeight - a.videoWidth * a.videoHeight)[0] || vids[0];
+      // The one playing with sound first, then any playing; the largest on the page among them.
+      const rank = v => (v.paused ? 0 : 2) + (!v.paused && !v.muted && v.volume > 0 ? 1 : 0);
+      const area = v => { const r = v.getBoundingClientRect(); return r.width * r.height; };
+      const v = vids.sort((a, b) => rank(b) - rank(a) || area(b) - area(a))[0];
       if (!v) return null;
       window.__pipVideo = v;
       const r = v.getBoundingClientRect();  // where it shows, before the page shows only it
