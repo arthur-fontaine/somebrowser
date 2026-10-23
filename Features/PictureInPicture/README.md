@@ -26,9 +26,12 @@
   app only, whatever is under the pointer: with this app in front a local monitor catches them over the panel; over
   other apps nothing sees them but a listen-only event tap, which needs Input Monitoring (asked on the first pinch over
   the panel; an ad-hoc signed build loses the grant when rebuilt).
+- A pinch begun over the panel is its own until the fingers lift, and scales around the pointer (which so stays over
+  it). While a pinch or a drag changes the size, a still of the page (`EngineTab.snapshot`) stands in and the page
+  waits: Chromium draws a new size frames late, black strips meanwhile. It takes the size at the end.
 - Resize, with no permission: drag an edge or a corner (`PiPPhysics.edges`, `resized(_:edges:by:)`); the video's shape
   is kept and the opposite side holds still.
-- Controls: close, mute, expand back to the tab, −10s/play/+10s, scrubber.
+- Controls, in Liquid Glass: close, mute, back to the tab, −10s/play/+10s in one capsule, scrubber in another.
 - Selecting the tab again closes the panel; a "Pop-out View" toggle appears in Site Controls.
 
 - By hand: the address field's Picture in Picture button (while a video plays), `pip.toggle`, or Chromium's "Picture in
