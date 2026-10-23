@@ -1,0 +1,30 @@
+diff --git a/libcef/browser/net_service/proxy_url_loader_factory.cc b/libcef/browser/net_service/proxy_url_loader_factory.cc
+index b8207e0..0b28464 100644
+--- a/libcef/browser/net_service/proxy_url_loader_factory.cc
++++ b/libcef/browser/net_service/proxy_url_loader_factory.cc
+@@ -565,13 +565,20 @@ void InterceptedRequest::Restart() {
+        request_.method != net::HttpRequestHeaders::kHeadMethod);
+ 
+   if (should_add_origin_header) {
+-    // Match logic in navigation_request.cc AddAdditionalRequestHeaders.
+     url::Origin origin_header_value =
+         request_.request_initiator.value_or(url::Origin());
+-    origin_header_value = content::Referrer::SanitizeOriginForRequest(
+-        request_.url, origin_header_value,
+-        blink::ReferrerUtils::NetToMojoReferrerPolicy(
+-            request_.referrer_policy));
++    // A CORS request carries its initiator's origin as is, as
++    // network::cors::CorsURLLoader sets it (Fetch, "serializing a request
++    // origin"); the referrer policy only applies to the others (match logic in
++    // navigation_request.cc AddAdditionalRequestHeaders). Sanitized as a
++    // referrer, a chrome-extension:// initiator became "null", which servers
++    // reject (an extension service worker's fetches).
++    if (!should_check_cors) {
++      origin_header_value = content::Referrer::SanitizeOriginForRequest(
++          request_.url, origin_header_value,
++          blink::ReferrerUtils::NetToMojoReferrerPolicy(
++              request_.referrer_policy));
++    }
+ 
+     request_.headers.SetHeaderIfMissing(net::HttpRequestHeaders::kOrigin,
+                                         origin_header_value.Serialize());
