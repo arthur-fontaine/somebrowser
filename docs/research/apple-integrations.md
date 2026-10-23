@@ -51,6 +51,11 @@ entitlement.
   `SIGKILL (Code Signature Invalid)`, CODESIGNING "Launch Constraint Violation". The entitlement has its own
   request form, submitted by the Account Holder ([Apple forum](https://developer.apple.com/forums/thread/829169)).
   Radian's "AutoFill for 'Radian'" prompt is this helper's string: Radian holds the entitlement.
+- **The rule itself (decoded 2026-10-23, macOS 27)**: the parent launch constraint in the helper's signature (blob in
+  code-signature slot 9) is an OR of the entitlement above and 35 `(signing-identifier, team-identifier)` pairs: Chrome,
+  Edge, Firefox, Arc/Dia, Brave, Vivaldi, Helium, Opera, Kagi, ungoogled-chromium, Zen, Comet, Atlas, Phi, Flow, Glide,
+  Polypane, Bowser… Radian isn't on it, so its Apple Passwords support (Aug 2026 demos: the dropdown, "Use Strong
+  Password", the helper's "Save Password?") comes from the entitlement. No free signature meets either branch.
 - Wire details that differ between the two references (we follow bromure, which spawns the helper directly):
   PROTO `[0,1]`, `msg`/`payload` as JSON strings, bare-hex `SDATA`, full 32-byte session key.
 
