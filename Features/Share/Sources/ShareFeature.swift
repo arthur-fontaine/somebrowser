@@ -14,8 +14,8 @@ public final class ShareFeature: BrowserFeature {
             guard let self, let window = inv.window else { return }
             self.share(in: window, from: nil)
         }
-        // Left of the extensions and reload (`address-bar.trailing` runs right to left by descending order).
-        context.ui.contribute("address-bar.trailing", id: "share.button", order: 100) { [weak self] window in
+        // Between the extensions and reload, so it stays put however many extensions show.
+        context.ui.contribute("address-bar.trailing", id: "share.button", order: 250) { [weak self] window in
             if let self { ShareButton(window: window, feature: self) }
         }
     }
@@ -56,8 +56,10 @@ struct ShareButton: View {
         let _ = env.runtime.selectedTab(in: window)?.live?.url
         if feature.url(in: window) != nil {
             FieldButton(help: "Share") { feature.share(in: window, from: anchor.view) } label: {
+                // Reload's size; its arrow makes it taller, and its box sat low beside reload's circle.
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 13, weight: .semibold))
+                    .offset(y: -1)
                     .foregroundStyle(.secondary)
             }
             .background(AnchorView(anchor: anchor))
