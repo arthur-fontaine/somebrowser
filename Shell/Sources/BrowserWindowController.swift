@@ -83,8 +83,8 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         if childWindows {
             let overlay = OverlayWindow(state: state, runtime: runtime)
             self.overlay = overlay
-            window.addChildWindow(overlay, ordered: .above)
             childWindowsFollowWindow()
+            window.addChildWindow(overlay, ordered: .above)
             layoutOverlay()
         }
         observeChrome()
