@@ -22,6 +22,7 @@ an idle browser contacts no one, whichever build runs.
   | `chromium/0006` | With the same switch, a tab group spans pages (`tabs.group` joins each tab in its own page instead of moving it), and Chrome's saved tab groups are off (ADR-0005) |
   | `chromium/0007` | `--enable-features=RootScrollbarAvoidsCorners:inset/<DIP>`: the page's own scrollbar thumb keeps clear of the card's rounded corners (its travel inset at both ends; the track stays full length, clipped by the corners like a classic AppKit scroller) |
   | `cef/0001` | `downloads.download` from an extension's service worker or popup goes to the client instead of being canceled |
+  | `cef/0003` | A CORS request's `Origin` is its initiator's, as in Chrome, not `null`: an extension's fetches (1Password's) say they come from `chrome-extension://<id>` |
 
   Ours are applied to a fresh checkout before CEF's own patches (CEF's `patcher.py` runs at build time and stops on any
   patch that fails), so each is written against upstream Chromium and checked both ways: it applies, and CEF's patches
