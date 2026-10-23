@@ -11,9 +11,14 @@ public struct FeatureManifest: Decodable, Sendable {
     public var optional: [String]
     public var commands: [CommandDescriptor]
     public var settings: [SettingDescriptor]
+    /// The Settings page the settings go on (nil: General).
+    public var settingsPage: String?
+    /// Where the feature's section sits on its page, lower first.
+    public var settingsOrder: Int
 
     public init(id: String, name: String, summary: String = "", provides: [String] = [], requires: [String] = [],
-                optional: [String] = [], commands: [CommandDescriptor] = [], settings: [SettingDescriptor] = []) {
+                optional: [String] = [], commands: [CommandDescriptor] = [], settings: [SettingDescriptor] = [],
+                settingsPage: String? = nil, settingsOrder: Int = 100) {
         self.id = id
         self.name = name
         self.summary = summary
@@ -22,9 +27,11 @@ public struct FeatureManifest: Decodable, Sendable {
         self.optional = optional
         self.commands = commands
         self.settings = settings
+        self.settingsPage = settingsPage
+        self.settingsOrder = settingsOrder
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, summary, provides, requires, optional, commands, settings }
+    enum CodingKeys: String, CodingKey { case id, name, summary, provides, requires, optional, commands, settings, settingsPage, settingsOrder }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -36,7 +43,9 @@ public struct FeatureManifest: Decodable, Sendable {
             requires: try c.decodeIfPresent([String].self, forKey: .requires) ?? [],
             optional: try c.decodeIfPresent([String].self, forKey: .optional) ?? [],
             commands: try c.decodeIfPresent([CommandDescriptor].self, forKey: .commands) ?? [],
-            settings: try c.decodeIfPresent([SettingDescriptor].self, forKey: .settings) ?? []
+            settings: try c.decodeIfPresent([SettingDescriptor].self, forKey: .settings) ?? [],
+            settingsPage: try c.decodeIfPresent(String.self, forKey: .settingsPage),
+            settingsOrder: try c.decodeIfPresent(Int.self, forKey: .settingsOrder) ?? 100
         )
     }
 }
@@ -87,6 +96,11 @@ public enum SettingKind: String, Decodable, Sendable {
     case bool, int, double, string, choice
 }
 
+/// How Settings edits a string: comma-separated items one per row, or `key=value` items as two columns.
+public enum SettingEditor: String, Decodable, Sendable {
+    case list, pairs
+}
+
 public struct SettingDescriptor: Decodable, Sendable, Identifiable {
     public var id: String { key }
     public var key: String
@@ -98,9 +112,13 @@ public struct SettingDescriptor: Decodable, Sendable, Identifiable {
     /// How each option reads in Settings ("DuckDuckGo"), in `options`' order; else the option, capitalized.
     public var optionTitles: [String]
     public var section: String?
+    /// Shown after a number ("days").
+    public var unit: String?
+    public var editor: SettingEditor?
 
     public init(key: String, title: String, kind: SettingKind, defaultValue: SettingValue, description: String? = nil,
-                options: [String] = [], optionTitles: [String] = [], section: String? = nil) {
+                options: [String] = [], optionTitles: [String] = [], section: String? = nil, unit: String? = nil,
+                editor: SettingEditor? = nil) {
         self.key = key
         self.title = title
         self.kind = kind
@@ -109,13 +127,15 @@ public struct SettingDescriptor: Decodable, Sendable, Identifiable {
         self.options = options
         self.optionTitles = optionTitles
         self.section = section
+        self.unit = unit
+        self.editor = editor
     }
 
     public func title(ofOption option: String) -> String {
         options.firstIndex(of: option).flatMap { optionTitles.indices.contains($0) ? optionTitles[$0] : nil } ?? option.capitalized
     }
 
-    enum CodingKeys: String, CodingKey { case key, title, type, `default`, description, options, optionTitles, section }
+    enum CodingKeys: String, CodingKey { case key, title, type, `default`, description, options, optionTitles, section, unit, editor }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -127,7 +147,9 @@ public struct SettingDescriptor: Decodable, Sendable, Identifiable {
             description: try c.decodeIfPresent(String.self, forKey: .description),
             options: try c.decodeIfPresent([String].self, forKey: .options) ?? [],
             optionTitles: try c.decodeIfPresent([String].self, forKey: .optionTitles) ?? [],
-            section: try c.decodeIfPresent(String.self, forKey: .section)
+            section: try c.decodeIfPresent(String.self, forKey: .section),
+            unit: try c.decodeIfPresent(String.self, forKey: .unit),
+            editor: try c.decodeIfPresent(SettingEditor.self, forKey: .editor)
         )
     }
 }

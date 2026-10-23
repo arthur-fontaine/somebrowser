@@ -22,6 +22,10 @@ struct FeatureManifest: Codable, Equatable {
     var enabledByDefault: Bool = true
     var commands: [CommandSpec] = []
     var settings: [SettingSpec] = []
+    /// The Settings page these settings go on (`General`, `Tabs`, `Privacy & Security`…); a new name makes a new page.
+    var settingsPage: String?
+    /// Where the feature's section sits on its page (lower first, default 100).
+    var settingsOrder: Int?
     /// Extra Swift module dependencies inside the repo (e.g. a native bridge target).
     var modules: [String] = []
     /// Linked system frameworks.
@@ -32,7 +36,7 @@ struct FeatureManifest: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, summary, entry, provides, requires, optional, engines, replaces, enabledByDefault,
-             commands, settings, modules, frameworks, cargo
+             commands, settings, settingsPage, settingsOrder, modules, frameworks, cargo
     }
 
     init(from decoder: Decoder) throws {
@@ -49,6 +53,8 @@ struct FeatureManifest: Codable, Equatable {
         enabledByDefault = try c.decodeIfPresent(Bool.self, forKey: .enabledByDefault) ?? true
         commands = try c.decodeIfPresent([CommandSpec].self, forKey: .commands) ?? []
         settings = try c.decodeIfPresent([SettingSpec].self, forKey: .settings) ?? []
+        settingsPage = try c.decodeIfPresent(String.self, forKey: .settingsPage)
+        settingsOrder = try c.decodeIfPresent(Int.self, forKey: .settingsOrder)
         modules = try c.decodeIfPresent([String].self, forKey: .modules) ?? []
         frameworks = try c.decodeIfPresent([String].self, forKey: .frameworks) ?? []
         cargo = try c.decodeIfPresent(String.self, forKey: .cargo)
@@ -91,6 +97,10 @@ struct SettingSpec: Codable, Equatable {
     /// How each option reads in Settings, in `options`' order.
     var optionTitles: [String]?
     var section: String?
+    /// Shown after a number ("days").
+    var unit: String?
+    /// Strings only: `list` edits comma-separated items one per row, `pairs` comma-separated `key=value` items.
+    var editor: String?
 }
 
 /// Minimal JSON value so manifests and overrides can carry typed defaults without a dependency.

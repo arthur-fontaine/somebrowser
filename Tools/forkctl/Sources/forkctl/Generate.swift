@@ -194,7 +194,8 @@ enum Generator {
                 + "description: \(s.description.map(swiftStringLiteral) ?? "nil"), "
                 + "options: [\((s.options ?? []).map(swiftStringLiteral).joined(separator: ", "))], "
                 + "optionTitles: [\((s.optionTitles ?? []).map(swiftStringLiteral).joined(separator: ", "))], "
-                + "section: \(s.section.map(swiftStringLiteral) ?? "nil"))"
+                + "section: \(s.section.map(swiftStringLiteral) ?? "nil"), unit: \(s.unit.map(swiftStringLiteral) ?? "nil"), "
+                + "editor: \(s.editor.map { ".\($0)" } ?? "nil"))"
         }
         func list(_ xs: [String]) -> String { "[" + xs.map(swiftStringLiteral).joined(separator: ", ") + "]" }
         return """
@@ -203,7 +204,8 @@ enum Generator {
                         id: \(swiftStringLiteral(m.id)), name: \(swiftStringLiteral(m.name)), summary: \(swiftStringLiteral(m.summary)),
                         provides: \(list(m.provides)), requires: \(list(m.requires)), optional: \(list(m.optional)),
                         commands: [\(commands.joined(separator: ",\n                    "))],
-                        settings: [\(settings.joined(separator: ",\n                    "))]
+                        settings: [\(settings.joined(separator: ",\n                    "))],
+                        settingsPage: \(m.settingsPage.map(swiftStringLiteral) ?? "nil"), settingsOrder: \(m.settingsOrder ?? 100)
                     ),
                     make: { \(m.entry)(context: $0) }
                 )

@@ -48,6 +48,9 @@ enum Validator {
                 settingOwner[s.key] = m.id
                 if !["bool", "int", "double", "string", "choice"].contains(s.type) { error("setting '\(s.key)': unknown type '\(s.type)'") }
                 if s.type == "choice" && (s.options ?? []).isEmpty { error("setting '\(s.key)': choice needs options") }
+                if let editor = s.editor, !(["list", "pairs"].contains(editor) && s.type == "string") {
+                    error("setting '\(s.key)': editor '\(editor)' needs type string and is `list` or `pairs`")
+                }
                 if let titles = s.optionTitles, titles.count != (s.options ?? []).count {
                     error("setting '\(s.key)': optionTitles needs one title per option")
                 }
