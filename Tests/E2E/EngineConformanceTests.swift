@@ -197,11 +197,18 @@ struct EngineConformanceTests {
         try app.quit()
     }
 
-    /// A tab Claude acts on (the Claude in Chrome extension marks it with its glow) moves to the Claude space.
+    /// A tab Claude acts on (the Claude in Chrome extension marks it with its glow, in a closed shadow root) moves to the
+    /// Claude space.
     @Test func claudesTabsGoToTheClaudeSpace() throws {
         let server = try TestHTTPServer(pages: [
             "/mine": "<!doctype html><title>Mine</title><body>mine</body>",
-            "/claude": "<!doctype html><title>Claude</title><body><script>setTimeout(() => { const d = document.createElement('div'); d.id = 'claude-agent-glow-border'; document.body.appendChild(d); }, 300);</script></body>",
+            "/claude": """
+            <!doctype html><title>Claude</title><body><script>setTimeout(() => {
+              const host = document.createElement('div'), root = host.attachShadow({ mode: 'closed' });
+              root.innerHTML = '<style>:host { all: initial !important; display: contents !important; }</style><div id="claude-agent-glow-border"></div>';
+              document.body.appendChild(host);
+            }, 300);</script></body>
+            """,
         ])
         let app = try AppDriver(executable: AppDriver.executableFromEnvironment!)
         try app.open(server.url("/mine"))

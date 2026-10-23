@@ -9,17 +9,23 @@ public final class ClaudeFeature: BrowserFeature {
 
     static let message = "claude.controlled"
 
-    /// Watches for the extension's marks (elements with these ids, added to the page while Claude works on it).
+    /// Watches for the extension's marks, added to the page while Claude works on it. Before 1.0.102 they were elements
+    /// with these ids; since, they sit in a closed shadow root whose host is all that shows: a bare, empty `div` at the
+    /// end of `<body>`, `display: contents` from the shadow's `:host` rule.
     static let observerScript = """
     (() => {
       const ids = new Set(['claude-agent-glow-border', 'claude-agent-stop-container', 'claude-static-indicator-container']);
       let sent = false;
       const report = () => { if (!sent) { sent = true; window.__browser && window.__browser.post('\(message)', {}); } };
-      const marked = node => node.nodeType === 1 && ids.has(node.id);
+      const host = node => node.tagName === 'DIV' && node.attributes.length === 0 && !node.firstChild
+        && (node.parentNode === document.body || node.parentNode === document.documentElement)
+        && getComputedStyle(node).display === 'contents';
+      const marked = node => node.nodeType === 1 && (ids.has(node.id) || host(node));
       new MutationObserver(records => {
         for (const r of records) for (const n of r.addedNodes) if (marked(n)) return report();
       }).observe(document, { childList: true, subtree: true });
       for (const id of ids) if (document.getElementById(id)) return report();
+      for (const n of [...(document.body?.children ?? []), ...document.documentElement.children]) if (host(n)) return report();
     })();
     """
 
