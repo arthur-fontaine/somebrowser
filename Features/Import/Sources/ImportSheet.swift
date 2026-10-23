@@ -7,6 +7,7 @@ struct ImportSheet: View {
     let model: ImportModel
     let window: BrowserWindowState
     let select: (SourceProfile) -> Void
+    let allowAccess: (SourceProfile) -> Void
     let start: () -> Void
     let addExtension: (BrowserExtension) -> Void
     let close: () -> Void
@@ -46,29 +47,45 @@ struct ImportSheet: View {
             }
             .frame(maxHeight: 220)
             Divider()
-            let preview = model.preview
-            Toggle(isOn: Binding(get: { model.includeBookmarks }, set: { model.includeBookmarks = $0 })) {
-                label("Bookmarks", preview?.bookmarkCount, detail: "as a pinned folder in this space")
-            }
-            Toggle(isOn: Binding(get: { model.includeHistory }, set: { model.includeHistory = $0 })) {
-                label("History", preview?.history.count, detail: nil)
-            }
-            Toggle(isOn: Binding(get: { model.includeExtensions }, set: { model.includeExtensions = $0 })) {
-                label("Extensions", preview?.extensions.count, detail: "added from the Chrome Web Store")
-            }
-            if model.canImportCookies, model.selected?.isContributed == false {
-                Toggle(isOn: Binding(get: { model.includeCookies }, set: { model.includeCookies = $0 })) {
-                    label("Cookies", preview?.cookies.count, detail: "stay signed in; macOS asks to unlock the browser's key")
-                }
-            }
+            if let locked = model.selected, locked.isLocked { access(locked) } else { contents }
+        }
+    }
+
+    func access(_ profile: SourceProfile) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("macOS keeps \(profile.source.name)'s data from other apps until you allow it. In the window that opens, click Allow.")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
-                Button(action: start) {
-                    if model.isImporting { ProgressView().controlSize(.small) } else { Text("Import") }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(preview == nil || model.isImporting)
+                Button("Allow Access…") { allowAccess(profile) }.keyboardShortcut(.defaultAction)
             }
+        }
+    }
+
+    @ViewBuilder var contents: some View {
+        let preview = model.preview
+        Toggle(isOn: Binding(get: { model.includeBookmarks }, set: { model.includeBookmarks = $0 })) {
+            label("Bookmarks", preview?.bookmarkCount, detail: "as a pinned folder in this space")
+        }
+        Toggle(isOn: Binding(get: { model.includeHistory }, set: { model.includeHistory = $0 })) {
+            label("History", preview?.history.count, detail: nil)
+        }
+        Toggle(isOn: Binding(get: { model.includeExtensions }, set: { model.includeExtensions = $0 })) {
+            label("Extensions", preview?.extensions.count, detail: "added from the Chrome Web Store")
+        }
+        if model.canImportCookies, model.selected?.isContributed == false {
+            Toggle(isOn: Binding(get: { model.includeCookies }, set: { model.includeCookies = $0 })) {
+                label("Cookies", preview?.cookies.count, detail: "stay signed in; macOS asks to unlock the browser's key")
+            }
+        }
+        HStack {
+            Spacer()
+            Button(action: start) {
+                if model.isImporting { ProgressView().controlSize(.small) } else { Text("Import") }
+            }
+            .keyboardShortcut(.defaultAction)
+            .disabled(preview == nil || model.isImporting)
         }
     }
 
@@ -126,7 +143,11 @@ struct SourceRow: View {
             Image(nsImage: Self.icon(profile.source.bundleID)).resizable().frame(width: 24, height: 24)
             VStack(alignment: .leading, spacing: 0) {
                 Text(profile.source.name)
-                if profile.name != "Default" { Text(profile.name).font(.caption).foregroundStyle(.secondary) }
+                if profile.isLocked {
+                    Text("Needs your permission").font(.caption).foregroundStyle(.secondary)
+                } else if profile.name != "Default" {
+                    Text(profile.name).font(.caption).foregroundStyle(.secondary)
+                }
             }
             Spacer()
             if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint) }

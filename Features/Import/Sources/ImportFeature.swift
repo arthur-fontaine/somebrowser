@@ -13,10 +13,16 @@ public final class ImportFeature: BrowserFeature {
     var reader: @Sendable (URL) -> ImportedData = { ChromiumImport.read($0) }
     var keychainPassword: @Sendable (String) -> Data? = { ChromiumCookies.password(service: $0) }
     private var contributed: [String: BrowserImportSource] = [:]
+    let grants: FolderGrants
     static let sheetFlag = "import.sheet"
 
-    public init(context: FeatureContext) {
+    public convenience init(context: FeatureContext) {
+        self.init(context: context, grants: FolderGrants(directory: context.dataDirectory.appendingPathComponent("Grants")))
+    }
+
+    init(context: FeatureContext, grants: FolderGrants) {
         self.context = context
+        self.grants = grants
     }
 
     public func activate() {
@@ -25,6 +31,7 @@ public final class ImportFeature: BrowserFeature {
         context.ui.contribute(.overlay, id: "import.sheet", order: 90) { [weak self] window in
             ImportSheet(model: model, window: window,
                         select: { self?.select($0) },
+                        allowAccess: { self?.allowAccess($0) },
                         start: { self?.start(into: window) },
                         addExtension: { self?.addExtension($0, in: window) },
                         close: { window.flags.remove(Self.sheetFlag) })
@@ -40,18 +47,30 @@ public final class ImportFeature: BrowserFeature {
                           isContributed: true)
         }
         contributed = Dictionary(uniqueKeysWithValues: zip(offered.map(\.id), sources))
+        grants.restoreAll()
         model.profiles = offered + discover()
         model.canImportCookies = context.engine is EngineCookieStore
         model.result = nil
         window.flags.insert(Self.sheetFlag)
         // A browser read without asking: another feature's source may ask for access, which waits for a click on it.
-        if let first = model.profiles.first(where: { !$0.isContributed }) { select(first) }
+        if let first = model.profiles.first(where: { !$0.isContributed && !$0.isLocked }) { select(first) }
+    }
+
+    /// The open panel on a locked browser's folder; once allowed, its profiles replace it and the first is selected.
+    func allowAccess(_ profile: SourceProfile) {
+        let message = "macOS keeps \(profile.source.name)'s data from other apps. Click Allow to import from it."
+        guard grants.request(profile.directory, id: profile.source.id, message: message) else { return }
+        let found = discover().filter { $0.source.id == profile.source.id }
+        guard let index = model.profiles.firstIndex(of: profile), !found.contains(where: \.isLocked) else { return }
+        model.profiles.replaceSubrange(index...index, with: found)
+        if let first = found.first { select(first) }
     }
 
     /// Reads the profile off the main thread so the sheet shows what will be imported.
     func select(_ profile: SourceProfile) {
         model.selected = profile
         model.preview = nil
+        guard !profile.isLocked else { return }
         if let source = contributed[profile.id] {
             Task { [weak self] in
                 let data = await source.importData()

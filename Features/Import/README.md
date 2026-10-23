@@ -27,6 +27,11 @@ format follows arc-export's reading of it; there was no Arc sidebar on this Mac 
 
 **Commands** — `import.open` (File › Import from Another Browser…).
 
+**Protected folders** — macOS 27 keeps Chrome's folder from other apps: reading it fails with "Operation not
+permitted", without a prompt. Such a browser is listed as "Needs your permission"; "Allow Access…" opens an open panel
+on its folder, and picking it is consent macOS honors (`FolderGrants`, security-scoped bookmarks in `Grants/`, kept
+across launches). Sources other features offer (Safari) are read only once clicked, since they may ask for access.
+
 **Tests** — `./forkctl test import` (a fixture Chromium profile with an encrypted `Cookies` database; an Arc sidebar; a
 contributed source).
 

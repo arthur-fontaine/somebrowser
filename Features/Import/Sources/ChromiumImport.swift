@@ -35,6 +35,9 @@ nonisolated struct SourceProfile: Identifiable, Equatable, Sendable {
     var directory: URL
     /// Offered by another feature (`BrowserImportSource`) and read through it, not from `directory`.
     var isContributed = false
+    /// macOS keeps the browser's folder from this app until the user allows it (`FolderGrants`); `directory` is that
+    /// folder, and its profiles aren't known yet.
+    var isLocked = false
     var id: String { directory.absoluteString }
 }
 
@@ -56,6 +59,10 @@ nonisolated enum ChromiumImport {
         sources.flatMap { source -> [SourceProfile] in
             guard let root = source.userData.map({ applicationSupport.appendingPathComponent($0) })
                 .first(where: { FileManager.default.fileExists(atPath: $0.appendingPathComponent("Local State").path) }) else { return [] }
+            // It exists but can't be opened: macOS protects it (Chrome's), not a missing permission bit we could fix.
+            guard (try? FileHandle(forReadingFrom: root.appendingPathComponent("Local State")))?.closeFile() != nil else {
+                return [SourceProfile(source: source, name: "Default", directory: root, isLocked: true)]
+            }
             let state = (try? Data(contentsOf: root.appendingPathComponent("Local State")))
                 .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
             let cache = (state?["profile"] as? [String: Any])?["info_cache"] as? [String: [String: Any]] ?? [:]

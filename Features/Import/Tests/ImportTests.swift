@@ -223,6 +223,35 @@ struct ImportFlowTests {
         await feature.importData(data, from: profile, into: h.window)
     }
 
+    /// A browser whose folder can't be opened (macOS keeps Chrome's from other apps) is listed as locked, not read, and
+    /// its profiles replace it once the folder is allowed.
+    @Test func lockedBrowserIsAllowedThenRead() async throws {
+        let appSupport = try makeUserData()
+        let localState = appSupport.appendingPathComponent("Google/Chrome/Local State").path
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: localState)
+        let h = try TestHarness(features: [ImportFeature.self], manifestDirectory: #filePath)
+        let feature = try #require(h.runtime.feature(ImportFeature.self))
+        feature.discover = { ChromiumImport.profiles(of: [BrowserSource.chromium[0]], applicationSupport: appSupport) }
+        var asked: [URL] = []
+        feature.grants.choose = { folder, _ in
+            asked.append(folder)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: localState)  // what allowing does
+            return folder
+        }
+        try h.run("import.open")
+        let locked = try #require(feature.model.profiles.first)
+        #expect(locked.isLocked && feature.model.selected == nil && asked.isEmpty)
+
+        feature.allowAccess(locked)
+        #expect(asked.map(\.lastPathComponent) == ["Chrome"])
+        #expect(feature.model.profiles.map(\.name) == ["Personal"])  // "Work" holds no data
+        #expect(feature.model.selected?.name == "Personal")
+        for _ in 0..<100 where feature.model.preview == nil { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(feature.model.preview?.bookmarkCount == 3)
+        // The grant is kept for the next launch.
+        #expect(FileManager.default.fileExists(atPath: feature.grants.directory.appendingPathComponent("chrome.grant").path))
+    }
+
     /// Another feature's source (e.g. Safari) is listed first, read through it, and only once clicked (it may ask for access).
     @Test func importsFromContributedSources() async throws {
         let h = try TestHarness(features: [ImportFeature.self], manifestDirectory: #filePath, activate: false)
