@@ -7,10 +7,11 @@ profile so they reach it (`NativeMessagingHosts`).
 
 **How it works** — a session's tabs go there as they open: the extension opens them in the background on Chrome's
 new-tab page (`tabs.create({url: "chrome://newtab/", active: false})`), which no web page can open (another extension
-doing the same would land there too). On the user's own tabs, the extension marks the pages it acts on (its glow `#claude-agent-glow-border`, its Stop button
-`#claude-agent-stop-container`, and on its other tabs `#claude-static-indicator-container`). Since 1.0.102 they sit in
-a closed shadow root, so only its host shows: a `div` with no attributes or children at the end of `<body>`, computed
-`display: contents`. A main-frame script watches for those elements or that host and tells the feature, which moves the tab (with its children) to the top of the Claude
+doing the same would land there too). On the user's own tabs, the extension marks the pages it acts on (its glow
+`#claude-agent-glow-border`, its Stop button `#claude-agent-stop-container`, and on its other tabs
+`#claude-static-indicator-container`). Since 1.0.102 they sit in a closed shadow root, so only its host shows: a `div`
+with no attributes or children at the end of `<body>`, computed `display: contents`. A main-frame script watches for
+those elements or that host and tells the feature, which moves the tab (with its children) to the top of the Claude
 space; a window showing it follows. Private tabs never move. Move to Your Tabs (row menu) brings one back. Setting
 `claude.space`.
 
