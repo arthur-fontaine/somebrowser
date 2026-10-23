@@ -2,21 +2,34 @@ import AppKit
 import SwiftUI
 
 /// Claude's spark at work: its "thinking" animation (the spikes grow out of a dot and fold back) while `activeUntil`
-/// is ahead, else the still spark. Template frames, so it takes the foreground style like the space symbols; still
-/// when the user reduces motion.
+/// is ahead, else the still spark (or nothing, for a mark shown only while it works). Template frames, so it takes the
+/// foreground style like the space symbols; still when the user reduces motion.
 public struct AgentSpark: View {
     let activeUntil: Date?
+    let hidesWhenIdle: Bool
 
-    public init(activeUntil: Date?) { self.activeUntil = activeUntil }
+    public init(activeUntil: Date?, hidesWhenIdle: Bool = false) {
+        self.activeUntil = activeUntil
+        self.hidesWhenIdle = hidesWhenIdle
+    }
 
     public var body: some View {
-        if let until = activeUntil, until > .now, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+        if let until = activeUntil, until > .now {
             TimelineView(FrameSchedule(until: until)) { context in
-                Image(nsImage: context.date < until ? Self.frame(at: context.date) : SpaceSymbol.spark).resizable().scaledToFit()
+                if context.date < until {
+                    Image(nsImage: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? SpaceSymbol.spark : Self.frame(at: context.date))
+                        .resizable().scaledToFit()
+                } else {
+                    idle
+                }
             }
         } else {
-            Image(nsImage: SpaceSymbol.spark).resizable().scaledToFit()
+            idle
         }
+    }
+
+    @ViewBuilder private var idle: some View {
+        if !hidesWhenIdle { Image(nsImage: SpaceSymbol.spark).resizable().scaledToFit() }
     }
 
     /// As the Claude apps play it: 9 frames, 90 ms each, looping.
