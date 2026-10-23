@@ -79,6 +79,7 @@ to check that the feature still works (`forkctl test <feature>`).
 - [x] Find in page, zoom, devtools, view source · print (native panel) · reader mode (Readability, ⌥⌘R) (A, H)
 - [x] History panel ⌘Y (A, H) · Copy URL / as Markdown (A)
 - [~] Import from Arc, Atlas, Chrome, Dia, Helium (+ Brave, Edge, Vivaldi): bookmarks → pinned folder, history,
+      cookies (Keychain Safe Storage key; fixture-tested, not yet run against a real profile),
       Web Store extensions with one-click Add — verified with this Mac's Chrome profiles. Safari (via the Safari feature's grants) done; Arc's
       Spaces' pinned tabs from `StorableSidebar.json` (format per arc-export, tested with a fixture: no Arc sidebar here to
       check); Atlas path is community-reported (R)
