@@ -86,8 +86,10 @@ final class AutomationServer {
     }
 
     private func handle(_ req: [String: Any], reply: @escaping ([String: Any]) -> Void) {
-        // `"private": true/false` targets the first private/normal window, else the key window.
-        let window = (req["private"] as? Bool).map { wanted in runtime.windows.first { $0.isPrivate == wanted } } ?? runtime.keyWindow
+        // `"private": true/false` targets the first private/normal window, `"flag"` the last one with that flag, else the
+        // key window.
+        let window = (req["private"] as? Bool).map { wanted in runtime.windows.first { $0.isPrivate == wanted } }
+            ?? (req["flag"] as? String).map { flag in runtime.windows.last { $0.flags.contains(flag) } } ?? runtime.keyWindow
         switch req["op"] as? String {
         case "run":
             guard let id = req["command"] as? String else { return reply(["ok": false, "error": "missing command"]) }

@@ -82,7 +82,8 @@ newline-delimited JSON: `{"op":"open","url":…}`, `{"op":"navigate","url":…}`
 (key windows only exist when the app is frontmost), `{"op":"click","x":…,"y":…}` (to the view hit-tested there),
 `{"op":"hit","x":…,"y":…}` (which windows and views, Chromium's included, are under a point), `{"op":"clickTitle","title":…}` (clicks the
 window's control showing that text, a sidebar row…), `{"op":"appearance","value":"dark"}` (`light`, `system`), `{"op":"settings","pane":"tabs"}` (the Settings window on a page), `{"op":"peek","value":true}` (the hidden sidebar as a floating panel), `{"op":"quit"}`. `run` replies with the command's main-thread time.
-Any request may add `"private": true` (or `false`) to act on the first private (or normal) window. Socket paths must be short (< 104 bytes): use a relative path and launch from that
+Any request may add `"private": true` (or `false`) to act on the first private (or normal) window, or `"flag": "…"` to act on the
+last window with that flag (a mini window: `"mini-window"`). Socket paths must be short (< 104 bytes): use a relative path and launch from that
 directory.
 
 End-to-end tests: `./forkctl test --e2e` builds the app and runs `Tests/E2E` against the selected engine
