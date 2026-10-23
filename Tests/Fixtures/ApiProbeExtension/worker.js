@@ -58,6 +58,13 @@ const probes = {
       return await chrome.runtime.sendMessage({ target: 'offscreen', html: '<p>hi</p>' });
     } catch (e) { return err(e); }
   },
+  async notify() {
+    try {
+      const id = await chrome.notifications.create({ type: 'basic', iconUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', title: 'Probe', message: 'Hello',
+        buttons: [{ title: 'Open' }] });
+      return Object.keys(await chrome.notifications.getAll()).includes(id) ? 'shown' : 'missing';
+    } catch (e) { return err(e); }
+  },
   // The Origin the server sees for the worker's fetches (the test server echoes it).
   async origin(sender) {
     const echo = new URL('/echo', sender.tab.url).href;

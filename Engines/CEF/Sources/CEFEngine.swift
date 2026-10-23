@@ -108,9 +108,10 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         "metrics-recording-only": "",
         "disable-search-engine-choice-screen": "",
         "enable-blink-features": "DocumentPictureInPictureCefOptions",
-        // Chromium's own notification center instead of asking macOS for notification rights at launch.
+        // Notifications are macOS's (Chrome's native bridge: banners from the app, alerts from the Alerts helper),
+        // not Chromium's own popups. Chrome asks macOS for nothing at launch: only app shims request authorization.
         "disable-features": [
-            "NativeNotifications", "MediaRouter", "AutofillServerCommunication", "Translate",
+            "MediaRouter", "AutofillServerCommunication", "Translate",
             "OptimizationHints", "OptimizationGuideManifestBroker", "OptimizationGuideModelExecution",
             "OnDeviceModelBackgroundDownload", "OnDeviceModelPerformanceParams",
             "NetworkTimeServiceQuerying", "AimServerEligibilityEnabled", "AimServerRequestOnStartupEnabled",

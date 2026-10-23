@@ -99,6 +99,23 @@ struct ExtensionAPITests {
         try s.finish()
     }
 
+    /// An extension's notification is macOS's (Chrome's native bridge), not Chromium's popup, which the browser would
+    /// also have taken for one of Chrome's dialogs ("Notification Settings", "Notification Close").
+    @Test func notificationsAreTheSystems() throws {
+        guard let s = try launch() else { return }
+        try s.openProbePage()
+        let popups = {
+            ((try s.app.call(["op": "views"])["windows"] as? [[String: Any]]) ?? []).filter {
+                $0["class"] as? String == "NativeWidgetMacNSWindow" && !(($0["frame"] as? String) ?? "").hasSuffix("{1, 1}}")
+            }.count
+        }
+        #expect(try s.probe("notify") == "\"shown\"")
+        var seen = 0
+        for _ in 0..<30 { seen = max(seen, try popups()); Thread.sleep(forTimeInterval: 0.1) }
+        #expect(seen == 0)
+        try s.finish()
+    }
+
     /// `tabs.create` opens the page as a tab of the window (with our Chromium's `chromium/0005`, as a child of the page
     /// in front, its id lasting; otherwise Chrome makes it in a window of its own, which the browser adopts by URL), and
     /// `tabs.remove` closes it.

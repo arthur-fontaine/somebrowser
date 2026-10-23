@@ -148,7 +148,7 @@ to check that the feature still works (`forkctl test <feature>`).
       desktop app (unlock with it, Touch ID) needs a Developer ID-signed build (docs/research/apple-integrations.md)
 - [x] Extension management reachable (Tools menu, command bar: the Extensions panel, `extensions.menu`)
 - [x] API compatibility probe (E2E `ExtensionAPITests`, matrix in the Extensions README): scripting, offscreen, web auth
-      flow, tabs, commands, DevTools panels pass; notifications show (Chromium popups)
+      flow, tabs, commands, DevTools panels pass; notifications are macOS's (E2E `notificationsAreTheSystems`)
 - [x] Side panels: hosted in a pane beside the content (Chrome draws them in window chrome pages here don't have)
 - [x] New tab page overrides get ⌘T / New Tab (setting `extensions.newTabPage` keeps the command bar)
 - [x] DevTools keep their own window (they were adopted as a disconnected tab) with extension panels

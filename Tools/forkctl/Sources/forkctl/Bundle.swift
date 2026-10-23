@@ -161,7 +161,7 @@ enum CEFBundler {
             let helper = app.appendingPathComponent("Contents/Frameworks/\(name).app/Contents")
             try fm.createDirectory(at: helper.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
             try fm.copyItem(at: helperBinary, to: helper.appendingPathComponent("MacOS/\(name)"))
-            let plist: [String: Any] = [
+            var plist: [String: Any] = [
                 "CFBundleExecutable": name,
                 "CFBundleIdentifier": "\(p.brand.bundleId).helper\(idSuffix)",
                 "CFBundleName": "\(p.brand.name) Helper\(suffix)",
@@ -170,6 +170,16 @@ enum CEFBundler {
                 "LSMinimumSystemVersion": "26.0",
                 "NSSupportsAutomaticGraphicsSwitching": true,
             ]
+            // Notifications with buttons are posted from this helper (as Chrome's helper-alerts-Info.plist): macOS shows
+            // them as alerts, with its name and icon.
+            if idSuffix == ".alerts" {
+                plist["NSUserNotificationAlertStyle"] = "alert"
+                plist["CFBundleDisplayName"] = p.brand.name
+                plist["CFBundleIconFile"] = "AppIcon"
+                try fm.createDirectory(at: helper.appendingPathComponent("Resources"), withIntermediateDirectories: true)
+                try fm.copyItem(at: app.appendingPathComponent("Contents/Resources/AppIcon.icns"),
+                                to: helper.appendingPathComponent("Resources/AppIcon.icns"))
+            }
             try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
                 .write(to: helper.appendingPathComponent("Info.plist"))
         }
