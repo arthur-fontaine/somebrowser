@@ -127,9 +127,44 @@ enum PiPPhysics {
         }
     }
 
+    static let widths: ClosedRange<CGFloat> = 240...960
+
     /// Keeps a size within limits and the video's aspect ratio (pinch to resize).
-    static func resized(_ size: CGSize, by magnification: CGFloat, aspect: CGFloat, limits: ClosedRange<CGFloat> = 240...960) -> CGSize {
+    static func resized(_ size: CGSize, by magnification: CGFloat, aspect: CGFloat, limits: ClosedRange<CGFloat> = widths) -> CGSize {
         let width = min(max(size.width * (1 + magnification), limits.lowerBound), limits.upperBound)
         return CGSize(width: width.rounded(), height: (width / max(aspect, 0.2)).rounded())
+    }
+
+    struct Edges: OptionSet, Hashable {
+        let rawValue: Int
+        static let left = Edges(rawValue: 1), right = Edges(rawValue: 2), top = Edges(rawValue: 4), bottom = Edges(rawValue: 8)
+    }
+
+    /// The edges a point of the panel (its bounds, y up) grabs: a thin band along each side, a corner near its ends.
+    static func edges(at p: CGPoint, in bounds: CGRect, band: CGFloat = 6, corner: CGFloat = 20) -> Edges {
+        var e: Edges = []
+        let left = p.x - bounds.minX, right = bounds.maxX - p.x, bottom = p.y - bounds.minY, top = bounds.maxY - p.y
+        if left < band || (left < corner && min(top, bottom) < band) { e.insert(.left) }
+        if right < band || (right < corner && min(top, bottom) < band) { e.insert(.right) }
+        if bottom < band || (bottom < corner && min(left, right) < band) { e.insert(.bottom) }
+        if top < band || (top < corner && min(left, right) < band) { e.insert(.top) }
+        return e
+    }
+
+    /// Dragging `edges` of `start` by `offset`: the video's shape kept, the opposite side (or corner) held, a lone side's
+    /// middle staying put across it.
+    static func resized(_ start: CGRect, edges: Edges, by offset: CGVector, aspect: CGFloat, limits: ClosedRange<CGFloat> = widths) -> CGRect {
+        let aspect = max(aspect, 0.2)
+        var proposals: [CGFloat] = []
+        if edges.contains(.right) { proposals.append(start.width + offset.dx) }
+        if edges.contains(.left) { proposals.append(start.width - offset.dx) }
+        if edges.contains(.top) { proposals.append((start.height + offset.dy) * aspect) }
+        if edges.contains(.bottom) { proposals.append((start.height - offset.dy) * aspect) }
+        guard let proposed = proposals.max() else { return start }
+        let width = min(max(proposed, limits.lowerBound), limits.upperBound).rounded()
+        let height = (width / aspect).rounded()
+        let x = edges.contains(.left) ? start.maxX - width : edges.contains(.right) ? start.minX : start.midX - width / 2
+        let y = edges.contains(.bottom) ? start.maxY - height : edges.contains(.top) ? start.minY : start.midY - height / 2
+        return CGRect(x: x.rounded(), y: y.rounded(), width: width, height: height)
     }
 }

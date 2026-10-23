@@ -326,6 +326,26 @@ final class PiPPanel: NSPanel {
         let center = CGPoint(x: frame.midX, y: frame.midY)
         place(CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height))
     }
+
+    // MARK: Edge drags
+
+    /// The edges a point of the panel would resize; none while tucked in (a drag brings it out instead).
+    func resizableEdges(at point: CGPoint) -> PiPPhysics.Edges {
+        guard case .placed = resting else { return [] }
+        return PiPPhysics.edges(at: point, in: CGRect(origin: .zero, size: frame.size))
+    }
+
+    /// Resizes as macOS's own PiP does, without any permission (mouse events reach a window whatever app is in front).
+    func resize(from start: CGRect, edges: PiPPhysics.Edges, by offset: CGVector) {
+        stopSpring()
+        let f = PiPPhysics.resized(start, edges: edges, by: offset, aspect: aspect)
+        targetSize = f.size
+        place(f)
+    }
+
+    func endResize() {
+        resting = .placed(frame.origin)
+    }
 }
 
 /// Mouse drag, two-finger trackpad moves, pinch and hover for the panel.
@@ -333,6 +353,7 @@ final class PiPRootView: NSView {
     private weak var panel: PiPPanel?
     private var samples: [(t: TimeInterval, d: CGVector)] = []
     private var dragStart: CGPoint?
+    private var resizing: (edges: PiPPhysics.Edges, start: CGRect, mouse: CGPoint)?
     private var tracking: NSTrackingArea?
 
     init(frame: CGRect, panel: PiPPanel) {
@@ -345,12 +366,42 @@ final class PiPRootView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let tracking { removeTrackingArea(tracking) }
-        tracking = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self)
+        tracking = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect], owner: self)
         addTrackingArea(tracking!)
     }
 
     override func mouseEntered(with event: NSEvent) { setHover(true) }
-    override func mouseExited(with event: NSEvent) { setHover(false) }
+    override func mouseExited(with event: NSEvent) {
+        setHover(false)
+        if resizing == nil { NSCursor.arrow.set() }
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard resizing == nil else { return }
+        Self.cursor(for: panel?.resizableEdges(at: convert(event.locationInWindow, from: nil)) ?? []).set()
+    }
+
+    /// The edges take the mouse before the controls under them.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let local = convert(point, from: superview)
+        if bounds.contains(local), panel?.resizableEdges(at: local).isEmpty == false { return self }
+        return super.hitTest(point)
+    }
+
+    static func cursor(for edges: PiPPhysics.Edges) -> NSCursor {
+        let position: NSCursor.FrameResizePosition? = switch edges {
+        case [.left, .top]: .topLeft
+        case [.right, .top]: .topRight
+        case [.left, .bottom]: .bottomLeft
+        case [.right, .bottom]: .bottomRight
+        case .left: .left
+        case .right: .right
+        case .top: .top
+        case .bottom: .bottom
+        default: nil
+        }
+        return position.map { NSCursor.frameResize(position: $0, directions: .all) } ?? .arrow
+    }
 
     private func setHover(_ h: Bool) {
         guard let root = subviews.compactMap({ $0 as? NSHostingView<PiPControls> }).first else { return }
@@ -361,12 +412,21 @@ final class PiPRootView: NSView {
 
     // Mouse drag (click anywhere that isn't a control).
     override func mouseDown(with event: NSEvent) {
+        if let panel, case let edges = panel.resizableEdges(at: convert(event.locationInWindow, from: nil)), !edges.isEmpty {
+            resizing = (edges, panel.frame, NSEvent.mouseLocation)
+            return
+        }
         dragStart = NSEvent.mouseLocation
         samples = []
         if event.clickCount == 2 { panel?.unstash() }
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if let resizing {
+            let now = NSEvent.mouseLocation
+            panel?.resize(from: resizing.start, edges: resizing.edges, by: CGVector(dx: now.x - resizing.mouse.x, dy: now.y - resizing.mouse.y))
+            return
+        }
         guard let start = dragStart else { return }
         let now = NSEvent.mouseLocation
         let d = CGVector(dx: now.x - start.x, dy: now.y - start.y)
@@ -376,6 +436,11 @@ final class PiPRootView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if resizing != nil {
+            resizing = nil
+            panel?.endResize()
+            return
+        }
         guard dragStart != nil else { return }
         dragStart = nil
         panel?.release(velocity: PiPPhysics.velocity(of: samples, at: event.timestamp))

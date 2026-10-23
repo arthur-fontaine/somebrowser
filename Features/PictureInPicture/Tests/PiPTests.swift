@@ -46,6 +46,31 @@ struct PiPPhysicsTests {
         #expect(PiPPhysics.resized(size, by: -0.9, aspect: 16 / 9).width == 240)
     }
 
+    /// Sides grab in a thin band, corners near their ends; the middle (and the controls) grab nothing.
+    @Test func edgesGrabbedAtAPoint() {
+        let bounds = CGRect(origin: .zero, size: size)
+        #expect(PiPPhysics.edges(at: CGPoint(x: 2, y: 100), in: bounds) == .left)
+        #expect(PiPPhysics.edges(at: CGPoint(x: 200, y: 223), in: bounds) == .top)
+        #expect(PiPPhysics.edges(at: CGPoint(x: 398, y: 12), in: bounds) == [.right, .bottom])
+        #expect(PiPPhysics.edges(at: CGPoint(x: 12, y: 222), in: bounds) == [.left, .top])
+        #expect(PiPPhysics.edges(at: CGPoint(x: 20, y: 200), in: bounds).isEmpty)  // the close button
+        #expect(PiPPhysics.edges(at: CGPoint(x: 200, y: 112), in: bounds).isEmpty)
+    }
+
+    /// The video's shape is kept, the opposite corner (or side) holds still, within the width limits.
+    @Test func draggingAnEdgeResizesAroundTheOppositeOne() {
+        let start = CGRect(x: 600, y: 300, width: 400, height: 225)
+        let corner = PiPPhysics.resized(start, edges: [.left, .top], by: CGVector(dx: -80, dy: 10), aspect: 16 / 9)
+        #expect(corner.width == 480 && corner.height == 270)
+        #expect(corner.maxX == start.maxX && corner.minY == start.minY)
+
+        let bottom = PiPPhysics.resized(start, edges: .bottom, by: CGVector(dx: 0, dy: -45), aspect: 16 / 9)
+        #expect(bottom.height == 270 && bottom.maxY == start.maxY && bottom.midX == start.midX)
+
+        let shrunk = PiPPhysics.resized(start, edges: .right, by: CGVector(dx: -1000, dy: 0), aspect: 16 / 9)
+        #expect(shrunk.width == PiPPhysics.widths.lowerBound && shrunk.minX == start.minX)
+    }
+
     @Test func timeFormatting() {
         #expect(PiPControls.format(75) == "1:15")
         #expect(PiPControls.format(3725) == "1:02:05")
@@ -73,6 +98,32 @@ struct PiPPanelTests {
         #expect(page.parent === browser && page.isVisible)
         #expect(!panel.isVisible)
         browser.orderOut(nil)
+    }
+
+    /// An edge takes the mouse before the controls, resizes around the opposite corner, and the panel rests at its new
+    /// size; tucked into a side, its edges resize nothing.
+    @Test func draggingAnEdgeResizesThePanel() throws {
+        _ = NSApplication.shared
+        let panel = PiPPanel(content: .view(NSView()), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.present(from: nil)
+        let screen = panel.screenFrame
+        panel.moveBy(screen.midX - panel.frame.midX, screen.midY - panel.frame.midY)
+        panel.release(velocity: .zero)
+        let root = try #require(panel.contentView)
+        #expect(root.hitTest(CGPoint(x: 2, y: 2)) === root)
+        #expect(root.hitTest(CGPoint(x: 160, y: 90)) !== root)  // the controls
+
+        let start = panel.frame
+        let edges = panel.resizableEdges(at: CGPoint(x: 318, y: 178))
+        #expect(edges == [.right, .top])
+        panel.resize(from: start, edges: edges, by: CGVector(dx: 80, dy: 0))
+        panel.endResize()
+        #expect(panel.frame.size == CGSize(width: 400, height: 225))
+        #expect(panel.frame.origin == start.origin)
+
+        panel.release(velocity: CGVector(dx: 6000, dy: 0))
+        #expect(panel.resizableEdges(at: CGPoint(x: 2, y: 100)).isEmpty)
+        panel.dismiss()
     }
 }
 
