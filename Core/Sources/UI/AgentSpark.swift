@@ -14,8 +14,9 @@ public struct AgentSpark: View {
     }
 
     public var body: some View {
-        if let until = activeUntil, until > .now {
-            TimelineView(FrameSchedule(until: until)) { context in
+        if let activeUntil, activeUntil > .now {
+            let until = Self.rest(after: activeUntil)
+            TimelineView(ActivitySchedule(until: until, step: Self.frameDuration)) { context in
                 if context.date < until {
                     Image(nsImage: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? SpaceSymbol.spark : Self.frame(at: context.date))
                         .resizable().scaledToFit()
@@ -32,11 +33,21 @@ public struct AgentSpark: View {
         if !hidesWhenIdle { Image(nsImage: SpaceSymbol.spark).resizable().scaledToFit() }
     }
 
-    /// As the Claude apps play it: 9 frames, 90 ms each, looping.
+    /// As claude.ai and the extension play it (`speed` × `frameCount`, `steps(frameCount, jump-none)`): 9 frames, 90 ms
+    /// each, looping.
     static let frameDuration: TimeInterval = 0.09
+    /// Frames 3 and 4 are the spark at full size, the still logo itself.
+    static let fullFrame = 3
 
-    static func frame(at date: Date) -> NSImage {
-        frames[Int(date.timeIntervalSinceReferenceDate / frameDuration) % frames.count]
+    static func frame(at date: Date) -> NSImage { frames[index(at: date.timeIntervalSinceReferenceDate)] }
+
+    static func index(at time: TimeInterval) -> Int { Int((time / frameDuration).rounded(.down)) % frames.count }
+
+    /// The loop plays on past `date` to the spark at full size, so it stops on the logo, never midway.
+    static func rest(after date: Date) -> Date {
+        var step = (date.timeIntervalSinceReferenceDate / frameDuration).rounded(.up)
+        while Int(step) % frames.count != fullFrame { step += 1 }
+        return Date(timeIntervalSinceReferenceDate: step * frameDuration)
     }
 
     /// The sprite strip is 9 frames of 100 × 100, stacked.
@@ -55,14 +66,56 @@ public struct AgentSpark: View {
         }
     }()
 
-    /// A frame each step until `until`, then one more to show the still spark, then none: an idle spark costs nothing.
-    struct FrameSchedule: TimelineSchedule {
-        let until: Date
+}
 
-        func entries(from start: Date, mode: TimelineScheduleMode) -> [Date] {
-            let steps = max(0, Int(until.timeIntervalSince(start) / AgentSpark.frameDuration))
-            return (0...steps).map { start.addingTimeInterval(Double($0) * AgentSpark.frameDuration) } + [until]
+/// The glow Claude's extension puts around a page it works on, here around `shape`: Claude's clay as an inset glow in
+/// three layers, beating (0.6 → 1 → 0.6 every 2 s, its `claude-pulse`) until `activeUntil`, then fading out.
+public struct AgentGlow<S: InsettableShape>: View {
+    let shape: S
+    let activeUntil: Date?
+
+    public init(_ shape: S, activeUntil: Date?) {
+        self.shape = shape
+        self.activeUntil = activeUntil
+    }
+
+    /// The extension's `rgba(217, 119, 87)`.
+    public static var clay: Color { Color(red: 217 / 255, green: 119 / 255, blue: 87 / 255) }
+    static var fade: TimeInterval { 0.3 }
+
+    public var body: some View {
+        if let until = activeUntil.map({ $0.addingTimeInterval(Self.fade) }), until > .now {
+            TimelineView(ActivitySchedule(until: until, step: 1 / 30)) { context in
+                let left = until.timeIntervalSince(context.date)
+                if left > 0 {
+                    let still = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+                    let beat = still ? 1 : 0.8 - 0.2 * cos(context.date.timeIntervalSinceReferenceDate * .pi)
+                    glow.opacity(beat * min(1, left / Self.fade))
+                }
+            }
+            .allowsHitTesting(false)
         }
+    }
+
+    // The page's 15, 25 and 35 px inset shadows, at a row's scale.
+    private var glow: some View {
+        ZStack {
+            shape.strokeBorder(Self.clay.opacity(0.7), lineWidth: 2).blur(radius: 2)
+            shape.strokeBorder(Self.clay.opacity(0.5), lineWidth: 4).blur(radius: 4)
+            shape.strokeBorder(Self.clay.opacity(0.2), lineWidth: 7).blur(radius: 6)
+        }
+        .clipShape(shape)
+    }
+}
+
+/// An entry each step until `until`, then one at `until`, then none: idle, these views cost nothing.
+struct ActivitySchedule: TimelineSchedule {
+    let until: Date
+    let step: TimeInterval
+
+    func entries(from start: Date, mode: TimelineScheduleMode) -> [Date] {
+        let steps = max(0, Int(until.timeIntervalSince(start) / step))
+        return (0...steps).map { start.addingTimeInterval(Double($0) * step) } + [until]
     }
 }
 
