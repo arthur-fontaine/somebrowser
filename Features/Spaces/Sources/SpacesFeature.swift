@@ -85,7 +85,7 @@ struct SpaceSwitcher: View {
                 ForEach(spaces) { space in
                     let selected = space.id == window.spaceID
                     Button { runtime.switchSpace(space.id, in: window) } label: {
-                        SpaceSymbol(space.kind)
+                        SpaceSymbol(space.kind, activeUntil: space.agentActedAt?.addingTimeInterval(BrowserTab.agentActivityWindow))
                             .foregroundStyle(selected ? .primary : .secondary)
                             .frame(width: 15, height: 15)
                             .frame(width: 36, height: Design.Size.control - 8)
