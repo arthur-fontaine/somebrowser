@@ -2,40 +2,29 @@ import AppKit
 import SwiftUI
 
 /// Claude's spark at work: its "thinking" animation (the spikes grow out of a dot and fold back) while `activeUntil`
-/// is ahead, else the still spark (or nothing, for a mark shown only while it works). Template frames, so it takes the
-/// foreground style like the space symbols; still when the user reduces motion.
+/// is ahead, then on to the still spark. Template frames, so it takes the foreground style like the space symbols; still
+/// when the user reduces motion.
 public struct AgentSpark: View {
     let activeUntil: Date?
-    let hidesWhenIdle: Bool
 
-    public init(activeUntil: Date?, hidesWhenIdle: Bool = false) {
-        self.activeUntil = activeUntil
-        self.hidesWhenIdle = hidesWhenIdle
-    }
+    public init(activeUntil: Date?) { self.activeUntil = activeUntil }
 
     public var body: some View {
-        if let activeUntil, activeUntil > .now {
-            let until = Self.rest(after: activeUntil)
-            TimelineView(ActivitySchedule(until: until, step: Self.frameDuration)) { context in
-                if context.date < until {
+        UntilView(until: activeUntil.map(Self.rest(after:))) { active in
+            if active {
+                TimelineView(.periodic(from: Self.rest(after: .now).addingTimeInterval(-9 * Self.frameDuration), by: Self.frameDuration)) { context in
                     Image(nsImage: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? SpaceSymbol.spark : Self.frame(at: context.date))
                         .resizable().scaledToFit()
-                } else {
-                    idle
                 }
+            } else {
+                Image(nsImage: SpaceSymbol.spark).resizable().scaledToFit()
             }
-        } else {
-            idle
         }
     }
 
-    @ViewBuilder private var idle: some View {
-        if !hidesWhenIdle { Image(nsImage: SpaceSymbol.spark).resizable().scaledToFit() }
-    }
-
-    /// As claude.ai and the extension play it (`speed` × `frameCount`, `steps(frameCount, jump-none)`): 9 frames, 90 ms
-    /// each, looping.
-    static let frameDuration: TimeInterval = 0.09
+    /// claude.ai and the extension play it at 90 ms a frame (`speed` × `frameCount`, `steps(frameCount, jump-none)`),
+    /// for a spark beside a reply; at a symbol's size that read as rushed: half that pace.
+    static let frameDuration: TimeInterval = 0.18
     /// Frames 3 and 4 are the spark at full size, the still logo itself.
     static let fullFrame = 3
 
@@ -84,38 +73,48 @@ public struct AgentGlow<S: InsettableShape>: View {
     static var fade: TimeInterval { 0.3 }
 
     public var body: some View {
-        if let until = activeUntil.map({ $0.addingTimeInterval(Self.fade) }), until > .now {
-            TimelineView(ActivitySchedule(until: until, step: 1 / 30)) { context in
-                let left = until.timeIntervalSince(context.date)
-                if left > 0 {
+        let until = activeUntil?.addingTimeInterval(Self.fade)
+        UntilView(until: until) { active in
+            if active, let until {
+                TimelineView(.animation(minimumInterval: 1 / 30)) { context in
                     let still = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
                     let beat = still ? 1 : 0.8 - 0.2 * cos(context.date.timeIntervalSinceReferenceDate * .pi)
-                    glow.opacity(beat * min(1, left / Self.fade))
+                    glow.opacity(beat * min(1, max(0, until.timeIntervalSince(context.date)) / Self.fade))
                 }
+                .allowsHitTesting(false)
             }
-            .allowsHitTesting(false)
         }
     }
 
-    // The page's 15, 25 and 35 px inset shadows, at a row's scale.
+    // The page's 15, 25 and 35 px inset shadows, at a row's scale, within the shape's rim: a glass edge (the sidebar's
+    // selection) keeps its own light instead of turning into a second, blurred border.
     private var glow: some View {
-        ZStack {
-            shape.strokeBorder(Self.clay.opacity(0.7), lineWidth: 2).blur(radius: 2)
-            shape.strokeBorder(Self.clay.opacity(0.5), lineWidth: 4).blur(radius: 4)
-            shape.strokeBorder(Self.clay.opacity(0.2), lineWidth: 7).blur(radius: 6)
+        let inner = shape.inset(by: 1)
+        return ZStack {
+            inner.strokeBorder(Self.clay.opacity(0.6), lineWidth: 3).blur(radius: 3)
+            inner.strokeBorder(Self.clay.opacity(0.4), lineWidth: 6).blur(radius: 5)
+            inner.strokeBorder(Self.clay.opacity(0.15), lineWidth: 10).blur(radius: 7)
         }
-        .clipShape(shape)
+        .clipShape(inner)
     }
 }
 
-/// An entry each step until `until`, then one at `until`, then none: idle, these views cost nothing.
-struct ActivitySchedule: TimelineSchedule {
-    let until: Date
-    let step: TimeInterval
+/// Its content, told whether `until` is still ahead, and drawn again once it has passed. A timeline's last entry isn't
+/// one to count on for that: in a window that isn't in front, the low-frequency updates skipped it and left the spark
+/// frozen midway.
+struct UntilView<Content: View>: View {
+    let until: Date?
+    @ViewBuilder let content: (Bool) -> Content
+    @State private var passed = 0
 
-    func entries(from start: Date, mode: TimelineScheduleMode) -> [Date] {
-        let steps = max(0, Int(until.timeIntervalSince(start) / step))
-        return (0...steps).map { start.addingTimeInterval(Double($0) * step) } + [until]
+    var body: some View {
+        let _ = passed
+        ZStack { content(until.map { $0 > .now } ?? false) }
+            .task(id: until) {
+                guard let until, until > .now else { return }
+                try? await Task.sleep(for: .seconds(until.timeIntervalSinceNow + 0.01))
+                if !Task.isCancelled { passed += 1 }
+            }
     }
 }
 
