@@ -16,7 +16,8 @@ a profile. It doesn't unlock 1Password either: 1Password 8.12 needs a signed bro
 Settings → Browser → Add Browser. It saves a requirement in `browsers.other-trusted-apps` (its `settings.json`) that
 accepts only distribution leaf certificates: App Store, TestFlight or Developer ID (`6.1.9`, `6.1.3`, `6.1.6`,
 `6.1.25.1`, `6.2.6` + `6.1.13`). An Apple Development leaf (`6.1.2`, `6.1.12`) passes the team clause and fails that
-one, so the helper answers `BrowserVerificationFailed` and the extension falls back to web sign-in. Ad-hoc builds fail
+one, so the helper answers `BrowserVerificationFailed` and the extension falls back to its own web sign-in (which works
+since `cef/0003`; before it, `Origin: null` on the extension's fetches made 1Password's servers answer 5xx). Ad-hoc builds fail
 sooner (no code signature to read). Both need the paid program: Developer ID for 1Password, plus Apple's grant for the
 entitlement.
 

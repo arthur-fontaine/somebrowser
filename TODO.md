@@ -143,6 +143,9 @@ to check that the feature still works (`forkctl test <feature>`).
       `badgesAndWorkerDownloadsWithOurChromium`
 - [x] Drop the hidden omnibox's AI-mode popup renderer: `--disable-webui-omnibox` (patch `chromium/0002`). One page:
       2 renderers instead of 3, helpers 433 MB instead of 583 MB (measured 2026-10-16)
+- [x] 1Password's extension signs in and fills on its own: our CEF sent its fetches as `Origin: null`, which 1Password's
+      servers refuse; `cef/0003` fixes it (E2E `extensionFetchesSendTheirOrigin`, checked live 2026-10-23). The link to the
+      desktop app (unlock with it, Touch ID) needs a Developer ID-signed build (docs/research/apple-integrations.md)
 - [x] Extension management reachable (Tools menu, command bar: the Extensions panel, `extensions.menu`)
 - [x] API compatibility probe (E2E `ExtensionAPITests`, matrix in the Extensions README): scripting, offscreen, web auth
       flow, tabs, commands, DevTools panels pass; notifications show (Chromium popups)
