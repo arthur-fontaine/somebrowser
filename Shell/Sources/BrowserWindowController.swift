@@ -2,11 +2,27 @@ import AppKit
 import BrowserCore
 import SwiftUI
 
-/// The browser window: a real NSWindow we own (native titlebar behaviour, full-size content,
-/// traffic lights inside the sidebar like Arc). Its whole content is a SwiftUI tree made of slots.
-final class ShellWindow: NSWindow {
+/// What the browser window's two kinds share: a window, and a panel that can join another app's full-screen Space.
+protocol ShellWindowing: NSWindow {
     /// Engines that put pages in child windows (CEF) report the page window here so the shell keeps
     /// its active appearance (traffic lights, sidebar vibrancy) while the page has keyboard focus.
+    var childKeyWindowProvider: (() -> Bool)? { get set }
+}
+
+extension ShellWindowing {
+    /// A click from this window's own page or overlay (which have key) is no first click: AppKit would only make this
+    /// window key and drop it, so the address field took two clicks. Key moves here first and the click goes through.
+    func takeKey(before event: NSEvent) {
+        if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type), !isKeyWindow,
+           let key = NSApp.keyWindow, key !== self, ShellWindow.isActive(self, keyWindow: key) {
+            makeKey()
+        }
+    }
+}
+
+/// The browser window: a real NSWindow we own (native titlebar behaviour, full-size content,
+/// traffic lights inside the sidebar like Arc). Its whole content is a SwiftUI tree made of slots.
+final class ShellWindow: NSWindow, ShellWindowing {
     var childKeyWindowProvider: (() -> Bool)?
 
     override var canBecomeKey: Bool { true }
@@ -20,13 +36,25 @@ final class ShellWindow: NSWindow {
         WindowFocus.isActive(window, keyWindow: keyWindow) { $0.parent }
     }
 
-    /// A click from this window's own page or overlay (which have key) is no first click: AppKit would only make this
-    /// window key and drop it, so the address field took two clicks. Key moves here first and the click goes through.
     override func sendEvent(_ event: NSEvent) {
-        if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(event.type), !isKeyWindow,
-           let key = NSApp.keyWindow, key !== self, Self.isActive(self, keyWindow: key) {
-            makeKey()
-        }
+        takeKey(before: event)
+        super.sendEvent(event)
+    }
+}
+
+/// The browser window as a non-activating panel (`BrowserWindowPlacement.isPanel`).
+final class ShellPanel: NSPanel, ShellWindowing {
+    var childKeyWindowProvider: (() -> Bool)?
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
+    @objc var _hasActiveAppearance: Bool {
+        isKeyWindow || childKeyWindowProvider?() == true
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        takeKey(before: event)
         super.sendEvent(event)
     }
 }
@@ -44,8 +72,20 @@ final class BrowserWindowController: NSWindowController, NSWindowDelegate {
         self.runtime = runtime
         self.shell = shell
         let frame = placement?.frame ?? state.frameDescriptor.map(NSRectFromString) ?? Self.defaultFrame()
-        let window = ShellWindow(contentRect: frame, styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-                                 backing: .buffered, defer: false)
+        // Without its screen, a window asked for on another display opens on the main one. With it, the frame is
+        // relative to that screen.
+        let screen = placement?.frame.flatMap { f in NSScreen.screens.first { $0.frame.intersects(f) } }
+        let rect = screen.map { frame.offsetBy(dx: -$0.frame.minX, dy: -$0.frame.minY) } ?? frame
+        let style: NSWindow.StyleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        let window: any ShellWindowing
+        if placement?.isPanel == true {
+            let panel = ShellPanel(contentRect: rect, styleMask: style.union(.nonactivatingPanel), backing: .buffered, defer: false,
+                                   screen: screen)
+            panel.hidesOnDeactivate = false
+            window = panel
+        } else {
+            window = ShellWindow(contentRect: rect, styleMask: style, backing: .buffered, defer: false, screen: screen)
+        }
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         // An empty toolbar: the system's 52 pt titlebar, its traffic lights centered on the sidebar's top row.

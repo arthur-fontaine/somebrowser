@@ -29,10 +29,15 @@ public struct BrowserWindowPlacement {
     public var frame: CGRect?
     public var level: NSWindow.Level
     public var collectionBehavior: NSWindow.CollectionBehavior
+    /// A non-activating panel: the one kind of window macOS shows on another app's full-screen Space (measured: a window
+    /// with the same Spaces stays behind it, or opens on the main display).
+    public var isPanel: Bool
 
-    public init(frame: CGRect? = nil, level: NSWindow.Level = .normal, collectionBehavior: NSWindow.CollectionBehavior = [.fullScreenPrimary]) {
+    public init(frame: CGRect? = nil, level: NSWindow.Level = .normal, collectionBehavior: NSWindow.CollectionBehavior = [.fullScreenPrimary],
+                isPanel: Bool = false) {
         self.frame = frame
         self.level = level
         self.collectionBehavior = collectionBehavior
+        self.isPanel = isPanel
     }
 }
