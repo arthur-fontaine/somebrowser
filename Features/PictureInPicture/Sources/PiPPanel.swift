@@ -48,7 +48,7 @@ final class PiPPanel: NSPanel {
 
         let root = PiPRootView(frame: CGRect(origin: .zero, size: size), panel: self)
         root.wantsLayer = true
-        root.layer?.cornerRadius = 12
+        root.layer?.cornerRadius = Design.windowRadius
         root.layer?.cornerCurve = .continuous
         root.layer?.masksToBounds = true
         if case .window = content {
@@ -63,6 +63,7 @@ final class PiPPanel: NSPanel {
             root.addSubview(v)
         }
         let controls = NSHostingView(rootView: PiPControls(model: model))
+        controls.appearance = NSAppearance(named: .darkAqua)  // over video, whatever the system's appearance
         controls.frame = root.bounds
         controls.autoresizingMask = [.width, .height]
         root.addSubview(controls)
@@ -112,7 +113,11 @@ final class PiPPanel: NSPanel {
         }
         orderFrontRegardless()
         watchPinches()
-        if let w = pageWindow { w.setFrame(frame, display: false); w.orderFront(nil) }
+        if let w = pageWindow {
+            w.contentView?.layer?.cornerRadius = Design.windowRadius  // the browser sets its card's back when shown there
+            w.setFrame(frame, display: false)
+            w.orderFront(nil)
+        }
         settle(target)
         NSAnimationContext.animate(.easeOut(duration: 0.3)) { animator().alphaValue = 1 }
     }
@@ -672,58 +677,50 @@ struct PiPControls: View {
     var body: some View {
         ZStack {
             if model.hovering && !model.stashed {
-                LinearGradient(colors: [.black.opacity(0.55), .clear, .clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom)
+                // Only enough shade at the edges for the glass to read over a bright video.
+                LinearGradient(colors: [.black.opacity(0.3), .clear, .clear, .black.opacity(0.3)], startPoint: .top, endPoint: .bottom)
                     .allowsHitTesting(false)
-                VStack {
-                    HStack {
-                        CircleButton(symbol: "xmark") { model.perform(.close) }
+                VStack(spacing: 0) {
+                    HStack(alignment: .top) {
+                        GlassButton(symbol: "xmark", help: "Close") { model.perform(.close) }
                         Spacer()
-                        CircleButton(symbol: model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill") { model.perform(.toggleMute) }
-                        CircleButton(symbol: "arrow.up.left.and.arrow.down.right") { model.perform(.expand) }
-                    }
-                    Spacer()
-                    if !model.isCall {
-                        HStack(spacing: 22) {
-                            CircleButton(symbol: "gobackward.10", size: 30) { model.perform(.seek(-10)) }
-                            CircleButton(symbol: model.paused ? "play.fill" : "pause.fill", size: 40) { model.perform(.togglePlay) }
-                            CircleButton(symbol: "goforward.10", size: 30) { model.perform(.seek(10)) }
-                        }
-                        Spacer()
-                        if model.duration > 0 {
-                            HStack(spacing: 8) {
-                                Text(Self.format(model.time)).monospacedDigit()
-                                GeometryReader { g in
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(.white.opacity(0.3))
-                                        Capsule().fill(.white).frame(width: g.size.width * CGFloat(model.time / max(model.duration, 1)))
-                                    }
-                                    .frame(height: 4)
-                                    .frame(maxHeight: .infinity)
-                                    .contentShape(Rectangle())
-                                    .gesture(DragGesture(minimumDistance: 0).onEnded { v in
-                                        model.perform(.seekTo(Double(max(0, min(1, v.location.x / g.size.width)))))
-                                    })
+                        GlassGroup(spacing: 6) {
+                            HStack(spacing: 6) {
+                                GlassButton(symbol: model.muted ? "speaker.slash.fill" : "speaker.wave.2.fill", help: model.muted ? "Unmute" : "Mute") {
+                                    model.perform(.toggleMute)
                                 }
-                                .frame(height: 14)
-                                Text("-" + Self.format(max(0, model.duration - model.time))).monospacedDigit()
+                                GlassButton(symbol: "pip.exit", help: "Back to the Tab") { model.perform(.expand) }
                             }
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.9))
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    if !model.isCall {
+                        HStack(spacing: 4) {
+                            PlainSymbolButton(symbol: "gobackward.10", size: 15, help: "Back 10 Seconds") { model.perform(.seek(-10)) }
+                            PlainSymbolButton(symbol: model.paused ? "play.fill" : "pause.fill", size: 22, help: model.paused ? "Play" : "Pause") {
+                                model.perform(.togglePlay)
+                            }
+                            PlainSymbolButton(symbol: "goforward.10", size: 15, help: "Forward 10 Seconds") { model.perform(.seek(10)) }
+                        }
+                        .padding(.horizontal, 6)
+                        .glassSurface(in: Capsule(), interactive: true)
+                        Spacer(minLength: 0)
+                        if model.duration > 0 {
+                            Scrubber(model: model)
                         }
                     }
                 }
-                .padding(8)
+                .padding(Design.Space.block)
                 .transition(.opacity)
             }
             if model.stashed {
-                HStack {
-                    Image(systemName: "chevron.compact.left").font(.system(size: 18, weight: .bold)).foregroundStyle(.white.opacity(0.8))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(.black.opacity(0.35))
-                .allowsHitTesting(false)
+                Image(systemName: "chevron.compact.left").font(.system(size: 18, weight: .bold)).foregroundStyle(.white.opacity(0.9))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.black.opacity(0.35))
+                    .allowsHitTesting(false)
             }
         }
+        .environment(\.colorScheme, .dark)  // over video, whatever the system's appearance
         .animation(.easeOut(duration: 0.18), value: model.hovering)
         .animation(.spring(duration: 0.3), value: model.stashed)
     }
@@ -734,20 +731,77 @@ struct PiPControls: View {
     }
 }
 
-struct CircleButton: View {
+/// A round Liquid Glass button over the video.
+struct GlassButton: View {
     let symbol: String
-    var size: CGFloat = 24
+    let help: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: size * 0.45, weight: .bold))
+                .font(.system(size: 11, weight: .bold))
                 .contentTransition(.symbolEffect(.replace))
-                .frame(width: size, height: size)
-                .background(.ultraThinMaterial, in: Circle())
-                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .glassControl(in: Circle(), hover: false)
+        .help(help)
+    }
+}
+
+/// A symbol in a glass group (the playback capsule): the group is the glass.
+struct PlainSymbolButton: View {
+    let symbol: String
+    let size: CGFloat
+    let help: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: size, weight: .semibold))
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 36, height: 36)
+                .contentShape(Circle())
+                .background(Circle().fill(hovering ? Design.Fill.hover : .clear))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
+        .help(help)
+    }
+}
+
+/// Elapsed, the bar, remaining: one glass capsule along the bottom.
+struct Scrubber: View {
+    let model: PiPControlsModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(PiPControls.format(model.time)).monospacedDigit()
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.25))
+                    Capsule().fill(.white).frame(width: g.size.width * CGFloat(model.time / max(model.duration, 1)))
+                }
+                .frame(height: 4)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0).onEnded { v in
+                    model.perform(.seekTo(Double(max(0, min(1, v.location.x / g.size.width)))))
+                })
+            }
+            .frame(height: 14)
+            Text("-" + PiPControls.format(max(0, model.duration - model.time))).monospacedDigit()
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.white.opacity(0.9))
+        .padding(.horizontal, 12)
+        .frame(height: 28)
+        .glassSurface(in: Capsule())
     }
 }
