@@ -59,6 +59,7 @@ final class CommandBarModel {
 
     func close(_ window: BrowserWindowState) {
         sessions[window.id] = nil
+        cache[window.id] = nil
         window.flags.remove(Self.flag)
         if peeked.remove(window.id) != nil {
             // Put away unless the pointer is over it (then it hides as the pointer leaves, as a hover peek does).
@@ -114,8 +115,21 @@ final class CommandBarModel {
 
     // MARK: Results
 
+    /// Results per window, for the inputs that made them: views ask on every redraw (a dozen while the editor opens),
+    /// and providers can be slow (history scans a large profile's every row for an address that matches nothing).
+    @ObservationIgnored private var cache: [UUID: (key: String, items: [OmniboxItem])] = [:]
+
     func items(for window: BrowserWindowState) -> [OmniboxItem] {
         guard let s = sessions[window.id] else { return [] }
+        let key = [s.typed, "\(s.mode)", s.suggestions.joined(separator: "\n"), "\(runtime.tabs.structureVersion)",
+                   "\(NSPasteboard.general.changeCount)", "\(runtime.settings.bool("command-bar.showActions"))"].joined(separator: "\u{1}")
+        if let cached = cache[window.id], cached.key == key { return cached.items }
+        let items = rankedItems(s, in: window)
+        cache[window.id] = (key, items)
+        return items
+    }
+
+    private func rankedItems(_ s: Session, in window: BrowserWindowState) -> [OmniboxItem] {
         let q = s.typed.trimmingCharacters(in: .whitespacesAndNewlines)
         if q.isEmpty { return recentItems(window) }
 

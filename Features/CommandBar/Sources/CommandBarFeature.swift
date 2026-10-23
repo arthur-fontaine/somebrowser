@@ -148,7 +148,7 @@ struct CommandBarPanel: View {
 
     var body: some View {
         let session = model.session(window)
-        let items = model.items(for: window)
+        let items = isShown ? model.items(for: window) : []  // always mounted: hidden, it ranks nothing
         let query = Binding(get: { model.session(window)?.query ?? "" }, set: { model.setQuery($0, in: window) })
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
         VStack(spacing: 0) {

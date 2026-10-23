@@ -23,8 +23,10 @@ final class StubNewTabPage: NewTabPageProvider {
 }
 
 final class StubProvider: OmniboxProvider {
+    var calls = 0
     func items(for query: String, in window: BrowserWindowState) -> [OmniboxItem] {
-        [OmniboxItem(id: "hist", title: "History hit", icon: .system("clock"), kind: "History", score: 0.7) { _ in }]
+        calls += 1
+        return [OmniboxItem(id: "hist", title: "History hit", icon: .system("clock"), kind: "History", score: 0.7) { _ in }]
     }
 }
 
@@ -233,5 +235,26 @@ struct CommandBarTests {
         #expect(h.runtime.tabs.allTabs.count == before)
         #expect(model.session(h.window)?.style == .palette)
     }
-}
 
+    /// The views ask for the results on every redraw; providers (history over a large profile) run once per change.
+    @Test func resultsAreRankedOncePerQuery() throws {
+        let h = try TestHarness(features: [CommandBarFeature.self], manifestDirectory: #filePath, activate: false)
+        h.runtime.capabilities.provide(SearchService.self, StubSearch())
+        let provider = StubProvider()
+        h.runtime.capabilities.contribute(OmniboxProvider.self, provider)
+        h.activate()
+        let model = try #require(h.runtime.feature(CommandBarFeature.self)?.model)
+        h.openTab("https://claude.example/new")
+        try h.run("command-bar.edit-url")
+        _ = model.items(for: h.window)
+        _ = model.items(for: h.window)
+        #expect(provider.calls == 1)
+        model.setQuery("claude", in: h.window)
+        _ = model.items(for: h.window)
+        #expect(provider.calls == 2)
+        try h.run("command-bar.edit-url")
+        try h.run("command-bar.edit-url")
+        _ = model.items(for: h.window)
+        #expect(provider.calls == 3)  // a new session ranks afresh
+    }
+}
