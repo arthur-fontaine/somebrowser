@@ -110,6 +110,15 @@ struct PiPPanelTests {
         browser.orderOut(nil)
     }
 
+    /// A page's still: pixels, as the engine's (a drawing closure would run off the main thread when decoded).
+    func stillImage() -> NSImage {
+        let context = CGContext(data: nil, width: 32, height: 18, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(NSColor.red.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: 32, height: 18))
+        return NSImage(cgImage: context.makeImage()!, size: CGSize(width: 32, height: 18))
+    }
+
     func magnify(_ m: Double, phase: Int64) -> NSEvent {
         let cg = CGEvent(source: nil)!
         cg.setIntegerValueField(CGEventField(rawValue: 55)!, value: 29)  // a gesture
@@ -125,7 +134,7 @@ struct PiPPanelTests {
         _ = NSApplication.shared
         let page = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 320, height: 180), styleMask: [.borderless], backing: .buffered, defer: false)
         let panel = PiPPanel(content: .window(page), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
-        panel.takeStill = { done in done(NSImage(size: CGSize(width: 32, height: 18), flipped: false) { _ in NSColor.red.setFill(); return true }) }
+        panel.takeStill = { done in done(stillImage()) }
         panel.present(from: nil)
         let screen = panel.screenFrame
         panel.moveBy(screen.midX - panel.frame.midX, screen.midY - panel.frame.midY)
@@ -148,6 +157,25 @@ struct PiPPanelTests {
         #expect(!panel.isSizing && page.frame.size == panel.frame.size)
         panel.dismiss()
         #expect(page.alphaValue == 1 && panel.still == nil)
+    }
+
+    /// Hovered, the panel keeps a decoded still ready: a pinch shows it at once, asking the page for nothing.
+    @Test func aStillIsReadyBeforeThePinch() async throws {
+        _ = NSApplication.shared
+        let panel = PiPPanel(content: .view(NSView()), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.takeStill = { done in done(stillImage()) }
+        panel.present(from: nil)
+        panel.keepStillReady(true)
+        for _ in 0..<100 where panel.readyStill == nil { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(panel.readyStill != nil)
+
+        var asked = 0
+        panel.takeStill = { done in asked += 1; done(nil) }
+        let center = CGPoint(x: panel.frame.midX, y: panel.frame.midY)
+        panel.pointerLocation = { center }
+        panel.pinch(magnify(0, phase: 1))
+        #expect(panel.still != nil && asked == 0)
+        panel.dismiss()
     }
 
     /// An edge takes the mouse before the controls, resizes around the opposite corner, and the panel rests at its new

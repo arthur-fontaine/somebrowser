@@ -127,6 +127,7 @@ final class PiPPanel: NSPanel {
         stopWatchingPinches()
         pinchAnchor = nil
         isSizing = false
+        keepStillReady(false)
         removeStill()
         stopSpring()
         releaseSwipes()
@@ -435,15 +436,54 @@ final class PiPPanel: NSPanel {
         isSizing = true
         sizingGeneration += 1
         if still != nil { return showPage(false) }  // the last one still up
+        if let readyStill { return showStill(readyStill) }
         let generation = sizingGeneration
         takeStill? { [weak self] image in
-            guard let self, self.isSizing, self.sizingGeneration == generation, let image else { return }
-            self.showStill(image)
+            guard let self, self.isSizing, self.sizingGeneration == generation,
+                  let cg = image?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+            self.showStill(cg)
         }
     }
 
-    func showStill(_ image: NSImage) {
-        guard let root = contentView?.layer, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+    /// Under the pointer, a still is kept ready, refreshed while it stays: one taken as a pinch began came frames late
+    /// (the page resizing meanwhile) and its decoding stalled the first ones.
+    private(set) var readyStill: CGImage?
+    private var stillRefresh: Timer?
+
+    func keepStillReady(_ on: Bool) {
+        stillRefresh?.invalidate()
+        stillRefresh = nil
+        guard on, !dismissed else { return }
+        refreshStill()
+        stillRefresh = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshStill() }
+        }
+    }
+
+    private func refreshStill() {
+        guard !isSizing else { return }
+        takeStill? { [weak self] image in
+            guard let image else { return }
+            Task.detached(priority: .userInitiated) {
+                let decoded = Self.decoded(image)
+                await MainActor.run { if let decoded { self?.readyStill = decoded } }
+            }
+        }
+    }
+
+    /// Drawn once into a bitmap: a PNG-backed image otherwise decodes when first shown, on the main thread.
+    nonisolated static func decoded(_ image: NSImage) -> CGImage? {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let context = CGContext(data: nil, width: cg.width, height: cg.height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+        else { return nil }
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: cg.width, height: cg.height))
+        return context.makeImage()
+    }
+
+    func showStill(_ cg: CGImage) {
+        guard let root = contentView?.layer else { return }
         let layer = CALayer()
         layer.actions = ["bounds": NSNull(), "position": NSNull(), "contents": NSNull()]
         layer.contents = cg
@@ -546,6 +586,7 @@ final class PiPRootView: NSView {
     }
 
     private func setHover(_ h: Bool) {
+        panel?.keepStillReady(h)
         guard let root = subviews.compactMap({ $0 as? NSHostingView<PiPControls> }).first else { return }
         root.rootView.model.hovering = h
     }
