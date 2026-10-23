@@ -11,6 +11,15 @@ ships with it **[BIN]**). Request it in the developer portal ("Web Browser Publi
 Requests"). Without it these features fall back (see each section). The app must not be
 sandboxed.
 
+**Free (Personal Team) signing doesn't help (verified 2026-10-23).** A Personal Team can't put a managed entitlement in
+a profile. It doesn't unlock 1Password either: 1Password 8.12 needs a signed browser in `/Applications` and added under
+Settings → Browser → Add Browser. It saves a requirement in `browsers.other-trusted-apps` (its `settings.json`) that
+accepts only distribution leaf certificates: App Store, TestFlight or Developer ID (`6.1.9`, `6.1.3`, `6.1.6`,
+`6.1.25.1`, `6.2.6` + `6.1.13`). An Apple Development leaf (`6.1.2`, `6.1.12`) passes the team clause and fails that
+one, so the helper answers `BrowserVerificationFailed` and the extension falls back to web sign-in. Ad-hoc builds fail
+sooner (no code signature to read). Both need the paid program: Developer ID for 1Password, plus Apple's grant for the
+entitlement.
+
 ## 1. Apple Passwords (autofill, save, generation)
 
 - Apple's native-messaging host
