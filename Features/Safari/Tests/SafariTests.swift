@@ -533,6 +533,8 @@ struct FeatureTests {
 
         let provider = SafariHistoryOmnibox(model: feature.model, runtime: h.runtime)
         #expect(provider.items(for: "swift", in: h.window).first?.subtitle == "swift.org")
+        #expect(provider.items(for: "SWIFT.ORG/", in: h.window).first?.subtitle == "swift.org")  // the address, any case
+        #expect(provider.items(for: "zzz-nowhere", in: h.window).isEmpty)
 
         try h.run("safari.disconnect")
         #expect(feature.model.hasAccess == false)
