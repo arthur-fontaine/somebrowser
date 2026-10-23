@@ -151,13 +151,16 @@ struct CommandBarTests {
         #expect(model.session(h.window)?.selection == count - 1)
     }
 
-    /// A window without a sidebar has no address field to edit in: the palette, and no floating sidebar.
-    @Test func windowsWithoutASidebarGetThePalette() throws {
+    /// A window without a sidebar has no address to edit, and a new tab's is typed in the palette (no floating sidebar).
+    @Test func windowsWithoutASidebarDontEditTheAddress() throws {
         let (h, model) = try harness()
         h.openTab("https://a.example/")
         h.window.isSidebarVisible = false
         h.window.allowsSidebar = false
-        try h.run("command-bar.edit-url")
+        #expect(!h.runtime.commands.canRun("command-bar.edit-url", in: h.window))
+        #expect(throws: CommandError.self) { try h.run("command-bar.edit-url") }
+        #expect(model.session(h.window) == nil)
+        try h.run("command-bar.open")
         #expect(model.session(h.window)?.style == .palette)
         #expect(!h.window.isSidebarPeeking)
     }

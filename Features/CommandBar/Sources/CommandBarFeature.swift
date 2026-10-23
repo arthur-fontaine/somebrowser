@@ -50,8 +50,9 @@ public final class CommandBarFeature: BrowserFeature {
                 model.open(w, mode: .newTab)
             }
         }
-        context.commands.handle("command-bar.edit-url") { [weak self] inv in
-            guard let self, let w = inv.window else { return }
+        // A window without a sidebar (a Quick Look window) shows no address to edit.
+        context.commands.handle("command-bar.edit-url", isEnabled: { $0.window?.allowsSidebar ?? true }) { [weak self] inv in
+            guard let self, let w = inv.window, w.allowsSidebar else { return }
             if model.session(w)?.mode == .editURL {
                 model.close(w)
             } else if self.style == .inline {
