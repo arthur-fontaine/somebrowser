@@ -475,7 +475,8 @@ public final class CEFEngine: NSObject, BrowserEngine, EngineExtensions, CEFRunt
         });
         post('__media', { audio, video });
       };
-      ['play', 'pause', 'ended', 'volumechange', 'emptied'].forEach(e => document.addEventListener(e, media, true));
+      // 'playing' too: a stream starts before it has frames ('play' then finds nothing to show yet).
+      ['play', 'playing', 'pause', 'ended', 'volumechange', 'emptied'].forEach(e => document.addEventListener(e, media, true));
     })();
     """
 }
