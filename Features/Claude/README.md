@@ -12,11 +12,12 @@ doing the same would land there too). On the user's own tabs, the extension mark
 `#claude-static-indicator-container`). Since 1.0.102 they sit in a closed shadow root, so only its host shows: a `div`
 with no attributes or children at the end of `<body>`, computed `display: contents`. A main-frame script watches for
 those elements or that host and tells the feature, which moves the tab (with its children) to the top of the Claude
-space; a window showing it follows. While Claude works on a tab of its space, the tab's row and the space's spark play
-Claude's thinking animation: the extension keeps its own working marks out of the page's reach (no Stop button for
-Claude Code), so the feature counts what it can see, navigations and trusted input on a marked page (Claude clicks,
-types and scrolls through the debugger), and keeps the animation 5 s past the last one, across reads and screenshots.
-Private tabs never move. Move to Your Tabs (row menu) brings one back. Setting `claude.space`.
+space; a window showing it follows. While Claude works on a tab of its space, the tab's row glows and beats as the
+extension's page does, and its spark and the space's play Claude's thinking animation (stopping on the logo): the
+extension keeps its own working marks out of the page's reach (no Stop button for Claude Code), so the feature counts
+what it can see, navigations and trusted input on a marked page (Claude clicks, types and scrolls through the
+debugger), and keeps the animation 5 s past the last one, across reads and screenshots. Private tabs never move. Move
+to Your Tabs (row menu) brings one back. Setting `claude.space`.
 
 **Limits** — the extension makes its tabs with `tabs.create` and groups them (`tabs.group`); here Chrome's own new
 tabs are reopened as the browser's, so their ids don't last, and each page is a window of its own (no group of
