@@ -29,6 +29,10 @@ public final class BrowserTab: Identifiable {
 
     /// Live engine page (not persisted).
     public internal(set) var engineTab: EngineTab?
+    /// When an agent (Claude) last acted on the page: navigated, clicked, typed, scrolled (not persisted). It counts as
+    /// working on it for `agentActivityWindow` after, which covers the steps it takes unseen (reading, screenshots).
+    public var agentActedAt: Date?
+    public static let agentActivityWindow: TimeInterval = 5
 
     public init(id: NodeID = UUID(), url: URL?, title: String = "", faviconURL: URL? = nil, createdAt: Date = Date(),
                 isPrivate: Bool = false) {
@@ -103,6 +107,8 @@ public final class Space: Identifiable {
     public let kind: SpaceKind
     public internal(set) var pinned: [NodeID]
     public internal(set) var today: [NodeID]
+    /// The latest `agentActedAt` of its tabs (not persisted).
+    public var agentActedAt: Date?
 
     public init(id: UUID = UUID(), kind: SpaceKind = .normal, pinned: [NodeID] = [], today: [NodeID] = []) {
         self.id = id

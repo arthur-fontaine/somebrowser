@@ -15,8 +15,13 @@ public extension SpaceKind {
 /// incognito hat and glasses for the private space, Claude's spark for the tabs Claude controls.
 public struct SpaceSymbol: View {
     let kind: SpaceKind
+    /// Claude's spark plays its working animation until then.
+    let activeUntil: Date?
 
-    public init(_ kind: SpaceKind) { self.kind = kind }
+    public init(_ kind: SpaceKind, activeUntil: Date? = nil) {
+        self.kind = kind
+        self.activeUntil = activeUntil
+    }
 
     public var body: some View {
         switch kind {
@@ -24,12 +29,12 @@ public struct SpaceSymbol: View {
         // Template images, not shape fills: on Liquid Glass a shape's fill isn't rendered as vibrant as a symbol, so a
         // `.primary` incognito glyph came out grey beside a `.secondary` person.
         case .private: Image(nsImage: Self.incognito).resizable().scaledToFit()
-        case .claude: Image(nsImage: Self.spark).resizable().scaledToFit()
+        case .claude: AgentSpark(activeUntil: activeUntil)
         }
     }
 
     private static let incognito = template(IncognitoShape())
-    private static let spark: NSImage = {
+    static let spark: NSImage = {
         let svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='\(claudeSpark)'/></svg>"
         let image = NSImage(data: Data(svg.utf8)) ?? NSImage()
         image.isTemplate = true
