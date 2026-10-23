@@ -204,10 +204,17 @@ enum PiPScripts {
           html.__pip body * { visibility: hidden !important; }
           html.__pip video.__pip_target { visibility: visible !important; position: fixed !important; inset: 0 !important;
             width: 100vw !important; height: 100vh !important; max-width: none !important; max-height: none !important;
+            margin: 0 !important; border: 0 !important; padding: 0 !important; display: block !important;
             z-index: 2147483647 !important; object-fit: contain !important; background: #000 !important; transform: none !important; }`;
         document.documentElement.appendChild(s);
       }
       v.classList.add('__pip_target');
+      // In the top layer, the video is laid out against the window: an ancestor with a transform (Twitch's player) or
+      // a filter would otherwise hold it in its own box, cropped.
+      if (v.showPopover && !v.hasAttribute('popover')) {
+        v.dataset.pipPopover = '1'; v.popover = 'manual';
+        try { v.showPopover(); } catch (e) {}
+      }
       if (v.controls) { v.dataset.pipControls = '1'; v.controls = false; }  // our own controls take over
       document.documentElement.classList.add('__pip');
       return [v.videoWidth, v.videoHeight, r.left, r.top, r.width, r.height, innerWidth, innerHeight];
@@ -218,6 +225,7 @@ enum PiPScripts {
       document.querySelectorAll('.__pip_target').forEach(v => {
         v.classList.remove('__pip_target');
         if (v.dataset.pipControls) { v.controls = true; delete v.dataset.pipControls; }
+        if (v.dataset.pipPopover) { try { v.hidePopover(); } catch (e) {} v.removeAttribute('popover'); delete v.dataset.pipPopover; }
       });
       const s = document.getElementById('__pip_style'); if (s) s.remove(); })();
     """
