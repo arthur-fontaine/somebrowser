@@ -144,11 +144,12 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
 
     func showSettings(paneID: String?) {
         if settingsWindow == nil {
-            let w = SettingsWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 540),
+            let w = SettingsWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 640),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                              backing: .buffered, defer: false)
             w.title = "\(Brand.name) Settings"
             w.isReleasedWhenClosed = false
+            w.contentMinSize = NSSize(width: 700, height: 460)
             w.titlebarAppearsTransparent = true
             w.toolbarStyle = .unified
             w.contentView = NSHostingView(rootView: SettingsRootView(initialPane: paneID).environment(BrowserEnvironment(runtime: runtime)))
