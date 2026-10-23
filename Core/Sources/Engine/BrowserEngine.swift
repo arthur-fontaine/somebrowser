@@ -43,6 +43,41 @@ public protocol EngineSiteData: AnyObject {
     func clearData(for site: String) async
 }
 
+/// A cookie as browsers store it. `domain` follows Chromium's `host_key`: a leading dot makes it a domain cookie
+/// (sent to subdomains too), none makes it host-only.
+nonisolated public struct BrowserCookie: Equatable, Sendable {
+    public enum SameSite: Sendable { case noRestriction, lax, strict }
+
+    public var name: String
+    public var value: String
+    public var domain: String
+    public var path: String
+    public var isSecure: Bool
+    public var isHTTPOnly: Bool
+    /// nil for a session cookie.
+    public var expires: Date?
+    /// nil when the site didn't say (the engine's default applies).
+    public var sameSite: SameSite?
+
+    public init(name: String, value: String, domain: String, path: String = "/", isSecure: Bool = false, isHTTPOnly: Bool = false,
+                expires: Date? = nil, sameSite: SameSite? = nil) {
+        self.name = name
+        self.value = value
+        self.domain = domain
+        self.path = path
+        self.isSecure = isSecure
+        self.isHTTPOnly = isHTTPOnly
+        self.expires = expires
+        self.sameSite = sameSite
+    }
+}
+
+/// Optional: engines whose normal profile can take cookies from elsewhere.
+public protocol EngineCookieStore: AnyObject {
+    /// Sets the cookies, replacing ones with the same name, domain and path; returns how many the engine accepted.
+    func addCookies(_ cookies: [BrowserCookie]) async -> Int
+}
+
 public struct EngineCapabilities: OptionSet, Sendable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }

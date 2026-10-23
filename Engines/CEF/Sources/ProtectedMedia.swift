@@ -78,6 +78,19 @@ final class ProtectedMedia {
         return HTTPCookie(properties: properties)
     }
 
+    /// The reverse, for the bridge's `setCookies:`.
+    nonisolated static func bridgeCookie(_ c: BrowserCookie) -> [String: Any] {
+        var out: [String: Any] = ["name": c.name, "value": c.value, "domain": c.domain, "path": c.path, "secure": c.isSecure, "httpOnly": c.isHTTPOnly]
+        if let expires = c.expires { out["expires"] = expires }
+        switch c.sameSite {
+        case .lax?: out["sameSite"] = "lax"
+        case .strict?: out["sameSite"] = "strict"
+        case .noRestriction?: out["sameSite"] = "none"
+        case nil: break
+        }
+        return out
+    }
+
     /// The registrable part of a host, roughly (www.netflix.com → netflix.com; bbc.co.uk stays whole).
     static func site(of url: URL) -> String? {
         guard ["http", "https"].contains(url.scheme ?? ""), let host = url.host()?.lowercased() else { return nil }

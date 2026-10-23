@@ -125,6 +125,9 @@ FOUNDATION_EXPORT NSNotificationName const CEFChromeWindowShownNotification;
 /// {name, value, domain, path, secure, httpOnly (NSNumber), expires (NSDate, absent for session cookies), sameSite
 /// ("lax", "strict", "none" or absent)}. On the main thread.
 - (void)cookiesOfSite:(NSString *)site private:(BOOL)isPrivate completion:(void (NS_SWIFT_UI_ACTOR ^)(NSArray<NSDictionary<NSString *, id> *> *cookies))completion;
+/// Sets cookies in the normal profile, in the shape `cookiesOfSite:` reads them (a `domain` with a leading dot is a
+/// domain cookie, without one host-only); `completion` gets how many Chromium accepted. On the main thread.
+- (void)setCookies:(NSArray<NSDictionary<NSString *, id> *> *)cookies completion:(void (NS_SWIFT_UI_ACTOR ^)(NSInteger accepted))completion;
 @end
 
 @interface CEFTab : NSObject

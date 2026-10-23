@@ -498,3 +498,11 @@ extension CEFEngine: EngineFloating {
         w.orderOut(nil)
     }
 }
+
+extension CEFEngine: EngineCookieStore {
+    public func addCookies(_ cookies: [BrowserCookie]) async -> Int {
+        await withCheckedContinuation { done in
+            runtime.setCookies(cookies.map(ProtectedMedia.bridgeCookie)) { done.resume(returning: $0) }
+        }
+    }
+}

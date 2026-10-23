@@ -266,6 +266,30 @@ extension WebKitEngine: EngineSiteData {
     }
 }
 
+extension WebKitEngine: EngineCookieStore {
+    public func addCookies(_ cookies: [BrowserCookie]) async -> Int {
+        let converted = cookies.compactMap(Self.httpCookie)
+        let store = dataStore.httpCookieStore
+        for cookie in converted { await store.setCookie(cookie) }
+        return converted.count
+    }
+
+    nonisolated static func httpCookie(_ c: BrowserCookie) -> HTTPCookie? {
+        var properties: [HTTPCookiePropertyKey: Any] = [.name: c.name, .value: c.value, .path: c.path.isEmpty ? "/" : c.path]
+        // An origin URL instead of a domain makes it host-only.
+        if c.domain.hasPrefix(".") { properties[.domain] = c.domain } else { properties[.originURL] = URL(string: "https://\(c.domain)/") as Any }
+        if c.isSecure { properties[.secure] = "TRUE" }
+        if c.isHTTPOnly { properties[HTTPCookiePropertyKey("HttpOnly")] = "TRUE" }
+        if let expires = c.expires { properties[.expires] = expires } else { properties[.discard] = "TRUE" }
+        switch c.sameSite {
+        case .lax: properties[.sameSitePolicy] = HTTPCookieStringPolicy.sameSiteLax
+        case .strict: properties[.sameSitePolicy] = HTTPCookieStringPolicy.sameSiteStrict
+        default: break
+        }
+        return HTTPCookie(properties: properties)
+    }
+}
+
 extension WebKitEngine: EngineFloating {
     public func detachForFloating(_ tab: EngineTab) -> FloatingContent? {
         guard let web = (tab as? WebKitTab)?.webView else { return nil }

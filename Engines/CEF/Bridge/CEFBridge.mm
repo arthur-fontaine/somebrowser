@@ -79,6 +79,33 @@ private:
     IMPLEMENT_REFCOUNTING(SiteCookieCollector);
 };
 
+/// Counts the cookies Chromium accepted; the last callback released reports the count.
+class CookieSetTally : public CefBaseRefCounted {
+public:
+    explicit CookieSetTally(void (^completion)(NSInteger)) : completion_(completion) {}
+    ~CookieSetTally() override {
+        NSInteger accepted = accepted_;
+        void (^completion)(NSInteger) = completion_;
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(accepted); });
+    }
+    void Add(bool success) { if (success) accepted_++; }
+
+private:
+    std::atomic<NSInteger> accepted_{0};
+    void (^completion_)(NSInteger);
+    IMPLEMENT_REFCOUNTING(CookieSetTally);
+};
+
+class CookieSetCallback : public CefSetCookieCallback {
+public:
+    explicit CookieSetCallback(CefRefPtr<CookieSetTally> tally) : tally_(tally) {}
+    void OnComplete(bool success) override { tally_->Add(success); }
+
+private:
+    CefRefPtr<CookieSetTally> tally_;
+    IMPLEMENT_REFCOUNTING(CookieSetCallback);
+};
+
 // MARK: - Page windows
 
 static IMP gWindowIsMainWindow;
@@ -1557,5 +1584,36 @@ private:
     CefRefPtr<CefCookieManager> manager = context ? context->GetCookieManager(nullptr) : nullptr;
     CefRefPtr<SiteCookieCollector> collector = new SiteCookieCollector(site.lowercaseString.UTF8String, completion);
     if (manager) manager->VisitAllCookies(collector);
+}
+
+- (void)setCookies:(NSArray<NSDictionary<NSString *, id> *> *)cookies completion:(void (^)(NSInteger))completion {
+    CefRefPtr<CefRequestContext> context = CefRequestContext::GetGlobalContext();
+    CefRefPtr<CefCookieManager> manager = context ? context->GetCookieManager(nullptr) : nullptr;
+    CefRefPtr<CookieSetTally> tally = new CookieSetTally(completion);
+    if (!manager) return;
+    for (NSDictionary<NSString *, id> *c in cookies) {
+        NSString *domain = c[@"domain"], *name = c[@"name"], *value = c[@"value"];
+        if (!domain.length || !name || !value) continue;
+        NSString *path = [c[@"path"] length] ? c[@"path"] : @"/";
+        BOOL hostOnly = ![domain hasPrefix:@"."];
+        // The URL the cookie is set from: its host, https so Secure and __Host- cookies are allowed.
+        NSString *url = [NSString stringWithFormat:@"https://%@%@", hostOnly ? domain : [domain substringFromIndex:1], path];
+        CefCookie cookie;
+        CefString(&cookie.name) = CS(name);
+        CefString(&cookie.value) = CS(value);
+        if (!hostOnly) CefString(&cookie.domain) = CS(domain);
+        CefString(&cookie.path) = CS(path);
+        cookie.secure = [c[@"secure"] boolValue];
+        cookie.httponly = [c[@"httpOnly"] boolValue];
+        if (NSDate *expires = c[@"expires"]) {
+            cef_time_t time;
+            if (cef_time_from_doublet(expires.timeIntervalSince1970, &time) && cef_time_to_basetime(&time, &cookie.expires)) cookie.has_expires = true;
+        }
+        NSString *sameSite = c[@"sameSite"];
+        cookie.same_site = [sameSite isEqualToString:@"lax"] ? CEF_COOKIE_SAME_SITE_LAX_MODE
+            : [sameSite isEqualToString:@"strict"] ? CEF_COOKIE_SAME_SITE_STRICT_MODE
+            : [sameSite isEqualToString:@"none"] ? CEF_COOKIE_SAME_SITE_NO_RESTRICTION : CEF_COOKIE_SAME_SITE_UNSPECIFIED;
+        manager->SetCookie(CS(url), cookie, new CookieSetCallback(tally));
+    }
 }
 @end
