@@ -44,7 +44,8 @@ public final class ImportFeature: BrowserFeature {
         model.canImportCookies = context.engine is EngineCookieStore
         model.result = nil
         window.flags.insert(Self.sheetFlag)
-        if let first = model.profiles.first { select(first) }
+        // A browser read without asking: another feature's source may ask for access, which waits for a click on it.
+        if let first = model.profiles.first(where: { !$0.isContributed }) { select(first) }
     }
 
     /// Reads the profile off the main thread so the sheet shows what will be imported.

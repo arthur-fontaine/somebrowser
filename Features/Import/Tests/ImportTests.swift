@@ -223,7 +223,7 @@ struct ImportFlowTests {
         await feature.importData(data, from: profile, into: h.window)
     }
 
-    /// Another feature's source (e.g. Safari) is listed first and read through it.
+    /// Another feature's source (e.g. Safari) is listed first, read through it, and only once clicked (it may ask for access).
     @Test func importsFromContributedSources() async throws {
         let h = try TestHarness(features: [ImportFeature.self], manifestDirectory: #filePath, activate: false)
         let history = RecordingHistory()
@@ -234,8 +234,10 @@ struct ImportFlowTests {
         let feature = try #require(h.runtime.feature(ImportFeature.self))
         feature.discover = { [] }
         try h.run("import.open")
-        let profile = try #require(feature.model.selected)
+        #expect(feature.model.selected == nil && source.reads == 0)
+        let profile = try #require(feature.model.profiles.first)
         #expect(profile.isContributed && profile.source.name == "Safari")
+        feature.select(profile)
         for _ in 0..<100 where feature.model.preview == nil { try await Task.sleep(for: .milliseconds(20)) }
         let data = try #require(feature.model.preview)
         #expect(data.bookmarkCount == 2 && data.history.count == 1)
@@ -248,8 +250,10 @@ struct ImportFlowTests {
     final class FakeSource: BrowserImportSource {
         let name = "Safari"
         let bundleIdentifier = "com.apple.Safari"
+        var reads = 0
         func importData() async -> ImportableData? {
-            ImportableData(bookmarks: [.folder(title: "Favorites", children: [.link(title: "Apple", url: URL(string: "https://apple.com")!),
+            reads += 1
+            return ImportableData(bookmarks: [.folder(title: "Favorites", children: [.link(title: "Apple", url: URL(string: "https://apple.com")!),
                                                                                 .link(title: "Swift", url: URL(string: "https://swift.org")!)])],
                            history: [HistoryEntry(url: URL(string: "https://swift.org")!, title: "Swift", lastVisit: .now, visitCount: 2)])
         }
