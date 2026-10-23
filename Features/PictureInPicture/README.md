@@ -17,14 +17,17 @@
   speed). Placement is free: still fingers leave the panel where it is, a throw glides on and stops at the screen's
   edges, a throw past a side edge tucks it in (a strip showing; double-click brings it back). Never further off screen
   than tucked in, whether moved, thrown or overshooting.
-- Mouse drag, two-finger trackpad moves and pinch feed it. Trackpad moves follow the fingers whatever the scroll
+- Mouse drag, two-finger trackpad moves, pinch and edge drags feed it. Trackpad moves follow the fingers whatever the scroll
   direction setting, a little further than they travel; the pointer stays put. Swipes go to what's under the pointer,
   which the panel leaves as it moves; and all of a swipe's events go to the window it began over. So, while the pointer
   stays: between swipes, `SwipeCatcher`, a small invisible window under the pointer where the panel isn't, takes the
   next ones (over other apps too; no system permission), and a local monitor hands swipes over the browser's own
-  windows to the panel first (a page that scrolls doesn't take them). Pinches are caught over the
-  panel by event monitors (AppKit sends them to the key window, and the panel never takes focus), in this app and over
-  others.
+  windows to the panel first (a page that scrolls doesn't take them). Pinches go to the frontmost
+  app only, whatever is under the pointer: with this app in front a local monitor catches them over the panel; over
+  other apps nothing sees them but a listen-only event tap, which needs Input Monitoring (asked on the first pinch over
+  the panel; an ad-hoc signed build loses the grant when rebuilt).
+- Resize, with no permission: drag an edge or a corner (`PiPPhysics.edges`, `resized(_:edges:by:)`); the video's shape
+  is kept and the opposite side holds still.
 - Controls: close, mute, expand back to the tab, −10s/play/+10s, scrubber.
 - Selecting the tab again closes the panel; a "Pop-out View" toggle appears in Site Controls.
 

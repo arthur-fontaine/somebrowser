@@ -289,26 +289,71 @@ final class PiPPanel: NSPanel {
         frame.contains(pointer) || (heldPointer != nil && pointerStays())
     }
 
-    /// A pinch over the panel. AppKit sends pinches to the key window, and the panel never becomes key (it never takes
-    /// focus): monitors catch them over it, in this app (active) and in others (it floats over them).
-    private var pinchMonitors: [Any] = []
+    /// Pinches go to the frontmost app only, whatever is under the pointer, and the panel never takes focus. With this
+    /// app in front, a local monitor catches them over the panel. Over other apps no monitor, view or touch sees them;
+    /// only a listen-only event tap does, once the user allows Input Monitoring (asked on the first pinch seen here).
+    private var pinchMonitor: Any?
+    private var pinchTap: CFMachPort?
+    private static var askedForPinchesEverywhere = false
 
     func watchPinches() {
-        guard pinchMonitors.isEmpty else { return }
-        if let local = NSEvent.addLocalMonitorForEvents(matching: .magnify, handler: { [weak self] event in
+        tapPinches()
+        guard pinchMonitor == nil else { return }
+        pinchMonitor = NSEvent.addLocalMonitorForEvents(matching: .magnify) { [weak self] event in
             guard let self, self.isVisible, self.isUnder(self.pointerLocation()) else { return event }
-            self.pinch(event)
-            return nil
-        }) { pinchMonitors.append(local) }
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: .magnify, handler: { [weak self] event in
-            guard let self, self.isVisible, self.isUnder(self.pointerLocation()) else { return }
-            self.pinch(event)
-        }) { pinchMonitors.append(global) }
+            if self.pinchTap == nil {
+                self.pinch(event)
+                self.askForPinchesEverywhere()
+            }
+            return nil  // the tap has it already
+        }
     }
 
     func stopWatchingPinches() {
-        pinchMonitors.forEach(NSEvent.removeMonitor)
-        pinchMonitors.removeAll()
+        if let pinchMonitor { NSEvent.removeMonitor(pinchMonitor) }
+        pinchMonitor = nil
+        if let pinchTap {
+            CGEvent.tapEnable(tap: pinchTap, enable: false)
+            CFMachPortInvalidate(pinchTap)
+        }
+        pinchTap = nil
+    }
+
+    private func askForPinchesEverywhere() {
+        guard !Self.askedForPinchesEverywhere, !CGPreflightListenEventAccess() else { return }
+        Self.askedForPinchesEverywhere = true
+        CGRequestListenEventAccess()
+    }
+
+    private func tapPinches() {
+        guard pinchTap == nil, CGPreflightListenEventAccess() else { return }
+        let callback: CGEventTapCallBack = { _, type, event, info in
+            if let info {
+                let panel = Unmanaged<PiPPanel>.fromOpaque(info).takeUnretainedValue()
+                MainActor.assumeIsolated { panel.tapped(type, event) }
+            }
+            return Unmanaged.passUnretained(event)
+        }
+        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .tailAppendEventTap, options: .listenOnly,
+                                          eventsOfInterest: CGEventMask(1) << 29,  // gestures, pinches among them
+                                          callback: callback, userInfo: Unmanaged.passUnretained(self).toOpaque())
+        else { return }
+        CFRunLoopAddSource(CFRunLoopGetMain(), CFMachPortCreateRunLoopSource(nil, tap, 0), .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        pinchTap = tap
+    }
+
+    private func tapped(_ type: CGEventType, _ cgEvent: CGEvent) {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let pinchTap { CGEvent.tapEnable(tap: pinchTap, enable: true) }
+            return
+        }
+        guard isVisible, let event = NSEvent(cgEvent: cgEvent), event.type == .magnify, isUnder(pointerLocation()) else { return }
+        pinch(event)
+    }
+
+    isolated deinit {
+        if let pinchTap { CFMachPortInvalidate(pinchTap) }  // its callback holds this panel unretained
     }
 
     func pinch(_ event: NSEvent) {
