@@ -1,14 +1,12 @@
 {
   "id": "share",
   "name": "Share",
-  "summary": "One line describing what Share does.",
+  "summary": "Safari's Share: send the page's address with AirDrop, Messages, Mail or any share extension, from the address field or File › Share….",
   "entry": "ShareFeature",
   "provides": [],
   "requires": [],
   "commands": [
-    { "id": "share.hello", "title": "Share: Hello", "menu": "View", "group": "share" }
+    { "id": "share.page", "title": "Share…", "menu": "File", "group": "share", "order": 1, "keywords": ["send", "airdrop", "messages", "mail", "link"] }
   ],
-  "settings": [
-    { "key": "share.enabled", "title": "Enable Share", "type": "bool", "default": true }
-  ]
+  "settings": []
 }
