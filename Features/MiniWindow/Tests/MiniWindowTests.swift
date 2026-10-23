@@ -11,7 +11,7 @@ final class StubShell: ShellServices {
     var closed: [UUID] = []
     init(runtime: BrowserRuntime) { self.runtime = runtime }
     var keyWindowState: BrowserWindowState? { runtime.windows.last }
-    func openWindow(spaceID: UUID?, isPrivate: Bool, initialURL: URL?) -> BrowserWindowState {
+    func openWindow(spaceID: UUID?, isPrivate: Bool, initialURL: URL?, prepare: ((NSWindow) -> Void)?) -> BrowserWindowState {
         let w = runtime.makeWindowState(spaceID: spaceID, isPrivate: isPrivate)
         w.viewport = runtime.engine.makeViewport(in: NSView())
         return w

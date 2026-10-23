@@ -104,10 +104,11 @@ final class ShellController: NSObject, NSApplicationDelegate, ShellServices {
     }
 
     @discardableResult
-    func openWindow(spaceID: UUID?, isPrivate: Bool, initialURL: URL?) -> BrowserWindowState {
+    func openWindow(spaceID: UUID?, isPrivate: Bool, initialURL: URL?, prepare: ((NSWindow) -> Void)?) -> BrowserWindowState {
         let state = runtime.makeWindowState(spaceID: spaceID ?? keyWindowState?.spaceID, isPrivate: isPrivate)
         let controller = BrowserWindowController(state: state, runtime: runtime, shell: self)
         controllers[state.id] = controller
+        if let window = controller.window { prepare?(window) }
         controller.showWindow(nil)
         if let initialURL {
             runtime.openTab(initialURL, in: state)
