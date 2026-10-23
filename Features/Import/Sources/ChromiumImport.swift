@@ -9,9 +9,13 @@ nonisolated struct BrowserSource: Identifiable, Equatable, Sendable {
     var bundleID: String
     /// Candidate user-data directories, relative to `~/Library/Application Support` (first existing wins).
     var userData: [String]
+    /// The Keychain item holding its cookie key, when it isn't "<name> Safe Storage".
+    var safeStorage: String?
+    var keychainService: String { safeStorage ?? "\(name) Safe Storage" }
 
     static let chromium: [BrowserSource] = [
-        BrowserSource(id: "chrome", name: "Google Chrome", bundleID: "com.google.Chrome", userData: ["Google/Chrome"]),
+        BrowserSource(id: "chrome", name: "Google Chrome", bundleID: "com.google.Chrome", userData: ["Google/Chrome"],
+                      safeStorage: "Chrome Safe Storage"),
         BrowserSource(id: "arc", name: "Arc", bundleID: "company.thebrowser.Browser", userData: ["Arc/User Data"]),
         BrowserSource(id: "dia", name: "Dia", bundleID: "company.thebrowser.dia", userData: ["Dia/User Data"]),
         BrowserSource(id: "atlas", name: "ChatGPT Atlas", bundleID: "com.openai.atlas",
@@ -41,6 +45,7 @@ nonisolated struct ImportedData: Equatable, Sendable {
     var bookmarks: [ImportedBookmark] = []
     var history: [HistoryEntry] = []
     var extensions: [BrowserExtension] = []
+    var cookies: [ChromiumCookies.Row] = []
     var bookmarkCount: Int { bookmarks.reduce(0) { $0 + $1.linkCount } }
 }
 
@@ -73,7 +78,8 @@ nonisolated enum ChromiumImport {
         let spaces = ArcSidebar.bookmarks(ArcSidebar.file(forProfile: profile), profileDirectory: profile.lastPathComponent)
         if !spaces.isEmpty { marks.insert(.folder(title: "Arc Spaces", children: spaces), at: 0) }
         return ImportedData(bookmarks: marks, history: history(profile.appendingPathComponent("History"), limit: historyLimit),
-                            extensions: ChromiumExtensions.read(profile: profile).filter(\.isFromWebStore))
+                            extensions: ChromiumExtensions.read(profile: profile).filter(\.isFromWebStore),
+                            cookies: ChromiumCookies.read(profile: profile))
     }
 
     /// The bookmarks bar's items, then "Other Bookmarks" and "Mobile Bookmarks" as folders.

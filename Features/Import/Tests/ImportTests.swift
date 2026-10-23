@@ -1,5 +1,6 @@
 import BrowserCore
 import BrowserTesting
+import CryptoKit
 import Foundation
 import SQLite3
 import Testing
@@ -37,6 +38,31 @@ func makeUserData() throws -> URL {
     """, nil, nil, nil)
     sqlite3_close(db)
     return appSupport
+}
+
+/// A `Cookies` database as Chrome 130+ writes it (version 24: values encrypted with "v10", the plaintext led by the
+/// host's SHA-256), with the Safe Storage password `peanuts`.
+func makeCookies(in profile: URL) throws {
+    let key = ChromiumCookies.key(password: Data("peanuts".utf8))
+    func encrypted(_ value: String, host: String) throws -> String {
+        let plain = Data(SHA256.hash(data: Data(host.utf8))) + Data(value.utf8)
+        let sealed = try #require(ChromiumCookies.aes(plain, key: key, encrypt: true))
+        return "X'" + (Data("v10".utf8) + sealed).map { String(format: "%02x", $0) }.joined() + "'"
+    }
+    let future = 13_600_000_000_000_000  // 2031
+    var db: OpaquePointer?
+    sqlite3_open(profile.appendingPathComponent("Cookies").path, &db)
+    defer { sqlite3_close(db) }
+    sqlite3_exec(db, """
+    CREATE TABLE meta(key TEXT, value TEXT);
+    INSERT INTO meta VALUES ('version', '24');
+    CREATE TABLE cookies(host_key TEXT, top_frame_site_key TEXT, name TEXT, value TEXT, encrypted_value BLOB, path TEXT,
+                         expires_utc INTEGER, is_secure INTEGER, is_httponly INTEGER, samesite INTEGER, has_expires INTEGER);
+    INSERT INTO cookies VALUES ('.github.com', '', 'user_session', '', \(try encrypted("s3cr3t", host: ".github.com")), '/', \(future), 1, 1, 1, 1);
+    INSERT INTO cookies VALUES ('mail.example', '', 'plain', 'visible', X'', '/inbox', 0, 0, 0, -1, 0);
+    INSERT INTO cookies VALUES ('.embed.example', 'https://site.example', 'chips', '', \(try encrypted("x", host: ".embed.example")), '/', \(future), 1, 0, 0, 1);
+    INSERT INTO cookies VALUES ('.old.example', '', 'gone', 'x', X'', '/', 13000000000000000, 0, 0, -1, 1);
+    """, nil, nil, nil)
 }
 
 /// Arc's `StorableSidebar.json` (shape as arc-export reads it): two Spaces in two profiles, a nested pinned folder, a
@@ -80,6 +106,27 @@ struct ReaderTests {
         #expect(ArcSidebar.bookmarks(file, profileDirectory: "Profile 1")
             == [.folder(title: "Home", children: [.link(title: "Home", url: URL(string: "https://home.example/")!)])])
         #expect(ChromiumImport.read(profile).bookmarks.first == .folder(title: "Arc Spaces", children: [work]))
+    }
+
+    @Test func readsAndDecryptsCookies() throws {
+        let appSupport = try makeUserData()
+        let profile = appSupport.appendingPathComponent("Google/Chrome/Default")
+        try makeCookies(in: profile)
+        let rows = ChromiumImport.read(profile).cookies
+        // The partitioned and the expired cookies are left out.
+        #expect(rows.map(\.name) == ["user_session", "plain"])
+
+        let key = ChromiumCookies.key(password: Data("peanuts".utf8))
+        #expect(rows.compactMap { ChromiumCookies.cookie($0, key: key) } == [
+            BrowserCookie(name: "user_session", value: "s3cr3t", domain: ".github.com", isSecure: true, isHTTPOnly: true,
+                          expires: rows[0].expires, sameSite: .lax),
+            BrowserCookie(name: "plain", value: "visible", domain: "mail.example", path: "/inbox"),
+        ])
+        #expect(rows[0].expires.map { $0 > .now } == true)
+        // The wrong password decrypts nothing (the padding check fails).
+        let wrong = ChromiumCookies.key(password: Data("pistachios".utf8))
+        #expect(rows.compactMap { ChromiumCookies.cookie($0, key: wrong) }.map(\.name) == ["plain"])
+        #expect(BrowserSource.chromium.first { $0.id == "edge" }?.keychainService == "Microsoft Edge Safe Storage")
     }
 
     @Test func discoversProfilesWithData() throws {
