@@ -135,6 +135,14 @@ enum PiPPhysics {
         return CGSize(width: width.rounded(), height: (width / max(aspect, 0.2)).rounded())
     }
 
+    /// `frame` at `size`, the screen point `anchor` keeping its place in it.
+    static func scaled(_ frame: CGRect, to size: CGSize, around anchor: CGPoint) -> CGRect {
+        guard frame.width > 0, frame.height > 0 else { return CGRect(origin: frame.origin, size: size) }
+        let fx = min(max((anchor.x - frame.minX) / frame.width, 0), 1)
+        let fy = min(max((anchor.y - frame.minY) / frame.height, 0), 1)
+        return CGRect(x: (anchor.x - fx * size.width).rounded(), y: (anchor.y - fy * size.height).rounded(), width: size.width, height: size.height)
+    }
+
     struct Edges: OptionSet, Hashable {
         let rawValue: Int
         static let left = Edges(rawValue: 1), right = Edges(rawValue: 2), top = Edges(rawValue: 4), bottom = Edges(rawValue: 8)

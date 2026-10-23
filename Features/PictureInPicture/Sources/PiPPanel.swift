@@ -120,6 +120,9 @@ final class PiPPanel: NSPanel {
     func dismiss() {
         dismissed = true
         stopWatchingPinches()
+        pinchAnchor = nil
+        isSizing = false
+        removeStill()
         stopSpring()
         releaseSwipes()
         NSAnimationContext.animate(.easeIn(duration: 0.18)) {
@@ -179,7 +182,11 @@ final class PiPPanel: NSPanel {
     private func place(_ f: CGRect) {
         let f = PiPPhysics.neverLost(f, in: screenFrame)
         setFrame(f, display: true)
-        pageWindow?.setFrame(f, display: true)
+        if let still, let root = contentView {
+            still.frame = root.bounds  // the page, hidden, takes the new size at the end
+        } else {
+            pageWindow?.setFrame(f, display: true)
+        }
     }
 
     /// Moves with the pointer or the fingers. Past a side edge it goes as far as tucked in, no further.
@@ -300,7 +307,7 @@ final class PiPPanel: NSPanel {
         tapPinches()
         guard pinchMonitor == nil else { return }
         pinchMonitor = NSEvent.addLocalMonitorForEvents(matching: .magnify) { [weak self] event in
-            guard let self, self.isVisible, self.isUnder(self.pointerLocation()) else { return event }
+            guard let self, self.takesPinch() else { return event }
             if self.pinchTap == nil {
                 self.pinch(event)
                 self.askForPinchesEverywhere()
@@ -348,8 +355,15 @@ final class PiPPanel: NSPanel {
             if let pinchTap { CGEvent.tapEnable(tap: pinchTap, enable: true) }
             return
         }
-        guard isVisible, let event = NSEvent(cgEvent: cgEvent), event.type == .magnify, isUnder(pointerLocation()) else { return }
+        guard let event = NSEvent(cgEvent: cgEvent), event.type == .magnify, takesPinch() else { return }
         pinch(event)
+    }
+
+    /// A pinch begun over the panel is the panel's until the fingers lift, wherever the pointer drifts meanwhile.
+    private var pinchAnchor: CGPoint?
+
+    private func takesPinch() -> Bool {
+        pinchAnchor != nil || (isVisible && isUnder(pointerLocation()))
     }
 
     isolated deinit {
@@ -357,19 +371,25 @@ final class PiPPanel: NSPanel {
     }
 
     func pinch(_ event: NSEvent) {
-        magnify(by: event.magnification)
+        if pinchAnchor == nil || event.phase == .began {
+            let pointer = pointerLocation()
+            pinchAnchor = frame.contains(pointer) ? pointer : CGPoint(x: frame.midX, y: frame.midY)
+            beginSizing()
+        }
+        magnify(by: event.magnification, around: pinchAnchor ?? .zero)
         // Once the fingers lift, it settles where it is at the new size (on screen, or tucked in still).
         guard event.phase == .ended || event.phase == .cancelled else { return }
+        pinchAnchor = nil
         if case .placed = resting { resting = .placed(frame.origin) }
+        endSizing()
         settle(PiPPhysics.frame(for: resting, size: targetSize, in: screenFrame))
     }
 
-    func magnify(by amount: CGFloat) {
+    /// Scales around `anchor`, which keeps its place in the panel: the pointer stays over it, pinch after pinch.
+    func magnify(by amount: CGFloat, around anchor: CGPoint) {
         stopSpring()
-        let size = PiPPhysics.resized(frame.size, by: amount, aspect: aspect)
-        targetSize = size
-        let center = CGPoint(x: frame.midX, y: frame.midY)
-        place(CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height))
+        targetSize = PiPPhysics.resized(frame.size, by: amount, aspect: aspect)
+        place(PiPPhysics.scaled(frame, to: targetSize, around: anchor))
     }
 
     // MARK: Edge drags
@@ -383,6 +403,7 @@ final class PiPPanel: NSPanel {
     /// Resizes as macOS's own PiP does, without any permission (mouse events reach a window whatever app is in front).
     func resize(from start: CGRect, edges: PiPPhysics.Edges, by offset: CGVector) {
         stopSpring()
+        beginSizing()
         let f = PiPPhysics.resized(start, edges: edges, by: offset, aspect: aspect)
         targetSize = f.size
         place(f)
@@ -390,6 +411,74 @@ final class PiPPanel: NSPanel {
 
     func endResize() {
         resting = .placed(frame.origin)
+        endSizing()
+    }
+
+    // MARK: Size changes
+
+    /// Takes a still of the page (the session asks the engine).
+    var takeStill: ((@escaping (NSImage?) -> Void) -> Void)?
+    private(set) var still: CALayer?
+    private(set) var isSizing = false
+    private var sizingGeneration = 0
+
+    /// While a pinch or a drag changes its size, the page doesn't follow: Chromium draws a new size frames late (black
+    /// strips meanwhile), and a web view's frame is never animated. A still of it, scaled, stands in; at the end the
+    /// page takes the new size and comes back once drawn.
+    private func beginSizing() {
+        guard !isSizing else { return }
+        isSizing = true
+        sizingGeneration += 1
+        if still != nil { return showPage(false) }  // the last one still up
+        let generation = sizingGeneration
+        takeStill? { [weak self] image in
+            guard let self, self.isSizing, self.sizingGeneration == generation, let image else { return }
+            self.showStill(image)
+        }
+    }
+
+    func showStill(_ image: NSImage) {
+        guard let root = contentView?.layer, let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+        let layer = CALayer()
+        layer.actions = ["bounds": NSNull(), "position": NSNull(), "contents": NSNull()]
+        layer.contents = cg
+        layer.contentsGravity = .resizeAspectFill
+        layer.frame = root.bounds
+        root.insertSublayer(layer, at: 0)  // under the controls
+        still = layer
+        showPage(false)
+    }
+
+    private func endSizing() {
+        guard isSizing else { return }
+        isSizing = false
+        if case .view = content { return removeStill() }  // the view follows the panel: shown at its size already
+        pageWindow?.setFrame(frame, display: true)
+        guard still != nil else { return }
+        let generation = sizingGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self, !self.isSizing, self.sizingGeneration == generation else { return }
+            self.removeStill(fading: true)
+        }
+    }
+
+    func removeStill(fading: Bool = false) {
+        showPage(true)
+        guard let still else { return }
+        self.still = nil
+        guard fading else { return still.removeFromSuperlayer() }
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.15)
+        CATransaction.setCompletionBlock { still.removeFromSuperlayer() }
+        still.opacity = 0
+        CATransaction.commit()
+    }
+
+    private func showPage(_ shown: Bool) {
+        switch content {
+        case .window(let w): w.alphaValue = shown ? 1 : 0
+        case .view(let v): v.isHidden = !shown
+        }
     }
 }
 
@@ -415,7 +504,10 @@ final class PiPRootView: NSView {
         addTrackingArea(tracking!)
     }
 
-    override func mouseEntered(with event: NSEvent) { setHover(true) }
+    override func mouseEntered(with event: NSEvent) {
+        setHover(true)
+        panel?.watchPinches()  // Input Monitoring allowed since: pinches over other apps from now on
+    }
     override func mouseExited(with event: NSEvent) {
         setHover(false)
         if resizing == nil { NSCursor.arrow.set() }

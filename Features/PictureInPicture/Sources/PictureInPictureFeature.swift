@@ -133,6 +133,10 @@ final class PiPSession {
         let size = CGSize(width: width, height: (width * 9 / 16).rounded())
         panel = PiPPanel(content: content, size: size, model: model)
         model.perform = { [weak self] action in self?.perform(action) }
+        panel.takeStill = { [weak engineTab] done in
+            guard let engineTab else { return done(nil) }
+            engineTab.snapshot(maxWidth: 1920, completion: done)
+        }
         if isCall {
             panel.present(from: startFrame)
         } else {

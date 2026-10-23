@@ -46,6 +46,16 @@ struct PiPPhysicsTests {
         #expect(PiPPhysics.resized(size, by: -0.9, aspect: 16 / 9).width == 240)
     }
 
+    /// A pinch scales around the pointer, which keeps its place over the panel.
+    @Test func scalingKeepsTheAnchorInPlace() {
+        let frame = CGRect(x: 100, y: 100, width: 400, height: 225)
+        let anchor = CGPoint(x: 400, y: 150)
+        let smaller = PiPPhysics.scaled(frame, to: CGSize(width: 240, height: 135), around: anchor)
+        #expect(smaller.contains(anchor))
+        #expect(abs((anchor.x - smaller.minX) / smaller.width - 0.75) < 0.01)
+        #expect(abs((anchor.y - smaller.minY) / smaller.height - 50.0 / 225) < 0.01)
+    }
+
     /// Sides grab in a thin band, corners near their ends; the middle (and the controls) grab nothing.
     @Test func edgesGrabbedAtAPoint() {
         let bounds = CGRect(origin: .zero, size: size)
@@ -98,6 +108,46 @@ struct PiPPanelTests {
         #expect(page.parent === browser && page.isVisible)
         #expect(!panel.isVisible)
         browser.orderOut(nil)
+    }
+
+    func magnify(_ m: Double, phase: Int64) -> NSEvent {
+        let cg = CGEvent(source: nil)!
+        cg.setIntegerValueField(CGEventField(rawValue: 55)!, value: 29)  // a gesture
+        cg.setIntegerValueField(CGEventField(rawValue: 110)!, value: 8)  // a pinch
+        cg.setDoubleValueField(CGEventField(rawValue: 113)!, value: m)
+        cg.setIntegerValueField(CGEventField(rawValue: 132)!, value: phase)  // 1 began, 2 changed, 4 ended
+        return NSEvent(cgEvent: cg)!
+    }
+
+    /// A pinch begun over the panel stays its own when the pointer drifts off; the page, hidden meanwhile behind a
+    /// still of it, takes the new size once the fingers lift.
+    @Test func aPinchResizesBehindAStillToTheEnd() throws {
+        _ = NSApplication.shared
+        let page = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 320, height: 180), styleMask: [.borderless], backing: .buffered, defer: false)
+        let panel = PiPPanel(content: .window(page), size: CGSize(width: 320, height: 180), model: PiPControlsModel(isCall: false))
+        panel.takeStill = { done in done(NSImage(size: CGSize(width: 32, height: 18), flipped: false) { _ in NSColor.red.setFill(); return true }) }
+        panel.present(from: nil)
+        let screen = panel.screenFrame
+        panel.moveBy(screen.midX - panel.frame.midX, screen.midY - panel.frame.midY)
+        panel.release(velocity: .zero)
+        var pointer = CGPoint(x: panel.frame.midX, y: panel.frame.midY)
+        panel.pointerLocation = { pointer }
+        let start = panel.frame
+
+        panel.pinch(magnify(0, phase: 1))
+        #expect(panel.isSizing && panel.still != nil && page.alphaValue == 0)
+        panel.pinch(magnify(0.5, phase: 2))
+        #expect(panel.frame.width == 480 && panel.frame.contains(pointer))
+        #expect(page.frame.size == start.size)  // the page waits
+
+        pointer = CGPoint(x: screen.minX + 1, y: screen.minY + 1)  // drifted off
+        let mid = panel.frame.width
+        panel.pinch(magnify(-0.25, phase: 2))
+        #expect(panel.frame.width < mid)
+        panel.pinch(magnify(0, phase: 4))
+        #expect(!panel.isSizing && page.frame.size == panel.frame.size)
+        panel.dismiss()
+        #expect(page.alphaValue == 1 && panel.still == nil)
     }
 
     /// An edge takes the mouse before the controls, resizes around the opposite corner, and the panel rests at its new
