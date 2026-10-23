@@ -43,7 +43,7 @@ public final class MiniWindowFeature: BrowserFeature {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main
         let placement = BrowserWindowPlacement(frame: screen.map { Self.frame(around: mouse, in: $0.visibleFrame) }, level: .floating,
-                                        collectionBehavior: [.canJoinAllSpaces, .fullScreenAuxiliary])
+                                        collectionBehavior: [.canJoinAllSpaces, .fullScreenAuxiliary], isPanel: true)
         let window = shell.openWindow(spaceID: nil, isPrivate: false, initialURL: nil, placement: placement)
         window.flags.insert(Self.flag)
         window.isSidebarVisible = false

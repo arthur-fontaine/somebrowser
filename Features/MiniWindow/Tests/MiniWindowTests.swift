@@ -39,7 +39,7 @@ struct MiniWindowTests {
         let mini = try #require(h.runtime.windows.first { $0.flags.contains(MiniWindowFeature.flag) })
         #expect(!mini.isSidebarVisible)
         let placement = try #require(shell.placements.last ?? nil)
-        #expect(placement.level == .floating && placement.collectionBehavior == [.canJoinAllSpaces, .fullScreenAuxiliary])
+        #expect(placement.level == .floating && placement.collectionBehavior == [.canJoinAllSpaces, .fullScreenAuxiliary] && placement.isPanel)
         let tabID = try #require(mini.selectedTabID)
         #expect(throws: CommandError.self) { try h.run("mini-window.move-to-main") }  // disabled outside mini windows
         h.runtime.commands.currentWindow = { mini }
