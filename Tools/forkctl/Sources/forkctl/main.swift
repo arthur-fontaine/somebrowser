@@ -18,7 +18,7 @@ Everyday
 
 Customize a fork (writes only Fork/, never upstream files)
   rename <Name> [--bundle-id id] [--scheme s]
-  icon <path/to/1024.png>
+  icon <path/to/1024.png | path/to/AppIcon.icon>
   engine list | engine use <id>
   feature list | feature enable <id> | feature disable <id>
   feature new <id> [--fork]   Scaffold a feature (code, manifest, README, tests)
@@ -90,14 +90,16 @@ struct CLI {
             }
             try regenerate("renamed to \(name)")
         case "icon":
-            guard let src = positional.first else { throw ProjectError.invalid("usage: forkctl icon <png>") }
-            let dest = root.appendingPathComponent("Fork/Assets/AppIcon.png")
-            try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? FileManager.default.removeItem(at: dest)
-            try FileManager.default.copyItem(at: URL(fileURLWithPath: src), to: dest)
+            guard let src = positional.first else { throw ProjectError.invalid("usage: forkctl icon <png|icon>") }
+            let source = URL(fileURLWithPath: src)
+            let name = source.pathExtension == "icon" ? "AppIcon.icon" : "AppIcon.png"
+            let assets = root.appendingPathComponent("Fork/Assets")
+            try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+            for old in ["AppIcon.png", "AppIcon.icon"] { try? FileManager.default.removeItem(at: assets.appendingPathComponent(old)) }
+            try FileManager.default.copyItem(at: source, to: assets.appendingPathComponent(name))
             try ForkFile.update(root) { f in
                 var b = f.brand ?? BrandConfig()
-                b.icon = "Fork/Assets/AppIcon.png"
+                b.icon = "Fork/Assets/\(name)"
                 f.brand = b
             }
             try regenerate("icon set")

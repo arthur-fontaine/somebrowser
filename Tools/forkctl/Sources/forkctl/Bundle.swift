@@ -43,6 +43,7 @@ enum Bundler {
             "CFBundleShortVersionString": version(p),
             "CFBundleVersion": buildNumber(p),
             "CFBundleIconFile": "AppIcon",
+            "CFBundleIconName": "AppIcon",  // the Assets.car icon, when the brand icon is a .icon
             "LSMinimumSystemVersion": "26.0",
             "LSApplicationCategoryType": "public.app-category.productivity",
             "NSPrincipalClass": principalClass,
@@ -79,11 +80,14 @@ enum Bundler {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? "1"
     }
 
-    /// Brand icon (1024² PNG) → .icns. Fork icon wins over the default one. A master drawn for a small size sits next to
-    /// it as `<name>-<px>.png` (e.g. `AppIcon-16.png`) and is used as is at that size instead of a shrunk copy.
+    /// Brand icon → `AppIcon.icns`. Fork icon wins over the default one. An Icon Composer document (`.icon`) is compiled
+    /// with actool, which also writes `Assets.car`: only that carries the system glass and the dark and tinted looks.
+    /// A 1024² PNG is converted directly; a master drawn for a small size sits next to it as `<name>-<px>.png`
+    /// (e.g. `AppIcon-16.png`) and is used as is at that size instead of a shrunk copy.
     static func makeIcon(_ p: Project, into icns: URL) throws {
         let source = p.brand.icon.map { p.path($0) } ?? p.path("Defaults/Assets/AppIcon.png")
         guard FileManager.default.fileExists(atPath: source.path) else { return }
+        if source.pathExtension == "icon" { return try compileIcon(source, into: icns.deletingLastPathComponent()) }
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("forkctl-\(UUID().uuidString).iconset")
         try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tmp) }
@@ -101,6 +105,33 @@ enum Bundler {
             }
         }
         try Shell.run(["iconutil", "-c", "icns", tmp.path, "-o", icns.path], quiet: true)
+    }
+
+    /// `.icon` → `Assets.car` + `AppIcon.icns` in `resources`. actool names the icon after its file, so it compiles a
+    /// copy named `AppIcon.icon`. Its report (a plist on stdout) says why it rejected a document, so it is kept.
+    static func compileIcon(_ source: URL, into resources: URL) throws {
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory.appendingPathComponent("forkctl-\(UUID().uuidString)")
+        try fm.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: tmp) }
+        let doc = tmp.appendingPathComponent("AppIcon.icon")
+        try fm.copyItem(at: source, to: doc)
+        let actool = Process()
+        actool.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        actool.arguments = [
+            "actool", doc.path, "--compile", resources.path, "--app-icon", "AppIcon",
+            "--platform", "macosx", "--target-device", "mac", "--minimum-deployment-target", "26.0",
+            "--output-partial-info-plist", tmp.appendingPathComponent("partial.plist").path,
+        ]
+        let out = Pipe()
+        actool.standardOutput = out
+        actool.standardError = out
+        try actool.run()
+        let report = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        actool.waitUntilExit()
+        guard actool.terminationStatus == 0, fm.fileExists(atPath: resources.appendingPathComponent("Assets.car").path) else {
+            throw ProjectError.invalid("actool could not compile \(source.lastPathComponent):\n\(report)")
+        }
     }
 
     static func sign(_ p: Project, app: URL) throws {
