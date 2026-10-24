@@ -85,7 +85,7 @@ enum Bundler {
     /// A 1024² PNG is converted directly; a master drawn for a small size sits next to it as `<name>-<px>.png`
     /// (e.g. `AppIcon-16.png`) and is used as is at that size instead of a shrunk copy.
     static func makeIcon(_ p: Project, into icns: URL) throws {
-        let source = p.brand.icon.map { p.path($0) } ?? p.path("Defaults/Assets/AppIcon.png")
+        let source = p.brand.icon.map { p.path($0) } ?? p.path("Defaults/Assets/AppIcon.icon")
         guard FileManager.default.fileExists(atPath: source.path) else { return }
         if source.pathExtension == "icon" { return try compileIcon(source, into: icns.deletingLastPathComponent()) }
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("forkctl-\(UUID().uuidString).iconset")
