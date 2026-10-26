@@ -149,16 +149,7 @@ final class AutomationServer {
             guard let chars = req["key"] as? String, let target = req["page"] as? Bool == true ? pageWindow : NSApp.keyWindow else {
                 return reply(["ok": false, "error": "missing key or no target window"])
             }
-            var flags: NSEvent.ModifierFlags = []
-            for m in req["modifiers"] as? [String] ?? [] {
-                switch m {
-                case "cmd": flags.insert(.command)
-                case "shift": flags.insert(.shift)
-                case "opt": flags.insert(.option)
-                case "ctrl": flags.insert(.control)
-                default: break
-                }
-            }
+            var flags = Self.modifiers(req["modifiers"])
             if (123...126).contains(req["keyCode"] as? Int ?? 0) { flags.formUnion([.function, .numericPad]) }  // as the arrow keys report
             for type in [NSEvent.EventType.keyDown, .keyUp] {
                 guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime,
@@ -230,7 +221,7 @@ final class AutomationServer {
             NSApp.yieldActivation(to: finder)
             reply(["ok": finder.activate(from: .current)])
         case "mouse":
-            // `events`: [{type: move|down|up|drag, x, y}], points from the browser window's top-left, posted one by one
+            // `events`: [{type: move|down|up|drag, x, y, modifiers?}], points from the browser window's top-left, posted one by one
             // through the app's event queue as the window server sends them: to `window` (browser, overlay or page) as it
             // is, key or not, so first clicks, key changes and hover tracking run as they do for a person.
             guard let shellWindow = window.flatMap({ shell?.nsWindow(for: $0) }) else { return reply(["ok": false, "error": "no window"]) }
@@ -244,7 +235,7 @@ final class AutomationServer {
             for step in req["events"] as? [[String: Any]] ?? [] {
                 guard let type = types[step["type"] as? String ?? ""] else { continue }
                 let screen = NSPoint(x: shellWindow.frame.minX + (step["x"] as? Double ?? 0), y: shellWindow.frame.maxY - (step["y"] as? Double ?? 0))
-                guard let event = NSEvent.mouseEvent(with: type, location: target.convertPoint(fromScreen: screen), modifierFlags: [],
+                guard let event = NSEvent.mouseEvent(with: type, location: target.convertPoint(fromScreen: screen), modifierFlags: Self.modifiers(step["modifiers"]),
                                                      timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: target.windowNumber,
                                                      context: nil, eventNumber: 0, clickCount: step["clicks"] as? Int ?? 1,
                                                      pressure: type == .leftMouseUp || type == .mouseMoved ? 0 : 1)
@@ -393,6 +384,21 @@ final class AutomationServer {
 
     /// Screen frame of the first accessibility element under `window` labelled, titled or valued `title` (SwiftUI text
     /// is a value).
+    /// ["cmd", "shift", "opt", "ctrl"] as event flags.
+    static func modifiers(_ names: Any?) -> NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        for m in names as? [String] ?? [] {
+            switch m {
+            case "cmd": flags.insert(.command)
+            case "shift": flags.insert(.shift)
+            case "opt": flags.insert(.option)
+            case "ctrl": flags.insert(.control)
+            default: break
+            }
+        }
+        return flags
+    }
+
     static func accessibleFrame(titled title: String, in window: NSWindow) -> NSRect? {
         var queue: [Any] = [window]
         var seen = 0
