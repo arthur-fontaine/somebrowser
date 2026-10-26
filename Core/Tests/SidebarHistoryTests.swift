@@ -35,6 +35,26 @@ struct SidebarHistoryTests {
         #expect(!h.runtime.tabs.contains(b.id))
     }
 
+    /// Several tabs pinned then closed in one group: one ⌘Z brings back and unpins them all.
+    @Test func aGroupUndoesAsOneStep() throws {
+        let h = try harness()
+        let a = h.openTab("https://a.example"), b = h.openTab("https://b.example"), c = h.openTab("https://c.example")
+        let tabs = h.runtime.tabs, history = h.runtime.sidebarHistory
+        let today = tabs.container(of: a.id)
+        history.group {
+            for id in [a.id, b.id] { history.move(id) { tabs.pin(id, in: h.window.spaceID) } }
+        }
+        history.group { history.close([c.id], includingDescendants: false) }
+        history.undo(in: h.window)
+        #expect(tabs.contains(c.id))
+        #expect(tabs.isPinned(a.id) && tabs.isPinned(b.id))
+        history.undo(in: h.window)
+        #expect(tabs.container(of: a.id) == today && tabs.container(of: b.id) == today)
+        #expect(!history.canUndo)
+        history.redo(in: h.window)
+        #expect(tabs.isPinned(a.id) && tabs.isPinned(b.id))
+    }
+
     /// Reopened another way in between (⇧⌘T): the closed list moved on, so Undo stops rather than reopen something else.
     @Test func staleStepsAreDropped() throws {
         let h = try harness()
