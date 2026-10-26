@@ -11,11 +11,13 @@ public struct PanelItem: Identifiable {
     /// Offered as Copy Link.
     public var url: URL?
     public var open: () -> Void
+    /// ⌘-click (or ⌘↩): opened behind the list, which stays for the next one.
+    public var openInBackground: (() -> Void)?
     /// Shown as a × under the pointer, and in the row's menu.
     public var remove: (title: String, action: () -> Void)?
 
     public init(id: String, icon: NSImage?, title: String, subtitle: String? = nil, detail: String? = nil, url: URL? = nil,
-                open: @escaping () -> Void, remove: (title: String, action: () -> Void)? = nil) {
+                open: @escaping () -> Void, openInBackground: (() -> Void)? = nil, remove: (title: String, action: () -> Void)? = nil) {
         self.id = id
         self.icon = icon
         self.title = title
@@ -23,6 +25,7 @@ public struct PanelItem: Identifiable {
         self.detail = detail
         self.url = url
         self.open = open
+        self.openInBackground = openInBackground
         self.remove = remove
     }
 }
@@ -76,8 +79,8 @@ public struct PanelEmptyState {
 
 /// A list that pops up from the sidebar's footer (History, the archive), as the extensions panel does from the address
 /// field: a compact glass panel above the button that opened it, its title, a search field and the rows by section.
-/// The arrows move through the rows (as does the pointer), Return opens one, ⌘⌫ removes it, Esc clears the search and
-/// then closes.
+/// The arrows move through the rows (as does the pointer), Return opens one (⌘-click or ⌘↩ behind the list, which stays),
+/// ⌘⌫ removes it, Esc clears the search and then closes.
 public struct ListPopover<Menu: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let id: String
@@ -292,17 +295,26 @@ struct ListPopoverBody<Menu: View>: View {
     }
 
     private func open(_ item: PanelItem) {
+        if NSEvent.modifierFlags.contains(.command), let openInBackground = item.openInBackground {
+            moveSelection(past: item)  // it may leave the list (an archived tab restored)
+            openInBackground()
+            return
+        }
         item.open()
         close()
     }
 
-    /// The selection moves on to the next row, as in Mail.
     private func remove(_ item: PanelItem) {
+        moveSelection(past: item)
+        item.remove?.action()
+    }
+
+    /// The selection moves on to the next row, as in Mail.
+    private func moveSelection(past item: PanelItem) {
         let ids = items.map(\.id)
         if item.id == selection, let i = ids.firstIndex(of: item.id) {
             selection = i + 1 < ids.count ? ids[i + 1] : i > 0 ? ids[i - 1] : nil
         }
-        item.remove?.action()
     }
 }
 

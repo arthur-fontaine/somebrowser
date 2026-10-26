@@ -55,6 +55,20 @@ struct ArchiveTests {
         #expect(feature.store.items.isEmpty)
     }
 
+    /// ⌘-click in the archive: the tab comes back to Today, the page shown stays.
+    @Test func restoreInBackgroundKeepsTheSelection() throws {
+        let (h, feature) = try harness()
+        let a = h.openTab("https://a.example")
+        let b = h.openTab("https://b.example")
+        a.lastActiveAt = .distantPast
+        feature.archiveIdleTabs(now: Date())
+        let item = try #require(feature.store.items.first)
+        feature.restore(item, in: h.window, select: false)
+        #expect(h.window.selectedTabID == b.id)
+        #expect(h.runtime.tabs.nodes(in: .section(h.window.spaceID, .today)).compactMap { h.runtime.tabs.tab($0)?.url?.host() }.first == "a.example")
+        #expect(feature.store.items.isEmpty)
+    }
+
     @Test func pruneOldArchives() throws {
         let (_, feature) = try harness()
         feature.store.add([ArchivedTab(tab: BrowserTab(url: URL(string: "https://x.example")!), spaceID: UUID(), at: .distantPast)])

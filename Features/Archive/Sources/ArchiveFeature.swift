@@ -78,12 +78,13 @@ public final class ArchiveFeature: BrowserFeature {
         return archived
     }
 
-    func restore(_ item: ArchivedTab, in window: BrowserWindowState) {
+    /// Back in Today, at its top; `select: false` leaves the page shown as it is (⌘-click in the archive).
+    func restore(_ item: ArchivedTab, in window: BrowserWindowState, select: Bool = true) {
         store.remove(item.id)
         let space = context.tabs.space(item.spaceID) != nil ? item.spaceID : window.spaceID
         let tab = BrowserTab(url: item.url, title: item.title, faviconURL: item.faviconURL)
         context.tabs.insert(tab, into: .section(space, .today), at: 0)
-        context.runtime.select(tab.id, in: window)
+        if select { context.runtime.select(tab.id, in: window) }
     }
 }
 
@@ -181,6 +182,7 @@ struct ArchivePanel: View {
             PanelItem(id: item.id.uuidString, icon: runtime.favicons.image(for: item.url), title: item.title,
                       subtitle: item.url?.host(), detail: item.archivedAt.formatted(date: .omitted, time: .shortened), url: item.url,
                       open: { runtime.feature(ArchiveFeature.self)?.restore(item, in: window) },
+                      openInBackground: { runtime.feature(ArchiveFeature.self)?.restore(item, in: window, select: false) },
                       remove: ("Delete from Archive", { store.remove(item.id) }))
         }
     }

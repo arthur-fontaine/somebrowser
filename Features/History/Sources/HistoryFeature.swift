@@ -93,6 +93,7 @@ struct HistoryPanelOverlay: View {
                       title: e.title.isEmpty ? e.url.absoluteString : e.title, subtitle: Self.address(e.url),
                       detail: e.lastVisit.formatted(date: .omitted, time: .shortened), url: e.url,
                       open: { runtime.openTab(e.url, in: window) },
+                      openInBackground: { runtime.openTab(e.url, in: window, select: false) },
                       remove: ("Remove from History", { store.remove(url: e.url); revision += 1 }))
         }
     }
