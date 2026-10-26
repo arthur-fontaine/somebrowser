@@ -9,8 +9,8 @@ Hiding it (⌘S) gives an almost full-screen page; the left window edge reveals 
   focus mode). Fully unit-tested.
 - `SidebarView` / `TabList` / `TabRow` — SwiftUI. Rows are a flat precomputed list (`TabStore.rows`)
   in a `LazyVStack`; each row observes only its own `Tab`, so title/favicon changes re-render one row.
-- Hover uses one `onContinuousHover` per list and the *target* layout (Radian's instant hitbox),
-  so highlight is correct while rows spring.
+- Hover comes from one AppKit tracking area per list (`PointerTracker`: SwiftUI's hover reports trailed the pointer)
+  and the *target* layout (Radian's instant hitbox), so highlight is correct while rows spring.
 - The selection is one Liquid Glass lens drawn behind all rows (`SelectionLens`) at the selected row's frame, which
   rows report as an anchor preference; it slides between rows. Rows themselves are washes, never glass (a lens per
   row smeared both titles while the glass re-formed).

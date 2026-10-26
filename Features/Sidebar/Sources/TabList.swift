@@ -45,18 +45,51 @@ struct TabList: View {
                     SidebarLogic.placement(at: point, rows: rows, in: container, dragged: dragged, rowHeight: rowHeight,
                                            spacing: SidebarModel.rowSpacing, store: store)
                 })
-                .onContinuousHover { phase in
-                    switch phase {
-                    case .active(let p):
-                        let id = SidebarLogic.row(at: p.y, rows: rows, rowHeight: rowHeight, spacing: SidebarModel.rowSpacing)?.id
-                        if model.hovered != id { model.hovered = id }
-                    case .ended:
-                        if let h = model.hovered, rows.contains(where: { $0.id == h }) { model.hovered = nil }
+                .background {
+                    PointerTracker { y in
+                        if let y {
+                            let id = SidebarLogic.row(at: y, rows: rows, rowHeight: rowHeight, spacing: SidebarModel.rowSpacing)?.id
+                            if model.hovered != id { model.hovered = id }
+                        } else if let h = model.hovered, rows.contains(where: { $0.id == h }) {
+                            model.hovered = nil
+                        }
                     }
                 }
             }
         }
         .animation(.spring(duration: 0.38, bounce: 0.16), value: rows)
+    }
+}
+
+/// The pointer's height over the view (nil once it leaves), from every mouse-moved event: an AppKit tracking area, as
+/// SwiftUI's hover reports trailed the pointer by a fifth of a second. Rect-based, so it reports under the rows too.
+struct PointerTracker: NSViewRepresentable {
+    let moved: (CGFloat?) -> Void
+
+    func makeNSView(context: Context) -> TrackingView { TrackingView() }
+    func updateNSView(_ view: TrackingView, context: Context) { view.moved = moved }
+
+    final class TrackingView: NSView {
+        var moved: ((CGFloat?) -> Void)?
+        override var isFlipped: Bool { true }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            if trackingAreas.isEmpty {
+                addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                               owner: self))
+            }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }  // clicks, drags and menus belong to the rows
+        override func mouseEntered(with event: NSEvent) { report(event) }
+        override func mouseMoved(with event: NSEvent) { report(event) }
+        override func mouseExited(with event: NSEvent) { moved?(nil) }
+
+        private func report(_ event: NSEvent) {
+            let y = convert(event.locationInWindow, from: nil).y
+            moved?(bounds.contains(NSPoint(x: bounds.midX, y: y)) ? y : nil)
+        }
     }
 }
 
