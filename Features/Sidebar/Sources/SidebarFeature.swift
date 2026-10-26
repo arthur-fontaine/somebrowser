@@ -106,19 +106,32 @@ final class SidebarModel {
 
     func beginDrag(_ id: NodeID) {
         dragging = id
+        releasedAt = nil
         dragWatch?.invalidate()
-        // SwiftUI tells no one when a drag ends away from a drop target (Esc, released outside, on itself). The timer runs
-        // in the default run loop mode, so it only fires once the drag session is over.
+        // SwiftUI tells no one when a drag ends away from a drop target (Esc, released outside, on itself). The drop itself
+        // can arrive after the button is up (later still while the main thread is busy), so the dragged node outlives the
+        // release by a moment: cleared at once, the drop found nothing to move and the tab slid back home.
         dragWatch = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                if NSEvent.pressedMouseButtons & 1 == 0 { self?.endDrag() }
+                guard let self else { return }
+                guard NSEvent.pressedMouseButtons & 1 == 0 else { self.releasedAt = nil; return }
+                let released = self.releasedAt ?? Date()
+                if self.releasedAt == nil {
+                    self.releasedAt = released
+                    self.dropTarget = nil
+                }
+                if Date().timeIntervalSince(released) > Self.dropGrace { self.endDrag() }
             }
         }
     }
 
+    @ObservationIgnored private var releasedAt: Date?
+    static let dropGrace: TimeInterval = 0.5
+
     func endDrag() {
         dragWatch?.invalidate()
         dragWatch = nil
+        releasedAt = nil
         dropTarget = nil
         dragging = nil
         if favoritesOpen { withAnimation(Design.Motion.layout) { favoritesOpen = false } }
