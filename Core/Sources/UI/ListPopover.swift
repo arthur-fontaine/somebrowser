@@ -295,7 +295,7 @@ struct ListPopoverBody<Menu: View>: View {
     }
 
     private func open(_ item: PanelItem) {
-        if NSEvent.modifierFlags.contains(.command), let openInBackground = item.openInBackground {
+        if (NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags).contains(.command), let openInBackground = item.openInBackground {
             moveSelection(past: item)  // it may leave the list (an archived tab restored)
             openInBackground()
             return
