@@ -58,6 +58,8 @@ final class SidebarModel {
     static let focusFlag = "sidebar.focus"
     @ObservationIgnored let runtime: BrowserRuntime
     var hovered: NodeID?
+    /// Tabs picked with ⇧-click, per window, besides the one shown: the row menu acts on all of them.
+    var picked: [UUID: Set<NodeID>] = [:]
     /// The node dragged from any sidebar, and where it would land.
     var dragging: NodeID?
     var dropTarget: DropTarget?
@@ -102,6 +104,17 @@ final class SidebarModel {
     struct DropTarget: Equatable {
         let owner: DropOwner
         let placement: SidebarLogic.DropPlacement
+    }
+
+    /// The picked tabs in the order shown, or none if fewer than two still show.
+    func picks(in window: BrowserWindowState) -> [NodeID] {
+        guard let picked = picked[window.id], picked.count > 1 else { return [] }
+        let ids = TabList.shownRows(in: window, store: runtime.tabs).map(\.id).filter(picked.contains)
+        return ids.count > 1 ? ids : []
+    }
+
+    func clearPicks(in window: BrowserWindowState) {
+        if picked[window.id] != nil { picked[window.id] = nil }
     }
 
     func beginDrag(_ id: NodeID) {

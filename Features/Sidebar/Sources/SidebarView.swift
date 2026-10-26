@@ -224,7 +224,10 @@ struct SpacePager: View {
             .clipped()
             .background(SwipeCatcher(window: window, model: model, width: width, runtime: env.runtime))
         }
-        .onChange(of: window.spaceID) { old, new in slide(from: old, to: new) }
+        .onChange(of: window.spaceID) { old, new in
+            model.clearPicks(in: window)
+            slide(from: old, to: new)
+        }
     }
 
     private func slide(from old: UUID, to new: UUID) {

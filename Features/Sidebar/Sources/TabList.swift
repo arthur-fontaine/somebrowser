@@ -16,6 +16,11 @@ struct TabList: View {
         return window.flags.contains(SidebarModel.focusFlag) ? SidebarLogic.focusRows(all, selected: window.selectedTabID, store: store) : all
     }
 
+    /// The window's space as its sidebar lists it: pinned, then Today.
+    static func shownRows(in window: BrowserWindowState, store: TabStore) -> [SidebarRow] {
+        rows(.section(window.spaceID, .pinned), in: window, store: store) + rows(.section(window.spaceID, .today), in: window, store: store)
+    }
+
     var body: some View {
         let store = env.runtime.tabs
         let rows = Self.rows(container, in: window, store: store)
@@ -91,6 +96,7 @@ struct TabRow: View {
         let store = env.runtime.tabs
         let selected = (frozenSelection.map(\.id) ?? window.selectedTabID) == row.id
         let hovered = model.hovered == row.id
+        let picked = model.picked[window.id]?.contains(row.id) == true
         Group {
             if let tab = store.tab(row.id) {
                 TabRowContent(tab: tab, window: window, selected: selected, hovered: hovered, renaming: isRenaming, disclosure: disclosure)
@@ -103,7 +109,8 @@ struct TabRow: View {
         .frame(height: rowHeight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(alignment: .leading) { guides }
-        .background(Design.itemShape.fill(hovered && !selected ? Design.Fill.hover : .clear))
+        // Picked rows are washed as the lens's row would be in the solid style (one lens, on the tab shown).
+        .background(Design.itemShape.fill(selected ? .clear : picked ? Design.Fill.selection : hovered ? Design.Fill.hover : .clear))
         // Claude at work in the tab: its page's glow, around the row.
         .overlay { AgentGlow(Design.itemShape, activeUntil: store.tab(row.id)?.agentActedAt?.addingTimeInterval(BrowserTab.agentActivityWindow)) }
         .anchorPreference(key: SelectionLensAnchor.self, value: .bounds) { selected ? $0 : nil }
@@ -112,7 +119,7 @@ struct TabRow: View {
         // double-click interval (up to half a second) to rule out a second one.
         .onTapGesture { activate() }
         .simultaneousGesture(TapGesture(count: 2).onEnded { window.flags.insert("rename:\(row.id.uuidString)") })
-        .contextMenu { RowMenu(id: row.id, window: window) }
+        .contextMenu { RowMenu(id: row.id, window: window, model: model) }
         .onDrag {
             model.beginDrag(row.id)
             return NSItemProvider(object: row.id.uuidString as NSString)
@@ -146,6 +153,12 @@ struct TabRow: View {
 
     private func activate() {
         let runtime = env.runtime
+        if (NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags).contains(.shift), runtime.tabs.tab(row.id) != nil {
+            let rows = TabList.shownRows(in: window, store: runtime.tabs)
+            model.picked[window.id] = Set(SidebarLogic.range(from: window.selectedTabID, to: row.id, in: rows, store: runtime.tabs))
+            return
+        }
+        model.clearPicks(in: window)
         if runtime.tabs.folder(row.id) != nil {
             withAnimation(Design.Motion.layout) { runtime.tabs.setCollapsed(row.id, !row.isCollapsed) }
             return
@@ -320,11 +333,15 @@ struct RowMenu: View {
     @Environment(BrowserEnvironment.self) private var env
     let id: NodeID
     let window: BrowserWindowState
+    let model: SidebarModel
 
     var body: some View {
         let runtime = env.runtime
         let store = runtime.tabs
-        if let tab = store.tab(id) {
+        let picks = model.picks(in: window)
+        if picks.contains(id) {
+            PickedRowsMenu(ids: picks, window: window, model: model)
+        } else if let tab = store.tab(id) {
             Button("New Child Tab") { runtime.openTab(nil, in: window, placement: .childOf(id)) }
             Button("Duplicate") { if let u = tab.live?.url ?? tab.url { runtime.openTab(u, in: window, placement: .after(id)) } }
             Button("Rename…") { window.flags.insert("rename:\(id.uuidString)") }
@@ -360,6 +377,51 @@ struct RowMenu: View {
             Divider()
             Button("Delete Folder and Tabs") { runtime.sidebarHistory.close([id], includingDescendants: true) }
         }
+    }
+}
+
+/// The row menu over several picked tabs: what applies to all of them at once, each undone as one step.
+struct PickedRowsMenu: View {
+    @Environment(BrowserEnvironment.self) private var env
+    let ids: [NodeID]
+    let window: BrowserWindowState
+    let model: SidebarModel
+
+    var body: some View {
+        let runtime = env.runtime
+        let store = runtime.tabs
+        let n = ids.count
+        let roots = SidebarLogic.roots(ids, store: store)
+        if ids.allSatisfy(store.isPinned) {
+            // Unpinning puts each at Today's top: the last first keeps their order.
+            Button("Unpin \(n) Tabs") { act { for id in roots.reversed() { runtime.sidebarHistory.move(id) { store.unpin(id, in: window.spaceID) } } } }
+        } else {
+            Button("Pin \(n) Tabs") {
+                act { for id in roots where !store.isPinned(id) { runtime.sidebarHistory.move(id) { store.pin(id, in: window.spaceID) } } }
+            }
+        }
+        Button("Add \(n) Tabs to Favorites") { act { for id in ids { runtime.sidebarHistory.move(id) { store.favorite(id) } } } }
+        Divider()
+        Button("Copy \(n) Links") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(ids.compactMap { id in store.tab(id).flatMap { ($0.live?.url ?? $0.url)?.absoluteString } }
+                .joined(separator: "\n"), forType: .string)
+        }
+        // As for one tab: between the user's own tabs and Claude's, never in or out of the private space.
+        if !ids.contains(where: { store.tab($0)?.isPrivate == true }) {
+            ForEach(store.spaces.filter { $0.id != window.spaceID && $0.kind != .private }) { s in
+                Button("Move \(n) Tabs to \(s.kind.title)") {
+                    act { for id in roots.reversed() { runtime.sidebarHistory.move(id) { try? store.move(id, to: .section(s.id, .today), at: 0) } } }
+                }
+            }
+        }
+        Divider()
+        Button("Close \(n) Tabs") { act { runtime.sidebarHistory.close(ids, includingDescendants: false) } }
+    }
+
+    private func act(_ change: () -> Void) {
+        withAnimation(.spring(duration: 0.32, bounce: 0.12)) { env.runtime.sidebarHistory.group(change) }
+        model.clearPicks(in: window)
     }
 }
 

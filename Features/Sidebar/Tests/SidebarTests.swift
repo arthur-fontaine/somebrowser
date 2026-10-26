@@ -97,6 +97,22 @@ struct SidebarLogicTests {
         #expect(SidebarLogic.markdown(for: a.id, store: store) == "- [a](https://a.example)\n  - [b](https://b.example)")
     }
 
+    /// ⇧-click picks from the tab shown to the clicked one, either way, folders left out; moves act on branch roots.
+    @Test func shiftClickPicksARange() {
+        let a = store.insert(tab("a"), into: today, at: 0)
+        let a1 = store.insertChild(tab("a1"), of: a.id)
+        let folder = store.insertFolder(Folder(name: "f"), into: today, at: 1)
+        let b = store.insert(tab("b"), into: today, at: 2)
+        let c = store.insert(tab("c"), into: today, at: 3)
+        let rows = store.rows(in: today)  // a, a1, f, b, c
+        #expect(SidebarLogic.range(from: a1.id, to: c.id, in: rows, store: store) == [a1.id, b.id, c.id])
+        #expect(SidebarLogic.range(from: c.id, to: a.id, in: rows, store: store) == [a.id, a1.id, b.id, c.id])
+        // The tab shown isn't listed (a favorite): only the clicked one.
+        #expect(SidebarLogic.range(from: UUID(), to: b.id, in: rows, store: store) == [b.id])
+        #expect(SidebarLogic.roots([a.id, a1.id, b.id], store: store) == [a.id, b.id])
+        _ = folder
+    }
+
     @Test func focusModeKeepsOnlyTheBranch() {
         let a = store.insert(tab("a"), into: today, at: 0)
         let b = store.insertChild(tab("b"), of: a.id)

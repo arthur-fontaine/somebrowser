@@ -134,6 +134,21 @@ enum SidebarLogic {
         return lines.joined(separator: "\n")
     }
 
+    /// ⇧-click (Finder): the tabs from the one shown to the clicked one, both included, in the order shown. Folders
+    /// are left out.
+    static func range(from anchor: NodeID?, to id: NodeID, in rows: [SidebarRow], store: TabStore) -> [NodeID] {
+        let ids = rows.map(\.id)
+        guard let j = ids.firstIndex(of: id) else { return [] }
+        let i = anchor.flatMap { ids.firstIndex(of: $0) } ?? j
+        return ids[min(i, j)...max(i, j)].filter { store.tab($0) != nil }
+    }
+
+    /// The tabs not inside another picked one's branch: moving a branch takes its picked children along.
+    static func roots(_ ids: [NodeID], store: TabStore) -> [NodeID] {
+        let picked = Set(ids)
+        return ids.filter { !store.ancestors(of: $0).contains(where: picked.contains) }
+    }
+
     /// Focus mode (Horse ⌘⇧B): only the selected tab's branch (its root and everything below).
     static func focusRows(_ rows: [SidebarRow], selected: NodeID?, store: TabStore) -> [SidebarRow] {
         guard let selected, store.contains(selected) else { return rows }

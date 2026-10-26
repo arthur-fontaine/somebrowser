@@ -14,6 +14,9 @@ Hiding it (⌘S) gives an almost full-screen page; the left window edge reveals 
 - The selection is one Liquid Glass lens drawn behind all rows (`SelectionLens`) at the selected row's frame, which
   rows report as an anchor preference; it slides between rows. Rows themselves are washes, never glass (a lens per
   row smeared both titles while the glass re-formed).
+- ⇧-click picks the tabs from the one shown to the clicked one (Finder); picked rows are washed, the lens stays on the
+  tab shown. Their row menu then acts on all of them (pin, favorites, copy links, move to a space, close), each action
+  undone by one ⌘Z (`SidebarHistory.group`). A plain click or switching spaces drops the picks.
 - Everything is on one grid (`Design.Grid` in Core): shapes start 8 pt in, icons are centered on the red traffic
   light (x 26), titles start at x 42; a child's icon sits under its parent's title.
 - Showing or hiding (`SidebarModel.toggle`) changes the window's state at once; the docked sidebar then slides in its
