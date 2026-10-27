@@ -64,6 +64,10 @@ struct InlineEditor: View {
         .overlayKeyboardFocus("command-bar.inline", in: window, isEnabled: editing)
         .holdsSidebarPeek("command-bar.inline", in: window, isEnabled: editing)
         .onChange(of: editing) { present(editing) }
+        .onChange(of: focused) {
+            // A turn later, once the field has its editor.
+            if focused { DispatchQueue.main.async { editorFit.start() } } else { editorFit.stop() }
+        }
         .onChange(of: model.session(window)?.query) { if let q = model.session(window)?.query { shownQuery = q } }
         .onChange(of: items.map(\.id)) {
             guard editing else { return }
@@ -154,13 +158,9 @@ struct InlineEditor: View {
                     withAnimation(Self.curve(0.28)) { expanded = true } completion: { hideField() }
                     withAnimation(.easeOut(duration: 0.14).delay(0.06)) { rowsShown = true }
                 }
-                DispatchQueue.main.async {
-                    focused = true
-                    DispatchQueue.main.async { editorFit.start() }  // once the field has its editor
-                }
+                DispatchQueue.main.async { focused = true }
             }
         } else {
-            editorFit.stop()
             focused = false
             withAnimation(.easeOut(duration: 0.08)) { rowsShown = false }
             withAnimation(.easeOut(duration: 0.2)) { tinted = false }
