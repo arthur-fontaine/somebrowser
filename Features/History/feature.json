@@ -4,6 +4,7 @@
   "summary": "Local browsing history (SQLite) with a searchable panel and command-bar results ranked by frecency.",
   "entry": "HistoryFeature",
   "provides": ["history"],
+  "optional": ["search"],
   "frameworks": [],
   "commands": [
     { "id": "history.show", "title": "Show History", "shortcut": "cmd+y", "alternateShortcuts": ["cmd+shift+h"], "menu": "History", "group": "panel", "order": 1 },

@@ -57,6 +57,29 @@ struct HistoryTests {
         #expect(provider.items(for: "kitt", in: h.window).isEmpty)
     }
 
+    /// A past search is listed as its terms, to be edited, and searched again with the current engine.
+    @Test func pastSearchesAreListedAsTerms() throws {
+        final class Search: SearchService {
+            var engineName = "Stub"
+            func url(for input: String) -> URL? { URL(string: "https://\(input)") }
+            func searchURL(for input: String) -> URL? { URL(string: "https://now.example/?q=\(input)") }
+            func looksLikeURL(_ input: String) -> Bool { true }
+            func suggestions(for query: String) async -> [String] { [] }
+            func searchTerms(inAnyEngine url: URL) -> String? {
+                url.host() == "then.example" ? URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value : nil
+            }
+        }
+        let h = try TestHarness(features: [HistoryFeature.self], manifestDirectory: #filePath, activate: false)
+        h.runtime.capabilities.provide(SearchService.self, Search())
+        h.activate()
+        h.openTab("https://then.example/?q=kittens")
+        let provider = try #require(h.runtime.capabilities.all(OmniboxProvider.self).first)
+        let item = try #require(provider.items(for: "kitt", in: h.window).first)
+        #expect(item.title == "kittens" && item.fill == "kittens" && item.subtitle == nil)
+        item.action(h.window)
+        #expect(h.selectedTab?.url?.host() == "now.example")
+    }
+
     /// The editor opens on the page's address: found by prefix, and a prefix shared by many pages still finds the latest.
     @Test func addressesAreFoundByPrefix() throws {
         let store = HistoryStore(path: ":memory:")
