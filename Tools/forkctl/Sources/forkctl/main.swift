@@ -30,6 +30,10 @@ Engines
   release <tag> --cef <archive.tar.bz2> [--fork]
                            Upload our CEF build (Engines/CEF/build) to that GitHub release of origin (gh), then pin
                            it in Engines/CEF/vendor.json (Fork/'s with --fork)
+
+Releases
+  release v<VERSION> --app Build the release app, signed with FORKCTL_SIGN_IDENTITY, and publish it as a DMG in that
+                           GitHub release of origin, which the Homebrew cask in Casks/ installs. Bump VERSION first
 """
 
 struct CLI {
@@ -138,6 +142,18 @@ struct CLI {
         case "vendor":
             guard positional.first == "cef" else { throw ProjectError.invalid("usage: forkctl vendor cef") }
             try Vendor.cef(root: root)
+        case "release" where flag("--app"):
+            guard let tag = positional.first else { throw ProjectError.invalid("usage: forkctl release v<VERSION> --app") }
+            let version = Bundler.version(try project())
+            guard tag == "v\(version)" else {
+                throw ProjectError.invalid("the tag must be v\(version), from VERSION; bump VERSION to release another")
+            }
+            // An ad-hoc build loses the entitlements a signed one has, and macOS ties grants to its exact binary.
+            guard ProcessInfo.processInfo.environment["FORKCTL_SIGN_IDENTITY"] != nil else {
+                throw ProjectError.invalid("set FORKCTL_SIGN_IDENTITY to the identity releases are signed with")
+            }
+            let app = try build(release: true)
+            try Release.publishApp(root: root, tag: tag, app: app, brandName: try project().brand.name)
         case "release":
             guard let tag = positional.first, let archive = option("--cef") else {
                 throw ProjectError.invalid("usage: forkctl release <tag> --cef <archive.tar.bz2> [--fork]")

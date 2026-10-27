@@ -1,7 +1,8 @@
 import Foundation
 
 /// Publishing: a GitHub release of this repository carrying our CEF build, then the pin pointing at it. The pin is
-/// written only once the archive is uploaded, so it never names something that isn't there.
+/// written only once the archive is uploaded, so it never names something that isn't there. App releases carry the
+/// app as a DMG, which the Homebrew cask in `Casks/` installs.
 enum Release {
     /// `owner/repo` of a GitHub remote URL (`git@github.com:o/r.git`, `https://github.com/o/r`), nil otherwise.
     static func githubRepo(_ remote: String) -> String? {
@@ -41,7 +42,8 @@ enum Release {
         }
         let sha1 = try Shell.capture(["shasum", "-a", "1", archive.path]).split(separator: " ").first.map(String.init) ?? ""
         if (try? Shell.run(["gh", "release", "view", tag, "--repo", repo], cwd: root, quiet: true)) == nil {
-            try Shell.run(["gh", "release", "create", tag, "--repo", repo, "--title", tag,
+            // Not latest: the cask downloads the app from the latest release.
+            try Shell.run(["gh", "release", "create", tag, "--repo", repo, "--title", tag, "--latest=false",
                            "--notes", "Chromium (CEF \(version)) built from source with the patches in Engines/CEF/patches."], cwd: root)
         }
         try Shell.run(["gh", "release", "upload", tag, archive.path, "--repo", repo, "--clobber"], cwd: root)
@@ -52,5 +54,31 @@ enum Release {
         encoder.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
         try (encoder.encode(pin) + Data("\n".utf8)).write(to: file)
         print("released \(archive.lastPathComponent) as \(repo)@\(tag); pinned in \(file.path.replacingOccurrences(of: root.path + "/", with: ""))")
+    }
+
+    /// The DMG's name, the same in every app release, so `releases/latest/download/<name>` always reaches the newest.
+    static func dmgName(brandName: String) -> String { brandName.filter { !$0.isWhitespace } + ".dmg" }
+
+    /// Packages `app` as a DMG and publishes it as release `tag` of the `origin` GitHub repository, marked latest.
+    static func publishApp(root: URL, tag: String, app: URL, brandName: String) throws {
+        let remote = (try? Shell.capture(["git", "remote", "get-url", "origin"], cwd: root)) ?? ""
+        guard let repo = githubRepo(remote) else {
+            throw ProjectError.invalid("no GitHub remote named origin: create the repository and add it first")
+        }
+        if (try? Shell.run(["gh", "release", "view", tag, "--repo", repo], cwd: root, quiet: true)) != nil {
+            throw ProjectError.invalid("\(tag) is already released: bump VERSION")
+        }
+        let fm = FileManager.default
+        let stage = fm.temporaryDirectory.appendingPathComponent("forkctl-dmg-\(UUID().uuidString)")
+        try fm.createDirectory(at: stage, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: stage) }
+        try Shell.run(["cp", "-c", "-R", app.path, stage.path], quiet: true)
+        try fm.createSymbolicLink(atPath: stage.appendingPathComponent("Applications").path, withDestinationPath: "/Applications")
+        let dmg = app.deletingLastPathComponent().appendingPathComponent(dmgName(brandName: brandName))
+        try Shell.run(["hdiutil", "create", "-quiet", "-ov", "-fs", "HFS+", "-format", "UDZO",
+                       "-volname", brandName, "-srcfolder", stage.path, dmg.path])
+        try Shell.run(["gh", "release", "create", tag, dmg.path, "--repo", repo, "--target", "main", "--latest",
+                       "--title", "\(brandName) \(tag.hasPrefix("v") ? String(tag.dropFirst()) : tag)", "--generate-notes"], cwd: root)
+        print("released \(dmg.lastPathComponent) as \(repo)@\(tag)")
     }
 }

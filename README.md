@@ -15,6 +15,16 @@ customized**, by you or by an agent.
 
 See `TODO.md` for the full feature inventory and progress, `docs/` for research and decisions.
 
+## Install
+
+```sh
+brew tap arthur-fontaine/somebrowser https://github.com/arthur-fontaine/somebrowser
+brew install --cask arthur-fontaine/somebrowser/somebrowser
+```
+
+The cask always installs the latest release. Builds are signed but not notarized, so it removes the quarantine
+flag after installing.
+
 ## Build
 
 Requirements: macOS 26+, Xcode 26+ (Swift 6.2+).
@@ -25,6 +35,10 @@ Requirements: macOS 26+, Xcode 26+ (Swift 6.2+).
 ./forkctl vendor cef     # download Chromium (CEF) for the Chromium engine
 ./forkctl engine use cef-chrome
 ```
+
+To publish a release, bump `VERSION`, then run
+`FORKCTL_SIGN_IDENTITY="Apple Development: …" ./forkctl release v<VERSION> --app`. It builds the release app and
+creates the GitHub release the cask downloads from.
 
 ## Fork it
 

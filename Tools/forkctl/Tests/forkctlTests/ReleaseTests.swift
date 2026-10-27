@@ -17,6 +17,11 @@ import Testing
     #expect(Release.cefVersion(archiveName: "something.zip") == nil)
 }
 
+@Test func namesTheDMGTheSameInEveryRelease() {
+    #expect(Release.dmgName(brandName: "Some Browser") == "SomeBrowser.dmg")
+    #expect(Release.dmgName(brandName: "Kestrel") == "Kestrel.dmg")
+}
+
 /// A browser: web content may load any site (plain http, a certificate the user accepted); the app's own requests keep
 /// App Transport Security.
 @Test func webContentLoadsAnySite() throws {
