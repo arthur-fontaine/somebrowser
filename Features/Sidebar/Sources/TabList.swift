@@ -266,8 +266,10 @@ struct TabRowContent: View {
                 Image(systemName: live.isCapturingCamera ? "video.fill" : "mic.fill").font(.system(size: 10)).foregroundStyle(.red)
             }
             if hovered || selected {
-                CloseTabButton {
-                    withAnimation(.spring(duration: 0.32, bounce: 0.12)) { env.runtime.sidebarHistory.close([tab.id], includingDescendants: false) }
+                CloseTabButton(hasChildren: disclosure != nil) {
+                    // ⌘-click: the whole branch, as the row menu's Close with Children.
+                    let branch = (NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags).contains(.command)
+                    withAnimation(.spring(duration: 0.32, bounce: 0.12)) { env.runtime.sidebarHistory.close([tab.id], includingDescendants: branch) }
                 }
                 .transition(.opacity)
             }
@@ -283,6 +285,7 @@ struct TabRowContent: View {
 
 /// A row's ×: washed under the pointer, over the row's own hover or selection.
 struct CloseTabButton: View {
+    var hasChildren = false
     let action: () -> Void
     @State private var hovering = false
 
@@ -295,7 +298,7 @@ struct CloseTabButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(hovering ? .primary : .secondary)
         .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
-        .help("Close Tab (⌘W)")
+        .help(hasChildren ? "Close Tab (⌘W) · ⌘-Click to Close with Children" : "Close Tab (⌘W)")
     }
 }
 

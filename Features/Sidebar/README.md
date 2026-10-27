@@ -17,6 +17,7 @@ Hiding it (⌘S) gives an almost full-screen page; the left window edge reveals 
 - ⇧-click picks the tabs from the one shown to the clicked one (Finder); picked rows are washed, the lens stays on the
   tab shown. Their row menu then acts on all of them (pin, favorites, copy links, move to a space, close), each action
   undone by one ⌘Z (`SidebarHistory.group`). A plain click or switching spaces drops the picks.
+- A row's × closes its tab; ⌘-click closes the tab with its children (the row menu's Close with Children).
 - Everything is on one grid (`Design.Grid` in Core): shapes start 8 pt in, icons are centered on the red traffic
   light (x 26), titles start at x 42; a child's icon sits under its parent's title.
 - Showing or hiding (`SidebarModel.toggle`) changes the window's state at once; the docked sidebar then slides in its
