@@ -1,9 +1,11 @@
 # Command Bar
 
 **Purpose** — Arc's centered command bar. ⌘T opens it for a new tab, ⌘L edits the current address (a results page's search terms),
-⌘⌥V pastes and goes. One list mixes: the address/search for what you typed, engine suggestions,
-open tabs ("Switch to Tab"), results from any `OmniboxProvider` (history, Safari tabs…) and every
-command as an action — so the whole browser is keyboard-drivable.
+⌘⌥V pastes and goes. One list mixes: the address/search for what you typed (an address with its search right
+under it, as "node.js" may be a query), engine suggestions (always searches), open tabs ("Switch to Tab"), results
+from any `OmniboxProvider` (history, Safari tabs…) and every command as an action — so the whole browser is
+keyboard-drivable. With nothing typed it lists recent pages; past searches among them (any known engine's results
+page) show as their terms, which the arrows fill in to edit, and run with the current engine.
 
 **How it works** — `CommandBarModel` (pure, tested) ranks items with `FuzzyMatch`; the SwiftUI panel
 lives in the window `overlay` slot. ↑/↓ move, ↩ runs, Tab completes a site-search keyword, Esc closes.

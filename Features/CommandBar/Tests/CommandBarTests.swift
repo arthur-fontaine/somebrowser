@@ -11,10 +11,20 @@ final class StubSearch: SearchService {
     func url(for input: String) -> URL? {
         looksLikeURL(input) ? URL(string: "https://\(input)") : URL(string: "https://search.example/?q=\(input.replacingOccurrences(of: " ", with: "+"))")
     }
+    func searchURL(for input: String) -> URL? { URL(string: "https://search.example/?q=\(input.replacingOccurrences(of: " ", with: "+"))") }
     func suggestions(for query: String) async -> [String] { [] }
     func searchTerms(in url: URL) -> String? {
         url.host() == "search.example" ? URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value : nil
     }
+}
+
+final class StubHistory: HistoryService {
+    var entries: [HistoryEntry] = []
+    func search(_ query: String, limit: Int) -> [HistoryEntry] { [] }
+    func recent(limit: Int) -> [HistoryEntry] { entries }
+    func remove(url: URL) {}
+    func clear(since date: Date?) {}
+    func importEntries(_ entries: [HistoryEntry]) {}
 }
 
 final class StubNewTabPage: NewTabPageProvider {
@@ -72,6 +82,39 @@ struct CommandBarTests {
         model.execute(h.window)
         #expect(h.selectedTab?.url?.absoluteString == "https://example.com")
         #expect(!h.window.flags.contains(CommandBarModel.flag))
+    }
+
+    /// What looks like an address may be a query: its search comes right under it (Chrome).
+    @Test func anAddressCanBeSearchedToo() throws {
+        let (h, model) = try harness()
+        try h.run("command-bar.open")
+        model.setQuery("node.js", in: h.window)
+        let items = model.items(for: h.window)
+        #expect(items.prefix(2).map(\.id) == ["open", "search"])
+        #expect(items[1].title == "node.js" && items[1].subtitle == "Search Stub")
+        model.execute(h.window, index: 1)
+        #expect(h.selectedTab?.url?.absoluteString == "https://search.example/?q=node.js")
+    }
+
+    /// A past search is listed as one: the arrows fill the field with its terms, to be edited, not its results page's
+    /// address. The same search twice (two pages of results) is listed once.
+    @Test func pastSearchesFillTheirTerms() throws {
+        let h = try TestHarness(features: [CommandBarFeature.self], manifestDirectory: #filePath, activate: false)
+        h.runtime.capabilities.provide(SearchService.self, StubSearch())
+        let history = StubHistory()
+        history.entries = ["https://search.example/?q=cats", "https://search.example/?q=cats&page=2", "https://a.example/"].map {
+            HistoryEntry(url: URL(string: $0)!, title: "Page", lastVisit: Date(), visitCount: 1)
+        }
+        h.runtime.capabilities.provide(HistoryService.self, history)
+        h.activate()
+        let model = try #require(h.runtime.feature(CommandBarFeature.self)?.model)
+        try h.run("command-bar.open")
+        let items = model.items(for: h.window)
+        #expect(items.map(\.title) == ["cats", "Page"])
+        #expect(items[0].kind == "History" && items[0].fill == "cats")
+        model.moveSelection(1, in: h.window)
+        model.moveSelection(-1, in: h.window)
+        #expect(model.session(h.window)?.query == "cats")
     }
 
     @Test func typingWordsSearches() throws {

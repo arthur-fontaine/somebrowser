@@ -133,41 +133,43 @@ final class CommandBarModel {
         let q = s.typed.trimmingCharacters(in: .whitespacesAndNewlines)
         if q.isEmpty { return recentItems(window) }
 
+        let head = primaryItems(q, mode: s.mode)
         var items: [OmniboxItem] = []
-        if let primary = primaryItem(q, mode: s.mode) { items.append(primary) }
         for (i, suggestion) in s.suggestions.enumerated() where suggestion.lowercased() != q.lowercased() {
             items.append(openItem(id: "suggest:\(suggestion)", title: suggestion, subtitle: nil, input: suggestion,
                                   icon: .system("magnifyingglass"), kind: "Search", score: 0.55 - Double(i) * 0.01, mode: s.mode,
-                                  fill: suggestion))
+                                  fill: suggestion, searching: true))
         }
         items += tabItems(q, window: window)
         for provider in runtime.capabilities.all(OmniboxProvider.self) { items += provider.items(for: q, in: window) }
         if runtime.settings.bool("command-bar.showActions") { items += actionItems(q) }
 
-        // Primary stays first; the rest by score, deduplicated by title+subtitle.
-        let head = items.prefix(1)
-        var seen = Set<String>()
-        let rest = items.dropFirst().sorted { $0.score > $1.score }.filter { seen.insert("\($0.title)|\($0.subtitle ?? "")").inserted }
+        // The primary results stay first; the rest by score, deduplicated by title+subtitle.
+        var seen = Set(head.map { "\($0.title)|\($0.subtitle ?? "")" })
+        let rest = items.sorted { $0.score > $1.score }.filter { seen.insert("\($0.title)|\($0.subtitle ?? "")").inserted }
         return Array((head + rest).prefix(Self.maxItems))
     }
 
-    private func primaryItem(_ q: String, mode: Mode) -> OmniboxItem? {
+    /// What was typed, opened or searched: an address first, with the search for it right under (Chrome), as what
+    /// looks like an address may be a query ("node.js").
+    private func primaryItems(_ q: String, mode: Mode) -> [OmniboxItem] {
         guard let search else {
-            guard let url = URL(string: q), url.scheme != nil else { return nil }
-            return openItem(id: "open", title: q, subtitle: nil, input: q, icon: .system("globe"), kind: "Open", score: 2, mode: mode)
+            guard let url = URL(string: q), url.scheme != nil else { return [] }
+            return [openItem(id: "open", title: q, subtitle: nil, input: q, icon: .system("globe"), kind: "Open", score: 2, mode: mode)]
         }
-        if search.looksLikeURL(q), let url = search.url(for: q) {
-            return openItem(id: "open", title: url.absoluteString.replacingOccurrences(of: "https://", with: ""),
-                            subtitle: "Open address", input: q, icon: .favicon(url), kind: "Open", score: 2, mode: mode)
-        }
-        return openItem(id: "search", title: q, subtitle: "Search \(search.engineName)", input: q,
-                        icon: .system("magnifyingglass"), kind: "Search", score: 2, mode: mode)
+        let searchItem = openItem(id: "search", title: q, subtitle: "Search \(search.engineName)", input: q,
+                                  icon: .system("magnifyingglass"), kind: "Search", score: 2, mode: mode, searching: true)
+        guard search.looksLikeURL(q), let url = search.url(for: q) else { return [searchItem] }
+        return [openItem(id: "open", title: url.absoluteString.replacingOccurrences(of: "https://", with: ""),
+                         subtitle: "Open address", input: q, icon: .favicon(url), kind: "Open", score: 2, mode: mode), searchItem]
     }
 
+    /// `searching`: a search for `input` even if it looks like an address.
     private func openItem(id: String, title: String, subtitle: String?, input: String, icon: OmniboxItem.Icon, kind: String,
-                          score: Double, mode: Mode, fill: String? = nil) -> OmniboxItem {
+                          score: Double, mode: Mode, fill: String? = nil, searching: Bool = false) -> OmniboxItem {
         OmniboxItem(id: id, title: title, subtitle: subtitle, icon: icon, kind: kind, score: score, fill: fill) { [weak self] window in
-            guard let self, let url = self.search?.url(for: input) ?? URL(string: input) else { return }
+            guard let self, let url = (searching ? self.search?.searchURL(for: input) : self.search?.url(for: input)) ?? URL(string: input)
+            else { return }
             self.open(url, in: window, mode: mode)
         }
     }
@@ -207,7 +209,16 @@ final class CommandBarModel {
                                      kind: "Open", score: 2, fill: url.absoluteString) { [weak self] w in self?.open(url, in: w, mode: mode) })
         }
         let open = Set(runtime.tabs.allTabs.compactMap { ($0.live?.url ?? $0.url).map(URLNormalizer.key(for:)) })
+        var searched = Set<String>()
         for entry in runtime.capabilities.history?.recent(limit: 40) ?? [] where !open.contains(URLNormalizer.key(for: entry.url)) {
+            // A past search shows as one: its terms fill the field to be edited, and it runs with the current engine.
+            if let terms = search?.searchTerms(inAnyEngine: entry.url) {
+                guard searched.insert(terms.lowercased()).inserted else { continue }
+                items.append(openItem(id: "recent:\(entry.url.absoluteString)", title: terms, subtitle: nil, input: terms,
+                                      icon: .system("magnifyingglass"), kind: "History", score: 1, mode: mode, fill: terms, searching: true))
+                if items.count >= 6 { break }
+                continue
+            }
             items.append(OmniboxItem(id: "recent:\(entry.url.absoluteString)", title: entry.title.isEmpty ? entry.url.absoluteString : entry.title,
                                      subtitle: entry.url.host(), icon: .favicon(entry.url), kind: "History", score: 1,
                                      fill: entry.url.absoluteString) { [weak self] w in
