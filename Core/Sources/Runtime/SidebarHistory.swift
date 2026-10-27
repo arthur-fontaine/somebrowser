@@ -90,7 +90,10 @@ public final class SidebarHistory {
         switch step {
         case let .moved(id, from, to):
             let target = forward ? to : from
-            guard tabs.contains(id), (try? tabs.move(id, to: target.container, at: target.index)) != nil else { return false }
+            // The recorded index is where the node ends up; `move` reads an index past the node's own as counted with it.
+            var index = target.index
+            if tabs.container(of: id) == target.container, let i = tabs.nodes(in: target.container).firstIndex(of: id), i < index { index += 1 }
+            guard tabs.contains(id), (try? tabs.move(id, to: target.container, at: index)) != nil else { return false }
             tabs.tab(id)?.pinnedURL = target.pinnedURL
             return true
         case let .closed(roots, includingDescendants):

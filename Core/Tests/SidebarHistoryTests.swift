@@ -55,6 +55,25 @@ struct SidebarHistoryTests {
         #expect(tabs.isPinned(a.id) && tabs.isPinned(b.id))
     }
 
+    /// A reorder within one list, either way: Undo puts the tab back where it was, Redo where it went.
+    @Test func reordersUndoToTheirPlace() throws {
+        let h = try harness()
+        let a = h.openTab("https://a.example")
+        _ = (h.openTab("https://b.example"), h.openTab("https://c.example"))
+        let tabs = h.runtime.tabs, history = h.runtime.sidebarHistory
+        let today = try #require(tabs.container(of: a.id))
+        let start = tabs.nodes(in: today)
+        for (id, index) in [(start[0], 3), (start[2], 0)] {
+            history.move(id) { try? tabs.move(id, to: today, at: index) }
+            let moved = tabs.nodes(in: today)
+            history.undo(in: h.window)
+            #expect(tabs.nodes(in: today) == start)
+            history.redo(in: h.window)
+            #expect(tabs.nodes(in: today) == moved)
+            history.undo(in: h.window)
+        }
+    }
+
     /// Reopened another way in between (⇧⌘T): the closed list moved on, so Undo stops rather than reopen something else.
     @Test func staleStepsAreDropped() throws {
         let h = try harness()
