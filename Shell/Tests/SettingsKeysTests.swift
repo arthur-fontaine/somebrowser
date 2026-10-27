@@ -81,6 +81,32 @@ struct SettingsKeysTests {
         settings.close()
     }
 
+    /// The browser window's fields (the address, a rename) get ⌘ and ⇧⌘ with their editing keys before the menus, where
+    /// ⌘← is Back; ⌥⌘→ (Next Space) and ⌘C still go on to the menus.
+    @Test func browserFieldsGetTheirEditingKeys() throws {
+        final class Field: NSTextView {
+            var keys: [UInt16] = []
+            override func keyDown(with event: NSEvent) { keys.append(event.keyCode) }
+        }
+        _ = NSApplication.shared
+        let window = ShellWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 100), styleMask: [.titled], backing: .buffered, defer: false)
+        let field = Field(frame: NSRect(x: 0, y: 0, width: 100, height: 20))
+        window.contentView?.addSubview(field)
+        #expect(window.makeFirstResponder(field))
+        func key(_ chars: String, _ code: UInt16, _ flags: NSEvent.ModifierFlags) throws -> NSEvent {
+            try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: window.windowNumber,
+                                          context: nil, characters: chars, charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code))
+        }
+        let arrow: NSEvent.ModifierFlags = [.function, .numericPad]
+        #expect(window.performKeyEquivalent(with: try key("\u{F702}", 123, arrow.union(.command))))
+        #expect(window.performKeyEquivalent(with: try key("\u{F703}", 124, arrow.union([.command, .shift]))))
+        #expect(!window.performKeyEquivalent(with: try key("\u{F703}", 124, arrow.union([.command, .option]))))
+        #expect(!window.performKeyEquivalent(with: try key("c", 8, .command)))
+        #expect(field.keys == [123, 124])
+        window.makeFirstResponder(nil)
+        #expect(!window.performKeyEquivalent(with: try key("\u{F702}", 123, arrow.union(.command))))
+    }
+
     /// ⌘W closes Settings ("Close Tab" is off there).
     @Test func commandWClosesSettings() throws {
         let (shell, _, _) = try shell()

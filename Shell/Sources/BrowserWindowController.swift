@@ -40,6 +40,10 @@ final class ShellWindow: NSWindow, ShellWindowing {
         takeKey(before: event)
         super.sendEvent(event)
     }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        super.performKeyEquivalent(with: event) || FieldEditingKeys.send(event, toFieldIn: self)
+    }
 }
 
 /// The browser window as a non-activating panel (`BrowserWindowPlacement.isPanel`).
@@ -56,6 +60,10 @@ final class ShellPanel: NSPanel, ShellWindowing {
     override func sendEvent(_ event: NSEvent) {
         takeKey(before: event)
         super.sendEvent(event)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        super.performKeyEquivalent(with: event) || FieldEditingKeys.send(event, toFieldIn: self)
     }
 }
 

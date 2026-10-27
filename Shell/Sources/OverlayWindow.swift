@@ -22,6 +22,10 @@ final class OverlayWindow: NSPanel {
     /// Text fields in overlays (command bar, find) need key status.
     override var canBecomeKey: Bool { true }
 
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        super.performKeyEquivalent(with: event) || FieldEditingKeys.send(event, toFieldIn: self)
+    }
+
     /// Controls drawn here (the floating sidebar's traffic lights) look active while the browser window is.
     @objc var _hasActiveAppearance: Bool {
         guard let parent else { return false }
