@@ -57,6 +57,23 @@ struct SearchTests {
         #expect(s.searchTerms(in: URL(string: "https://duckduckgo.com/?q=cats&ia=web")!) == "cats")
     }
 
+    /// History's past searches: any known engine's results page, whichever engine is current.
+    @Test func readsTheTermsOfAnyEnginesResultsPage() throws {
+        let (h, s) = try service()
+        h.runtime.settings.set("search.engine", .string("duckduckgo"))
+        #expect(s.searchTerms(in: URL(string: "https://www.google.com/search?q=hello+world")!) == nil)
+        #expect(s.searchTerms(inAnyEngine: URL(string: "https://www.google.com/search?q=hello+world")!) == "hello world")
+        #expect(s.searchTerms(inAnyEngine: URL(string: "https://www.bing.com/search?q=cats")!) == "cats")
+        #expect(s.searchTerms(inAnyEngine: URL(string: "https://example.com/search?q=cats")!) == nil)
+    }
+
+    /// A search even for what looks like an address, with the current engine (or a keyword's).
+    @Test func searchesWhatLooksLikeAnAddress() throws {
+        let (_, s) = try service()
+        #expect(s.url(for: "node.js")?.host() == "node.js")
+        #expect(s.searchURL(for: "node.js")?.absoluteString == "https://duckduckgo.com/?q=node.js")
+    }
+
     @Test func parsesBothSuggestionFormats() {
         #expect(DefaultSearchService.parseSuggestions(Data(#"["sw",["swift","swiftui"]]"#.utf8)) == ["swift", "swiftui"])
         #expect(DefaultSearchService.parseSuggestions(Data(#"[{"phrase":"a"},{"phrase":"b"}]"#.utf8)) == ["a", "b"])

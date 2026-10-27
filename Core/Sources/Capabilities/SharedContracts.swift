@@ -8,6 +8,8 @@ import SwiftUI
 public protocol SearchService: AnyObject {
     /// URL to load for raw input: a URL if it looks like one, otherwise a search.
     func url(for input: String) -> URL?
+    /// The current engine's search for the input, even one that looks like an address ("node.js").
+    func searchURL(for input: String) -> URL?
     /// True when the input looks like an address rather than a query.
     func looksLikeURL(_ input: String) -> Bool
     /// Query suggestions from the search engine (may hit the network; respect the user's setting).
@@ -16,10 +18,14 @@ public protocol SearchService: AnyObject {
     var engineName: String { get }
     /// What was searched, when the URL is one of the current engine's results pages (Chrome edits these terms, not the URL).
     func searchTerms(in url: URL) -> String?
+    /// What was searched, when the URL is any known engine's results page (history lists past searches as searches).
+    func searchTerms(inAnyEngine url: URL) -> String?
 }
 
 public extension SearchService {
+    func searchURL(for input: String) -> URL? { url(for: input) }
     func searchTerms(in url: URL) -> String? { nil }
+    func searchTerms(inAnyEngine url: URL) -> String? { searchTerms(in: url) }
 }
 
 /// Browsing history store.

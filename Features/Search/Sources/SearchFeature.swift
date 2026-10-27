@@ -105,7 +105,18 @@ final class DefaultSearchService: SearchService {
         return Self.fill(engine.search, input)
     }
 
+    func searchURL(for raw: String) -> URL? {
+        let input = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !input.isEmpty else { return nil }
+        if let (template, query) = keywordSearch(input) { return Self.fill(template, query) }
+        return Self.fill(engine.search, input)
+    }
+
     func searchTerms(in url: URL) -> String? { Self.terms(in: url, template: engine.search) }
+
+    func searchTerms(inAnyEngine url: URL) -> String? {
+        searchTerms(in: url) ?? Self.engines.values.lazy.compactMap { Self.terms(in: url, template: $0.search) }.first
+    }
 
     /// The query of a results page of this template: same path and query parameter, on its host or a country's
     /// (`google.fr` for `google.com`).
