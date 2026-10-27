@@ -29,8 +29,11 @@ struct FavoritesGrid: View {
             }
             .dropDestination(for: String.self) { items, _ in
                 defer { model.endDrag() }
-                guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return false }
-                withAnimation(.spring(duration: 0.35, bounce: 0.2)) { _ = env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: .favorites, store: store) } }
+                guard let ids = model.dragged(items) else { return false }
+                let history = env.runtime.sidebarHistory
+                withAnimation(.spring(duration: 0.35, bounce: 0.2)) {
+                    history.group { _ = SidebarLogic.drop(ids, into: .favorites, store: store, record: history.move) }
+                }
                 return true
             } isTargeted: { targeted = $0 }
             .animation(.spring(duration: 0.35, bounce: 0.2), value: ids)

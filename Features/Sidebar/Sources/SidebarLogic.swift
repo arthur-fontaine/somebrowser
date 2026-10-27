@@ -33,11 +33,11 @@ enum SidebarLogic {
 
     /// The middle half of a row nests into it (Horse: drop onto a node = child); elsewhere the nearest gap, at the
     /// depth the pointer is over (Finder's outlines): under the end of a branch, moving left lands after an ancestor.
-    /// Nil where the node can't go (into itself) or wouldn't move.
-    static func placement(at point: CGPoint, rows: [SidebarRow], in list: Container, dragged: NodeID,
+    /// Nil where the nodes can't go (into one of them) or wouldn't move.
+    static func placement(at point: CGPoint, rows: [SidebarRow], in list: Container, dragged: [NodeID],
                           rowHeight: CGFloat, spacing: CGFloat, store: TabStore) -> DropPlacement? {
         guard !rows.isEmpty else { return DropPlacement(mark: .line(gap: 0, depth: 0), container: list, index: 0) }
-        let excluded = Set([dragged] + store.descendants(of: dragged))
+        let excluded = Set(dragged + dragged.flatMap(store.descendants))
         let pitch = rowHeight + spacing
         let r = max(0, min(rows.count - 1, Int((point.y / pitch).rounded(.down))))
         let y = point.y - CGFloat(r) * pitch
@@ -65,48 +65,65 @@ enum SidebarLogic {
             (depth, container, index) = (0, list, 0)
         }
         if case .node(let parent) = container, excluded.contains(parent) { return nil }
-        if store.container(of: dragged) == container, let i = store.nodes(in: container).firstIndex(of: dragged),
-           index == i || index == i + 1 { return nil }
+        // Already together there, beside the gap.
+        let moving = roots(dragged, store: store), nodes = store.nodes(in: container)
+        if let first = moving.first, let i = nodes.firstIndex(of: first), nodes[i...].starts(with: moving),
+           (i...i + moving.count).contains(index) { return nil }
         return DropPlacement(mark: .line(gap: gap, depth: depth), container: container, index: index)
     }
 
     /// Over the New Tab row: with nothing pinned its top half pins (where the section would begin); otherwise it begins
     /// Today (pinned tabs end at the divider above it).
-    static func newTabPlacement(atY y: CGFloat, rowHeight: CGFloat, space: UUID, dragged: NodeID, store: TabStore) -> DropPlacement? {
+    static func newTabPlacement(atY y: CGFloat, rowHeight: CGFloat, space: UUID, dragged: [NodeID], store: TabStore) -> DropPlacement? {
         let pinned = Container.section(space, .pinned), today = Container.section(space, .today)
         if y < rowHeight / 2, store.nodes(in: pinned).isEmpty {
             return DropPlacement(mark: .line(gap: 0, depth: 0), container: pinned, index: nil)
         }
-        if store.nodes(in: today).first == dragged { return nil }
+        if store.nodes(in: today).starts(with: roots(dragged, store: store)) { return nil }
         return DropPlacement(mark: .line(gap: 1, depth: 0), container: today, index: 0)
     }
 
     /// Below a list's last row: its end, at the top level.
-    static func endPlacement(rows: [SidebarRow], in list: Container, dragged: NodeID, store: TabStore) -> DropPlacement? {
-        if store.nodes(in: list).last == dragged { return nil }
+    static func endPlacement(rows: [SidebarRow], in list: Container, dragged: [NodeID], store: TabStore) -> DropPlacement? {
+        if store.nodes(in: list).reversed().starts(with: roots(dragged, store: store).reversed()) { return nil }
         return DropPlacement(mark: .line(gap: rows.count, depth: 0), container: list, index: nil)
     }
 
-    /// Moves `dragged` where `placement` says. False if it can't go there.
+    /// Wraps one node's move, for Undo to record it (`SidebarHistory.move`).
+    typealias Record = (NodeID, () -> Bool) -> Bool
+
+    /// Moves the dragged nodes where `placement` says, one after the other in the order given (picked children go
+    /// along in their parent's branch). False if none can go there.
     @discardableResult
-    static func drop(_ dragged: NodeID, at placement: DropPlacement, store: TabStore) -> Bool {
-        guard (try? store.move(dragged, to: placement.container, at: placement.index)) != nil else { return false }
-        if case .into(let target) = placement.mark { store.setCollapsed(target, false) }
-        settlePin(dragged, store: store)
-        return true
+    static func drop(_ dragged: [NodeID], at placement: DropPlacement, store: TabStore, record: Record = { $1() }) -> Bool {
+        var previous: NodeID?
+        for id in roots(dragged, store: store) {
+            // Each right after the one before: an index into the list would shift as earlier ones leave it.
+            var (container, index) = (placement.container, placement.index)
+            if let previous, let c = store.container(of: previous), let i = store.nodes(in: c).firstIndex(of: previous) { (container, index) = (c, i + 1) }
+            guard record(id, { (try? store.move(id, to: container, at: index)) != nil }) else { continue }
+            settlePin(id, store: store)
+            previous = id
+        }
+        if previous != nil, case .into(let target) = placement.mark { store.setCollapsed(target, false) }
+        return previous != nil
     }
 
-    /// Drop on a section's empty area: append to that section (pinned/today) or favorites.
+    /// Drop on a section's empty area: append to that section (pinned/today) or favorites (every tab dragged, as the
+    /// row menu adds them).
     @discardableResult
-    static func drop(_ dragged: NodeID, into container: Container, store: TabStore) -> Bool {
+    static func drop(_ dragged: [NodeID], into container: Container, store: TabStore, record: Record = { $1() }) -> Bool {
         if container == .favorites {
-            guard store.tab(dragged) != nil else { return false }
-            store.favorite(dragged)
-            return true
+            let tabs = dragged.filter { store.tab($0) != nil }
+            for id in tabs { _ = record(id) { store.favorite(id); return true } }
+            return !tabs.isEmpty
         }
-        guard (try? store.move(dragged, to: container)) != nil else { return false }
-        settlePin(dragged, store: store)
-        return true
+        var moved = false
+        for id in roots(dragged, store: store) where record(id, { (try? store.move(id, to: container)) != nil }) {
+            settlePin(id, store: store)
+            moved = true
+        }
+        return moved
     }
 
     /// A tab kept in pinned or favorites remembers the page it was kept at (Arc's reset); one moved to Today forgets it,

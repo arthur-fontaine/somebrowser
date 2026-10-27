@@ -109,8 +109,11 @@ struct EmptyPinnedDropZone: View {
                 .foregroundStyle(targeted ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary)))
             .dropDestination(for: String.self) { items, _ in
                 defer { model.endDrag() }
-                guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return false }
-                return env.runtime.sidebarHistory.move(id) { SidebarLogic.drop(id, into: container, store: env.runtime.tabs) }
+                guard let ids = model.dragged(items) else { return false }
+                let history = env.runtime.sidebarHistory
+                var ok = false
+                history.group { ok = SidebarLogic.drop(ids, into: container, store: env.runtime.tabs, record: history.move) }
+                return ok
             } isTargeted: { targeted = $0 }
     }
 }
@@ -154,7 +157,14 @@ struct TabRow: View {
         .simultaneousGesture(TapGesture(count: 2).onEnded { window.flags.insert("rename:\(row.id.uuidString)") })
         .contextMenu { RowMenu(id: row.id, window: window, model: model) }
         .onDrag {
-            model.beginDrag(row.id)
+            // From a picked row, all the picked tabs go (Finder); from another, that row alone, and the picks are dropped.
+            let picks = model.picks(in: window)
+            if picks.contains(row.id) {
+                model.beginDrag(row.id, carrying: picks)
+            } else {
+                model.clearPicks(in: window)
+                model.beginDrag(row.id)
+            }
             return NSItemProvider(object: row.id.uuidString as NSString)
         }
     }
@@ -466,12 +476,12 @@ struct SidebarDropDelegate: DropDelegate {
     let model: SidebarModel
     let owner: SidebarModel.DropOwner
     let env: BrowserEnvironment
-    let resolve: (CGPoint, NodeID) -> SidebarLogic.DropPlacement?
+    let resolve: (CGPoint, [NodeID]) -> SidebarLogic.DropPlacement?
 
     func validateDrop(info: DropInfo) -> Bool { model.dragging != nil }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        model.target(model.dragging.flatMap { resolve(info.location, $0) }, by: owner)
+        model.target(model.dragging == nil ? nil : resolve(info.location, model.draggedNodes), by: owner)
         return DropProposal(operation: .move)
     }
 
@@ -479,11 +489,12 @@ struct SidebarDropDelegate: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         defer { model.endDrag() }
-        guard let dragged = model.dragging, let placement = resolve(info.location, dragged) else { return false }
-        let runtime = env.runtime
+        let dragged = model.draggedNodes
+        guard model.dragging != nil, let placement = resolve(info.location, dragged) else { return false }
+        let history = env.runtime.sidebarHistory
         var ok = false
         withAnimation(.spring(duration: 0.35, bounce: 0.15)) {
-            ok = runtime.sidebarHistory.move(dragged) { SidebarLogic.drop(dragged, at: placement, store: runtime.tabs) }
+            history.group { ok = SidebarLogic.drop(dragged, at: placement, store: env.runtime.tabs, record: history.move) }
         }
         if ok { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
         return ok

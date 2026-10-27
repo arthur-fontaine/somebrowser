@@ -62,6 +62,8 @@ final class SidebarModel {
     var picked: [UUID: Set<NodeID>] = [:]
     /// The node dragged from any sidebar, and where it would land.
     var dragging: NodeID?
+    /// Everything the drag carries, in the order shown: the picked tabs when it began on one of them.
+    @ObservationIgnored var draggedNodes: [NodeID] = []
     var dropTarget: DropTarget?
     /// The empty favorites grid, opened by a drag reaching the address field.
     var favoritesOpen = false
@@ -117,8 +119,9 @@ final class SidebarModel {
         if picked[window.id] != nil { picked[window.id] = nil }
     }
 
-    func beginDrag(_ id: NodeID) {
+    func beginDrag(_ id: NodeID, carrying nodes: [NodeID]? = nil) {
         dragging = id
+        draggedNodes = nodes ?? [id]
         releasedAt = nil
         dragWatch?.invalidate()
         // SwiftUI tells no one when a drag ends away from a drop target (Esc, released outside, on itself). The drop itself
@@ -141,12 +144,19 @@ final class SidebarModel {
     @ObservationIgnored private var releasedAt: Date?
     static let dropGrace: TimeInterval = 0.5
 
+    /// What a drop of `items` (the dragged row's id) delivers: all the drag carries, when it's the drag begun here.
+    func dragged(_ items: [String]) -> [NodeID]? {
+        guard let id = items.first.flatMap(UUID.init(uuidString:)) else { return nil }
+        return id == dragging && !draggedNodes.isEmpty ? draggedNodes : [id]
+    }
+
     func endDrag() {
         dragWatch?.invalidate()
         dragWatch = nil
         releasedAt = nil
         dropTarget = nil
         dragging = nil
+        draggedNodes = []
         if favoritesOpen { withAnimation(Design.Motion.layout) { favoritesOpen = false } }
     }
 
