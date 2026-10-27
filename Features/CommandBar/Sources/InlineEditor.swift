@@ -19,6 +19,7 @@ struct InlineEditor: View {
     @State private var shownItems: [OmniboxItem] = []
     @State private var shownQuery = ""
     @FocusState private var focused: Bool
+    @State private var editorFit = FieldEditorFit()
 
     static let width: CGFloat = 480
     static let radius = Design.Size.control / 2
@@ -153,9 +154,13 @@ struct InlineEditor: View {
                     withAnimation(Self.curve(0.28)) { expanded = true } completion: { hideField() }
                     withAnimation(.easeOut(duration: 0.14).delay(0.06)) { rowsShown = true }
                 }
-                DispatchQueue.main.async { focused = true }
+                DispatchQueue.main.async {
+                    focused = true
+                    DispatchQueue.main.async { editorFit.start() }  // once the field has its editor
+                }
             }
         } else {
+            editorFit.stop()
             focused = false
             withAnimation(.easeOut(duration: 0.08)) { rowsShown = false }
             withAnimation(.easeOut(duration: 0.2)) { tinted = false }
@@ -176,6 +181,39 @@ struct InlineEditor: View {
     private func completeKeyword(_ query: Binding<String>) {
         let q = query.wrappedValue.trimmingCharacters(in: .whitespaces)
         if !q.isEmpty, !q.contains(" ") { query.wrappedValue = q + " " }
+    }
+}
+
+/// Keeps the field editor with the keyboard as wide as its text. AppKit narrows it to the field whenever the field is
+/// resized (as the editor grows open), and widens it again only as the text changes: in between, a long address
+/// couldn't scroll, the caret moving out of sight past its end.
+final class FieldEditorFit {
+    private weak var editor: NSTextView?
+    private var observer: Any?
+    private var fitting = false
+
+    func start() {
+        stop()
+        guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.isFieldEditor else { return }
+        self.editor = editor
+        observer = NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: editor, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.fit() }
+        }
+        fit()
+    }
+
+    func stop() {
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+        observer = nil
+        editor = nil
+    }
+
+    private func fit() {
+        guard !fitting, let editor else { return }
+        fitting = true
+        editor.sizeToFit()
+        editor.scrollRangeToVisible(NSRange(location: editor.selectedRange().location, length: 0))
+        fitting = false
     }
 }
 
