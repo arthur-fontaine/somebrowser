@@ -24,9 +24,9 @@ cask "somebrowser" do
   # this repo downloads.
   zap trash: [
     "~/Library/Application Support/Some Browser",
-    "~/Library/Caches/Some Browser",
     "~/Library/Caches/dev.somebrowser.browser",
     "~/Library/Caches/dev.somebrowser.browser.helper",
+    "~/Library/Caches/Some Browser",
     "~/Library/HTTPStorages/dev.somebrowser.browser",
     "~/Library/Preferences/dev.somebrowser.browser.plist",
     "~/Library/WebKit/dev.somebrowser.browser",
