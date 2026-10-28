@@ -10,21 +10,54 @@ public enum PageGrid {
 
 /// A section of a page the browser draws itself (the start page): a header over its content, left-aligned on the
 /// page's column. Features contribute sections to `start-page.extras` with it, so they all read alike.
-public struct PageSection<Content: View>: View {
+public struct PageSection<Content: View, Accessory: View>: View {
     let title: String
     let content: Content
+    let accessory: Accessory
 
-    public init(_ title: String, @ViewBuilder content: () -> Content) {
+    /// `accessory` sits at the header's end: a "Show All" link (`PageSectionLink`).
+    public init(_ title: String, @ViewBuilder content: () -> Content, @ViewBuilder accessory: () -> Accessory) {
         self.title = title
         self.content = content()
+        self.accessory = accessory()
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: Design.Space.block) {
-            Text(title).font(.system(size: 15, weight: .semibold)).frame(height: 20)
+            HStack(spacing: Design.Space.block) {
+                Text(title).font(.system(size: 15, weight: .semibold))
+                Spacer(minLength: 0)
+                accessory
+            }
+            .frame(height: 20)
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+public extension PageSection where Accessory == EmptyView {
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.init(title, content: content, accessory: { EmptyView() })
+    }
+}
+
+/// A section header's link ("Show All"): quiet text that darkens under the pointer.
+public struct PageSectionLink: View {
+    let title: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    public init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    public var body: some View {
+        Button(action: action) { Text(title).font(.system(size: 13)) }
+            .buttonStyle(.plain)
+            .foregroundStyle(hovering ? .primary : .secondary)
+            .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
     }
 }
 
