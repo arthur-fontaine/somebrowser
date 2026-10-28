@@ -34,9 +34,11 @@ public struct PanelItem: Identifiable {
 public struct PanelSection: Identifiable {
     public let title: String
     public var items: [PanelItem]
-    public var id: String { title }
+    /// The title unless two sections may share one (devices, Tab Groups).
+    public let id: String
 
-    public init(title: String, items: [PanelItem]) {
+    public init(id: String? = nil, title: String, items: [PanelItem]) {
+        self.id = id ?? title
         self.title = title
         self.items = items
     }

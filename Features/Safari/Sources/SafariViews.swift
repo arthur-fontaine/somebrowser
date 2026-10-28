@@ -208,8 +208,8 @@ struct CloudTabsPanel: View {
     }
 
     private func sections() -> [PanelSection] {
-        let devices = model.devices.map { PanelSection(title: $0.name, items: items($0.tabs, prefix: $0.id)) }
-        let groups = model.tabGroups.map { PanelSection(title: $0.title, items: items($0.tabs, prefix: $0.id)) }
+        let devices = model.devices.map { PanelSection(id: "device/" + $0.id, title: $0.name, items: items($0.tabs, prefix: $0.id)) }
+        let groups = model.tabGroups.map { PanelSection(id: "group/" + $0.id, title: $0.title, items: items($0.tabs, prefix: $0.id)) }
         return (devices + groups).filter { !$0.items.isEmpty }
     }
 
