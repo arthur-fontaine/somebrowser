@@ -1,8 +1,9 @@
 # Safari Sync
 
 **Purpose** — Radian's Safari ⇄ iPhone sync: the start page shows Safari's Favorites and follows Safari's file (so
-iPhone changes arrive on Safari's sync schedule); a favorite added here appears in Safari and on the iPhone; "iCloud
-Tabs" lists the iPhone's open tabs; Safari's history (iPhone included) appears in the command bar.
+iPhone changes arrive on Safari's sync schedule); a favorite added here appears in Safari and on the iPhone; the
+iPhone's open tabs show on the start page, in the sidebar and in "iCloud Tabs"; Safari's history (iPhone included)
+appears in the command bar.
 
 **How it works** — Safari's sync agents (`SafariBookmarksSyncAgent`, `com.apple.Safari.History`) keep what iCloud
 syncs in local files, decrypted (History and iCloud Tabs are end-to-end encrypted, so only they can):
@@ -49,7 +50,18 @@ grants as security-scoped bookmarks (`Grants/` in the feature's data folder), so
 second panel keeps Favorites and history. "Disconnect from Safari" stops using Safari's folders and deletes the
 stored grants. Sync runs only once connected (`Grants/connected`): importing from Safari (the Import sheet, through
 `BrowserImportSource`) asks for Safari's library alone, worded for importing, reads it once and doesn't turn sync on.
-The start page's section is "iCloud Favorites".
+
+
+**What shows the iPhone's tabs** — CloudTabs.db keeps each tab's `last_viewed_time` (seconds since 2001, 0 when
+unset) and each device's type (`com.apple.iphone`…). `SafariModel.recentTabs` is the iPhone's tabs (every device's
+when there's no iPhone), last viewed first, once per address.
+- The start page has two sections, each movable on its own: "iCloud Favorites" (`safari.favorites`) and
+  "iPhone Tabs" (`safari.recent-tabs`, tiles like the favorites, Show All opening iCloud Tabs).
+- The sidebar's `sidebar.top` shows up to three viewed in the last three days that aren't open here (`safari.sidebar-tabs`).
+  One opened leaves the list, even once its page redirected elsewhere (`handedOff`). The header folds them, which is
+  remembered (`SidebarCollapsed` in the data folder); its menu shows every iCloud tab or hides the block.
+- iCloud Tabs is a `ListPopover` above its footer button, as History and the archive are: each device's tabs with
+  when they were last viewed, then Safari's Tab Groups, searchable. A tab already open here is selected, not opened again.
 
 **Status (macOS 27, real data, 2026-10-15)** — Reading: verified, including a favorite added on the iPhone (it
 reached this Mac's Bookmarks.plist and `SafariStore.favorites()`, which the start page lists) and the iPhone's
@@ -113,6 +125,10 @@ Verified 2026-10-15 in the app, with Safari quit:
 Verified 2026-10-15: a visit written here went up at Safari's next launch (`last_synced_generation` passed it).
 Tab Groups verified the same day: a group, its tabs and their removal written here appeared on, then left, the iPhone.
 
+**Running the app on a stand-in Safari** — `BROWSER_SAFARI_HOME=<folder>` makes `<folder>` Safari's home (its
+`Library/Safari` and container folders count as picked, so nothing is asked); then run `safari.connect` over the
+automation socket.
+
 **Live lab** — `Tests/LiveSafariLab.swift`, off by default, edits Safari's real files through the store. It only
 touches items named "<Brand.name> lab…". The verbs are `SAFARI_LAB="add:<name>"`, `"remove:<name>"`, `"group:<name>"`,
 `"ungroup:<name>"`, `visit` (one throwaway visit) and `status`, then
@@ -122,7 +138,7 @@ touches items named "<Brand.name> lab…". The verbs are `SAFARI_LAB="add:<name>
 (Favorites as a folder) and the history, through the same folder grants (asked for if needed).
 
 **Commands** — `safari.add-favorite`, `safari.cloud-tabs`, `safari.connect`, `safari.disconnect`.
-**Settings** — `safari.enabled`, `safari.share-tabs`, `safari.share-history`, `safari.background-sync`.
+**Settings** — `safari.enabled`, `safari.sidebar-tabs`, `safari.share-tabs`, `safari.share-history`, `safari.background-sync`.
 
 **Tests** — `./forkctl test safari` (fixtures in Safari's formats, including real-schema CloudTabs.db and Safari's
 position blobs; grants through a fake panel).

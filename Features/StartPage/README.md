@@ -10,6 +10,12 @@ archived tabs, AdBlock's privacy line, Safari's favorites).
 pages already showed (`runtime.favicons`), so a blank tab contacts no site. Before there's any history, a Get Started
 section offers importing from another browser and making this one the default (`start-page.make-default`).
 
+**Arranging** — Favorites and each `start-page.extras` contribution are movable sections: drag one by its header
+(it moves as the pointer reaches another) or use the header's menu (Move Up, Move Down, which skip empty sections).
+Core's `PageSection` reads the move from the environment (`pageSectionMover`), so contributions need nothing for it.
+The order is kept in `layout.json` in the feature's data folder (`StartPageLayout`); a section never arranged lands
+after the one before it by default. Sections with nothing to show take no room (`SectionColumn`).
+
 **Tests** — `./forkctl test start-page`.
 
 **Remove it** — `./forkctl feature disable start-page`.
