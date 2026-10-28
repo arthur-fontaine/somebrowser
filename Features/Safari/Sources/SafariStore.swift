@@ -9,12 +9,18 @@ nonisolated struct SafariBookmark: Identifiable, Equatable, Sendable {
     var url: URL
     /// Its iCloud record (Tab Groups): the same on every device, and when the agent recreates the row.
     var serverID: String? = nil
+    /// When it was last looked at on its device (iCloud Tabs); nil when Safari didn't say.
+    var lastViewed: Date? = nil
 }
 
 nonisolated struct SafariDevice: Identifiable, Equatable, Sendable {
     var id: String
     var name: String
     var tabs: [SafariBookmark]
+    /// Safari's device type (`com.apple.iphone`, `com.apple.ipad`…).
+    var type: String = ""
+
+    var isPhone: Bool { type.hasPrefix("com.apple.iphone") }
 }
 
 /// A Safari Tab Group (synced through iCloud with the iPhone).
@@ -222,19 +228,21 @@ nonisolated struct SafariStore: Sendable {
         return try Self.query(file) { db in
             var devices: [String: SafariDevice] = [:]
             var order: [String] = []
-            Self.rows(db, "SELECT device_uuid, device_name FROM cloud_tab_devices ORDER BY last_modified DESC") { s in
+            Self.rows(db, "SELECT device_uuid, device_name, device_type_identifier FROM cloud_tab_devices ORDER BY last_modified DESC") { s in
                 let id = Self.text(s, 0), name = Self.text(s, 1)
                 guard name != localDeviceName else { return }
-                devices[id] = SafariDevice(id: id, name: name, tabs: [])
+                devices[id] = SafariDevice(id: id, name: name, tabs: [], type: Self.text(s, 2))
                 order.append(id)
             }
             var keys: [String: (pinned: Bool, position: Double)] = [:]
-            Self.rows(db, "SELECT tab_uuid, device_uuid, title, url, position, is_pinned FROM cloud_tabs") { s in
+            Self.rows(db, "SELECT tab_uuid, device_uuid, title, url, position, is_pinned, last_viewed_time FROM cloud_tabs") { s in
                 let id = Self.text(s, 0), device = Self.text(s, 1)
                 guard let url = URL(string: Self.text(s, 3)), devices[device] != nil else { return }
                 let blob = sqlite3_column_blob(s, 4).map { Data(bytes: $0, count: Int(sqlite3_column_bytes(s, 4))) } ?? Data()
                 keys[id] = (sqlite3_column_int(s, 5) != 0, Self.sortValue(blob))
-                devices[device]?.tabs.append(SafariBookmark(id: id, title: Self.text(s, 2), url: url))
+                let viewed = sqlite3_column_double(s, 6)  // seconds since 2001; 0 when never set
+                devices[device]?.tabs.append(SafariBookmark(id: id, title: Self.text(s, 2), url: url,
+                                                            lastViewed: viewed > 0 ? Date(timeIntervalSinceReferenceDate: viewed) : nil))
             }
             return order.compactMap { id in
                 devices[id].map { device in

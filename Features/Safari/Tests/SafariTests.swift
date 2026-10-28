@@ -87,10 +87,13 @@ func makeHome() throws -> URL {
     """)
     var db: OpaquePointer?
     sqlite3_open(container.appendingPathComponent("CloudTabs.db").path, &db)
-    for (id, device, title, url, sort, pinned) in [("T1", "D1", "Maps", "https://maps.example/", 300, 0), ("T2", "D1", "Docs", "https://docs.example/", 100, 0),
-                                                   ("T3", "D1", "Mail", "https://mail.example/", 900, 1), ("T4", "D3", "Here", "https://here.example/", 1, 0)] {
+    // Last viewed: seconds since 2001, 0 when Safari never set it.
+    for (id, device, title, url, sort, pinned, viewed) in [("T1", "D1", "Maps", "https://maps.example/", 300, 0, 780_000_000),
+                                                           ("T2", "D1", "Docs", "https://docs.example/", 100, 0, 780_000_500),
+                                                           ("T3", "D1", "Mail", "https://mail.example/", 900, 1, 0),
+                                                           ("T4", "D3", "Here", "https://here.example/", 1, 0, 780_001_000)] {
         var stmt: OpaquePointer?
-        sqlite3_prepare_v2(db, "INSERT INTO cloud_tabs VALUES ('\(id)', x'', '\(device)', ?, '\(title)', '\(url)', 0, \(pinned), 0)", -1, &stmt, nil)
+        sqlite3_prepare_v2(db, "INSERT INTO cloud_tabs VALUES ('\(id)', x'', '\(device)', ?, '\(title)', '\(url)', 0, \(pinned), \(viewed))", -1, &stmt, nil)
         let blob = position(sort)
         _ = blob.withUnsafeBytes { sqlite3_bind_blob(stmt, 1, $0.baseAddress, Int32(blob.count), unsafeBitCast(-1, to: sqlite3_destructor_type.self)) }
         sqlite3_step(stmt)
@@ -126,6 +129,9 @@ struct StoreTests {
         let devices = try s.cloudTabs()
         #expect(devices.map(\.name) == ["Arthur’s iPhone"])  // not this Mac; the iPad has no tabs
         #expect(devices.first?.tabs.map(\.title) == ["Mail", "Docs", "Maps"])  // pinned first, then Safari's order
+        #expect(devices.first?.isPhone == true)
+        #expect(devices.first?.tabs.first { $0.title == "Docs" }?.lastViewed == Date(timeIntervalSinceReferenceDate: 780_000_500))
+        #expect(devices.first?.tabs.first { $0.title == "Mail" }?.lastViewed == nil)
         let history = try s.history()
         #expect(history.map(\.url.host) == ["swift.org", "news.example"])
         #expect(history.first?.title == "Swift.org")
@@ -338,6 +344,27 @@ struct StoreTests {
 }
 
 @MainActor
+struct RecentTabsTests {
+    func tab(_ title: String, _ viewed: TimeInterval?) -> SafariBookmark {
+        SafariBookmark(id: title, title: title, url: URL(string: "https://\(title.lowercased()).example/")!,
+                       lastViewed: viewed.map { Date(timeIntervalSinceReferenceDate: $0) })
+    }
+
+    @Test func iPhoneTabsLastViewedFirstOncePerAddress() {
+        let model = SafariModel()
+        model.devices = [
+            SafariDevice(id: "pad", name: "iPad", tabs: [tab("Pad", 900)], type: "com.apple.ipad"),
+            SafariDevice(id: "phone", name: "iPhone", tabs: [tab("Untimed", nil), tab("Old", 100), tab("New", 500), tab("Old", 50)],
+                         type: "com.apple.iphone"),
+        ]
+        #expect(model.recentTabs.map(\.title) == ["New", "Old", "Untimed"])  // the iPad's left out
+        #expect(model.recentTabsTitle == "iPhone Tabs")
+        model.devices = [model.devices[0]]
+        #expect(model.recentTabs.map(\.title) == ["Pad"])
+        #expect(model.recentTabsTitle == "iCloud Tabs")
+    }
+}
+
 struct AccessTests {
     func grants() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("grants-\(UUID().uuidString.prefix(6))") }
 

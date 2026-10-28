@@ -284,6 +284,24 @@ final class SafariModel {
     }
     /// Each entry's title and address, lowercased once: the command bar looks through all of them on every keystroke.
     @ObservationIgnored private(set) var historyText: [[UInt8]] = []
+
+    /// The iPhone's tabs, last looked at first, one per address (every device's when there's no iPhone). Tabs Safari
+    /// never timed come after, in their device's order.
+    var recentTabs: [SafariBookmark] {
+        let phones = devices.filter(\.isPhone)
+        var seen = Set<URL>()
+        return (phones.isEmpty ? devices : phones).flatMap(\.tabs).enumerated().sorted { a, b in
+            switch (a.element.lastViewed, b.element.lastViewed) {
+            case let (x?, y?) where x != y: x > y
+            case (_?, nil): true
+            case (nil, _?): false
+            default: a.offset < b.offset
+            }
+        }.map(\.element).filter { seen.insert($0.url).inserted }
+    }
+
+    /// What `recentTabs` holds, as a heading.
+    var recentTabsTitle: String { devices.contains(where: \.isPhone) ? "iPhone Tabs" : "iCloud Tabs" }
 }
 
 /// Safari history in the command bar (this Mac and the iPhone, through iCloud).
