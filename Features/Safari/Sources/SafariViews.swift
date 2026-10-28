@@ -68,6 +68,115 @@ struct SafariRecentTabsSection: View {
     }
 }
 
+/// The sidebar's iPhone tabs, under the favorites: the few last looked at on the iPhone and not open here, a click from
+/// opening here (Handoff's idea: one opened leaves the list, as it's now a tab). The header folds them; its menu shows
+/// every iCloud tab or hides the block (`safari.sidebar-tabs`).
+struct SidebarPhoneTabs: View {
+    @Environment(BrowserEnvironment.self) private var env
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let model: SafariModel
+    let window: BrowserWindowState
+    let open: (URL, _ select: Bool) -> Void
+    let fold: (Bool) -> Void
+    let hide: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        let store = env.runtime.tabs
+        let tabs = model.sidebarTabs { url in
+            model.handedOff[url].flatMap(store.tab) != nil || !store.tabs(matching: url, in: window.spaceID).isEmpty
+        }
+        if env.runtime.settings.bool("safari.sidebar-tabs"), !window.isPrivate, !tabs.isEmpty {
+            VStack(spacing: Design.Space.row) {
+                header
+                if !model.sidebarCollapsed {
+                    ForEach(tabs) { tab in
+                        PhoneTabRow(tab: tab, icon: env.runtime.favicons.image(for: tab.url), open: open)
+                            .transition(.opacity)
+                    }
+                }
+            }
+            .animation(reduceMotion ? Design.Motion.reduced : Design.Motion.layout, value: tabs.map(\.id))
+            .animation(reduceMotion ? Design.Motion.reduced : Design.Motion.layout, value: model.sidebarCollapsed)
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: Design.Grid.iconToText) {
+            Image(systemName: "iphone").font(.system(size: 11, weight: .semibold))
+                .frame(width: Design.Size.favicon)
+            Text(model.recentTabsTitle).font(.system(size: 11, weight: .semibold))
+            Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
+                .rotationEffect(.degrees(model.sidebarCollapsed ? 0 : 90))
+                .opacity(hovering || model.sidebarCollapsed ? 1 : 0)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.leading, Design.Grid.iconInset)
+        .frame(height: 22)
+        .contentShape(Rectangle())
+        .onTapGesture { fold(!model.sidebarCollapsed) }
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
+        .help(model.sidebarCollapsed ? "Show the iPhone's Latest Tabs" : "Fold")
+        .contextMenu {
+            Button("Show All iCloud Tabs") { window.toggle(flag: SafariFeature.cloudTabsFlag) }
+            Button("Hide from Sidebar", action: hide)
+        }
+    }
+}
+
+/// A tab on the iPhone, on the sidebar's grid like a tab here, but quieter: its title in the secondary color, how long
+/// ago it was viewed at its end.
+struct PhoneTabRow: View {
+    let tab: SafariBookmark
+    let icon: NSImage?
+    let open: (URL, _ select: Bool) -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            open(tab.url, !(NSApp.currentEvent?.modifierFlags.contains(.command) ?? false))
+        } label: {
+            HStack(spacing: Design.Grid.iconToText) {
+                SiteIcon(icon).frame(width: Design.Size.favicon, height: Design.Size.favicon)
+                Text(tab.title.isEmpty ? tab.url.absoluteString : tab.title)
+                    .font(.system(size: 13)).lineLimit(1).truncationMode(.tail)
+                    .foregroundStyle(hovering ? .primary : .secondary)
+                Spacer(minLength: 4)
+                if let viewed = tab.lastViewed {
+                    TimelineView(.everyMinute) { context in
+                        Text(Self.age(viewed, now: context.date)).font(.system(size: 11)).monospacedDigit().foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .padding(.leading, Design.Grid.iconInset)
+            .padding(.trailing, 10)
+            .frame(height: 32)
+            .background(Design.itemShape.fill(hovering ? Design.Fill.hover : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(tab.title.isEmpty ? tab.url.absoluteString : tab.title)
+        .accessibilityValue(tab.lastViewed.map { Self.age($0) } ?? "")
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
+        .help((tab.title.isEmpty ? "" : tab.title + "\n") + tab.url.absoluteString)
+        .contextMenu {
+            Button("Open") { open(tab.url, true) }
+            Button("Open in Background") { open(tab.url, false) }
+            CopyLinkButton(url: tab.url)
+        }
+    }
+
+    /// "now", "5m", "2h", "3d".
+    static func age(_ date: Date, now: Date = Date()) -> String {
+        let minutes = Int(max(0, now.timeIntervalSince(date)) / 60)
+        if minutes < 1 { return "now" }
+        if minutes < 60 { return "\(minutes)m" }
+        if minutes < 24 * 60 { return "\(minutes / 60)h" }
+        return "\(minutes / (24 * 60))d"
+    }
+}
+
 struct CopyLinkButton: View {
     let url: URL
 

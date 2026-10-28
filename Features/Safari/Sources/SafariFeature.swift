@@ -92,6 +92,13 @@ public final class SafariFeature: BrowserFeature {
         context.ui.contribute(.overlay, id: "safari.cloud-tabs", order: 75) { [weak self] window in
             CloudTabsPanel(model: model, window: window, runtime: runtime, open: { self?.openCloudTab($0, in: window, select: $1) })
         }
+        model.sidebarCollapsed = FileManager.default.fileExists(atPath: sidebarCollapsedFile.path)
+        context.ui.contribute("sidebar.top", id: "safari.sidebar-tabs", order: 10) { [weak self] window in
+            SidebarPhoneTabs(model: model, window: window,
+                             open: { url, select in self?.openCloudTab(url, in: window, select: select) },
+                             fold: { self?.setSidebarCollapsed($0) },
+                             hide: { self?.context.settings.set("safari.sidebar-tabs", false) })
+        }
         context.ui.contribute("sidebar.footer", id: "safari.cloud-tabs.button", order: 30) { window in
             if !window.isPrivate, !model.devices.isEmpty || !model.tabGroups.isEmpty {
                 ChromeButton(systemImage: "icloud", help: "iCloud Tabs") { window.toggle(flag: Self.cloudTabsFlag) }
@@ -238,6 +245,17 @@ public final class SafariFeature: BrowserFeature {
         }
     }
 
+    private var sidebarCollapsedFile: URL { context.dataDirectory.appendingPathComponent("SidebarCollapsed") }
+
+    func setSidebarCollapsed(_ collapsed: Bool) {
+        model.sidebarCollapsed = collapsed
+        if collapsed {
+            FileManager.default.createFile(atPath: sidebarCollapsedFile.path, contents: Data())
+        } else {
+            try? FileManager.default.removeItem(at: sidebarCollapsedFile)
+        }
+    }
+
     /// An iCloud tab: the tab here already showing it, else a new one (the blank one when the start page is up).
     func openCloudTab(_ url: URL, in window: BrowserWindowState, select: Bool = true) {
         let runtime = context.runtime
@@ -245,8 +263,9 @@ public final class SafariFeature: BrowserFeature {
             if select { runtime.select(tab.id, in: window) }
         } else if select {
             runtime.open(url, fillingBlankTabIn: window)
+            model.handedOff[url] = window.selectedTabID
         } else {
-            runtime.openTab(url, in: window, select: false)
+            model.handedOff[url] = runtime.openTab(url, in: window, select: false).id
         }
     }
 
@@ -329,6 +348,25 @@ final class SafariModel {
             }
         }.map(\.element).filter { seen.insert($0.url).inserted }
     }
+
+    /// The sidebar's: up to three of `recentTabs` viewed in the last three days (the first three when Safari timed
+    /// none), leaving out those open here.
+    func sidebarTabs(now: Date = Date(), isOpen: (URL) -> Bool) -> [SafariBookmark] {
+        let tabs = recentTabs
+        let timed = tabs.contains { $0.lastViewed != nil }
+        var out: [SafariBookmark] = []
+        for tab in tabs where out.count < 3 {
+            if timed, tab.lastViewed.map({ now.timeIntervalSince($0) < 3 * 86_400 }) != true { continue }
+            if !isOpen(tab.url) { out.append(tab) }
+        }
+        return out
+    }
+
+    /// The tab each iCloud tab became here: it counts as open even once its page redirected elsewhere.
+    var handedOff: [URL: NodeID] = [:]
+
+    /// The sidebar's iPhone tabs folded to their header (kept across launches by the feature).
+    var sidebarCollapsed = false
 
     /// What `recentTabs` holds, as a heading.
     var recentTabsTitle: String { devices.contains(where: \.isPhone) ? "iPhone Tabs" : "iCloud Tabs" }

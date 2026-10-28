@@ -363,6 +363,25 @@ struct RecentTabsTests {
         #expect(model.recentTabs.map(\.title) == ["Pad"])
         #expect(model.recentTabsTitle == "iCloud Tabs")
     }
+
+    @Test func sidebarShowsAFewRecentOnesNotOpenHere() {
+        let model = SafariModel()
+        let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
+        let tabs = [tab("A", 999_000), tab("B", 998_000), tab("Open", 997_000), tab("C", 996_000), tab("D", 995_000), tab("Old", 100)]
+        model.devices = [SafariDevice(id: "phone", name: "iPhone", tabs: tabs, type: "com.apple.iphone")]
+        #expect(model.sidebarTabs(now: now) { $0.host() == "open.example" }.map(\.title) == ["A", "B", "C"])
+        #expect(model.sidebarTabs(now: now) { $0.host() != "old.example" }.isEmpty)  // the rest is more than three days old
+        model.devices = [SafariDevice(id: "phone", name: "iPhone", tabs: [tab("X", nil), tab("Y", nil)], type: "com.apple.iphone")]
+        #expect(model.sidebarTabs(now: now) { _ in false }.map(\.title) == ["X", "Y"])  // Safari timed none
+    }
+
+    @Test func agesAreShort() {
+        let now = Date()
+        #expect(PhoneTabRow.age(now.addingTimeInterval(-20), now: now) == "now")
+        #expect(PhoneTabRow.age(now.addingTimeInterval(-300), now: now) == "5m")
+        #expect(PhoneTabRow.age(now.addingTimeInterval(-7_300), now: now) == "2h")
+        #expect(PhoneTabRow.age(now.addingTimeInterval(-3 * 86_400), now: now) == "3d")
+    }
 }
 
 struct AccessTests {
