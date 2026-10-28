@@ -74,7 +74,6 @@ private struct MovableHeader: ViewModifier {
                     Button("Move Up") { mover.moveUp?() }.disabled(mover.moveUp == nil)
                     Button("Move Down") { mover.moveDown?() }.disabled(mover.moveDown == nil)
                 }
-                .help("Drag to move this section")
         } else {
             content
         }
