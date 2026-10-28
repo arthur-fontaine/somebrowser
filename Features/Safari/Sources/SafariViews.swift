@@ -2,57 +2,79 @@ import AppKit
 import BrowserCore
 import SwiftUI
 
-/// Start page: Safari Favorites (live) and the iPhone's tabs; connecting Safari is a start-page suggestion.
-struct SafariStartSection: View {
+/// Start page: Safari's Favorites (live); connecting Safari is a start-page suggestion.
+struct SafariFavoritesSection: View {
     @Environment(BrowserEnvironment.self) private var env
     let model: SafariModel
-    let window: BrowserWindowState
     let open: (URL, Bool) -> Void
     let openInNewWindow: (URL) -> Void
     let delete: (SafariBookmark) -> Void
 
     var body: some View {
-        switch model.hasAccess {
-        case .some(false):
-            EmptyView()  // the connect card is a start-page suggestion
-        case .some(true):
-            if !model.favorites.isEmpty || !model.devices.isEmpty || !model.tabGroups.isEmpty {
-                PageSection("iCloud Favorites") {
-                    if !model.favorites.isEmpty {
-                        LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 16) {
-                            ForEach(model.favorites.prefix(16)) { favorite in
-                                // Only an icon a page already showed: a start page contacts no site.
-                                SiteTile(icon: env.runtime.favicons.image(for: favorite.url), title: favorite.title,
-                                         help: favorite.url.absoluteString) { open(favorite.url, false) }
-                                    .contextMenu {
-                                        Button("Open in New Tab") { open(favorite.url, true) }
-                                        Button("Open in New Window") { openInNewWindow(favorite.url) }
-                                        Button("Delete", role: .destructive) { delete(favorite) }
-                                        Button("Copy Link") {
-                                            NSPasteboard.general.clearContents()
-                                            NSPasteboard.general.setString(favorite.url.absoluteString, forType: .string)
-                                        }
-                                    }
-                                    .transition(.scale.combined(with: .opacity))
+        if model.hasAccess == true, !model.favorites.isEmpty {
+            PageSection("iCloud Favorites") {
+                LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 16) {
+                    ForEach(model.favorites.prefix(16)) { favorite in
+                        // Only an icon a page already showed: a start page contacts no site.
+                        SiteTile(icon: env.runtime.favicons.image(for: favorite.url), title: favorite.title,
+                                 help: favorite.url.absoluteString) { open(favorite.url, false) }
+                            .contextMenu {
+                                Button("Open in New Tab") { open(favorite.url, true) }
+                                Button("Open in New Window") { openInNewWindow(favorite.url) }
+                                Button("Delete", role: .destructive) { delete(favorite) }
+                                CopyLinkButton(url: favorite.url)
                             }
-                        }
-                        .animation(Design.Motion.layout, value: model.favorites)
-                    }
-                    if !model.devices.isEmpty || !model.tabGroups.isEmpty {
-                        Button { window.toggle(flag: SafariFeature.cloudTabsFlag) } label: {
-                            Label("iCloud Tabs", systemImage: "icloud")
-                                .font(.system(size: 13))
-                                .padding(.horizontal, 14)
-                                .frame(height: 32)
-                                .background(Design.Fill.hover, in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
+                            .transition(.scale.combined(with: .opacity))
                     }
                 }
+                .animation(Design.Motion.layout, value: model.favorites)
             }
-        case .none:
-            EmptyView()
+        }
+    }
+}
+
+/// Start page: the tabs last looked at on the iPhone, as tiles like the favorites; Show All opens iCloud Tabs.
+struct SafariRecentTabsSection: View {
+    @Environment(BrowserEnvironment.self) private var env
+    let model: SafariModel
+    let window: BrowserWindowState
+    let open: (URL, Bool) -> Void
+    let openInNewWindow: (URL) -> Void
+
+    var body: some View {
+        let tabs = model.recentTabs.prefix(8)
+        if !tabs.isEmpty, !window.isPrivate {
+            PageSection(model.recentTabsTitle) {
+                LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 16) {
+                    ForEach(tabs) { tab in
+                        let title = tab.title.isEmpty ? SiteTile.name(for: tab.url) ?? tab.url.absoluteString : tab.title
+                        SiteTile(icon: env.runtime.favicons.image(for: tab.url), title: title,
+                                 help: tab.title.isEmpty ? tab.url.absoluteString : tab.title + "\n" + tab.url.absoluteString) {
+                            open(tab.url, false)
+                        }
+                        .contextMenu {
+                            Button("Open in New Tab") { open(tab.url, true) }
+                            Button("Open in New Window") { openInNewWindow(tab.url) }
+                            CopyLinkButton(url: tab.url)
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                .animation(Design.Motion.layout, value: Array(tabs))
+            } accessory: {
+                PageSectionLink("Show All") { window.toggle(flag: SafariFeature.cloudTabsFlag) }
+            }
+        }
+    }
+}
+
+struct CopyLinkButton: View {
+    let url: URL
+
+    var body: some View {
+        Button("Copy Link") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(url.absoluteString, forType: .string)
         }
     }
 }

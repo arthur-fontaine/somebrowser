@@ -74,13 +74,19 @@ public final class SafariFeature: BrowserFeature {
                 PageCard(symbol: "safari", title: "Sync with Safari on your iPhone") { self?.connect() }
             }
         }
-        context.ui.contribute("start-page.extras", id: "safari.start", order: 10) { [weak self] window in
-            SafariStartSection(model: model, window: window,
-                               open: { url, newTab in self?.open(url, in: window, newTab: newTab) },
-                               openInNewWindow: { url in
-                                   self?.context.shell?.openWindow(spaceID: window.spaceID, isPrivate: window.isPrivate, initialURL: url)
-                               },
-                               delete: { self?.removeFavorite($0) })
+        let openInNewWindow: (BrowserWindowState, URL) -> Void = { [weak self] window, url in
+            self?.context.shell?.openWindow(spaceID: window.spaceID, isPrivate: window.isPrivate, initialURL: url)
+        }
+        context.ui.contribute("start-page.extras", id: "safari.favorites", order: 10) { [weak self] window in
+            SafariFavoritesSection(model: model, open: { url, newTab in self?.open(url, in: window, newTab: newTab) },
+                                   openInNewWindow: { openInNewWindow(window, $0) }, delete: { self?.removeFavorite($0) })
+        }
+        context.ui.contribute("start-page.extras", id: "safari.recent-tabs", order: 11) { [weak self] window in
+            SafariRecentTabsSection(model: model, window: window,
+                                    open: { url, newTab in
+                                        if newTab { self?.context.runtime.openTab(url, in: window) } else { self?.openCloudTab(url, in: window) }
+                                    },
+                                    openInNewWindow: { openInNewWindow(window, $0) })
         }
         let runtime = context.runtime
         context.ui.contribute(.overlay, id: "safari.cloud-tabs", order: 75) { [weak self] window in
