@@ -11,6 +11,7 @@ public enum PageGrid {
 /// A section of a page the browser draws itself (the start page): a header over its content, left-aligned on the
 /// page's column. Features contribute sections to `start-page.extras` with it, so they all read alike.
 public struct PageSection<Content: View, Accessory: View>: View {
+    @Environment(\.pageSectionMover) private var mover
     let title: String
     let content: Content
     let accessory: Accessory
@@ -26,6 +27,7 @@ public struct PageSection<Content: View, Accessory: View>: View {
         VStack(alignment: .leading, spacing: Design.Space.block) {
             HStack(spacing: Design.Space.block) {
                 Text(title).font(.system(size: 15, weight: .semibold))
+                    .modifier(MovableHeader(mover: mover))
                 Spacer(minLength: 0)
                 accessory
             }
@@ -33,6 +35,49 @@ public struct PageSection<Content: View, Accessory: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// How the page moves a section, given to its contributions through the environment: the header's menu moves it
+/// past its neighbour, and the header drags (the page drops it where the pointer is).
+public struct PageSectionMover {
+    public let id: String
+    public let moveUp: (() -> Void)?
+    public let moveDown: (() -> Void)?
+    public let dragBegan: () -> Void
+
+    public init(id: String, moveUp: (() -> Void)?, moveDown: (() -> Void)?, dragBegan: @escaping () -> Void) {
+        self.id = id
+        self.moveUp = moveUp
+        self.moveDown = moveDown
+        self.dragBegan = dragBegan
+    }
+}
+
+public extension EnvironmentValues {
+    /// Set by a page whose sections can be rearranged (the start page).
+    @Entry var pageSectionMover: PageSectionMover? = nil
+}
+
+private struct MovableHeader: ViewModifier {
+    let mover: PageSectionMover?
+
+    func body(content: Content) -> some View {
+        if let mover {
+            content
+                .contentShape(Rectangle())
+                .onDrag {
+                    mover.dragBegan()
+                    return NSItemProvider(object: mover.id as NSString)
+                }
+                .contextMenu {
+                    Button("Move Up") { mover.moveUp?() }.disabled(mover.moveUp == nil)
+                    Button("Move Down") { mover.moveDown?() }.disabled(mover.moveDown == nil)
+                }
+                .help("Drag to move this section")
+        } else {
+            content
+        }
     }
 }
 
