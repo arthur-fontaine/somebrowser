@@ -57,58 +57,49 @@ struct SafariStartSection: View {
     }
 }
 
-/// The iPhone's (and other devices') open Safari tabs, then Safari's Tab Groups.
+/// The iPhone's (and other devices') open Safari tabs, then Safari's Tab Groups: a popover above the sidebar's footer,
+/// as History and the archive are.
 struct CloudTabsPanel: View {
     let model: SafariModel
     let window: BrowserWindowState
-    let open: (URL) -> Void
+    let runtime: BrowserRuntime
+    let open: (URL, _ select: Bool) -> Void
+    @State private var query = ""
 
     var body: some View {
-        if window.flags.contains(SafariFeature.cloudTabsFlag) {
-            ZStack {
-                Color.black.opacity(0.12).contentShape(Rectangle()).onTapGesture { window.flags.remove(SafariFeature.cloudTabsFlag) }
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Label("iCloud Tabs", systemImage: "icloud").font(.title3.bold())
-                        Spacer()
-                        Button { window.flags.remove(SafariFeature.cloudTabsFlag) } label: { Image(systemName: "xmark") }
-                            .buttonStyle(.borderless).keyboardShortcut(.cancelAction)
-                    }
-                    if model.devices.isEmpty && model.tabGroups.isEmpty {
-                        ContentUnavailableView("No iCloud Tabs", systemImage: "icloud.slash",
-                                               description: Text("Tabs open in Safari on your other devices, and Safari's Tab Groups, appear here."))
-                    } else {
-                        List {
-                            ForEach(model.devices) { device in
-                                Section(device.name) { ForEach(device.tabs) { tab in row(tab) } }
-                            }
-                            ForEach(model.tabGroups) { group in
-                                Section {
-                                    ForEach(group.tabs) { tab in row(tab) }
-                                } header: {
-                                    Label(group.title, systemImage: "square.on.square")
-                                }
-                            }
-                        }
-                        .listStyle(.inset)
-                    }
-                }
-                .padding(20)
-                .frame(width: 560, height: 460)
-                .overlayKeyboardFocus("safari.cloud-tabs", in: window)
-                .glassSurface(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: .black.opacity(0.25), radius: 24, y: 10)
-            }
+        let shown = window.flags.contains(SafariFeature.cloudTabsFlag)
+        ListPopover("safari.cloud-tabs", in: window, isShown: shown, title: "iCloud Tabs", query: $query,
+                    sections: shown ? sections() : [],
+                    empty: PanelEmptyState(symbol: "icloud", title: query.isEmpty ? "No iCloud Tabs" : "No Matches",
+                                           detail: query.isEmpty ? "Tabs open in Safari on your iPhone, and Safari's Tab Groups, show up here." : nil),
+                    close: { window.flags.remove(SafariFeature.cloudTabsFlag) })
+            .onChange(of: shown) { if !shown { query = "" } }
+    }
+
+    private func sections() -> [PanelSection] {
+        let devices = model.devices.map { PanelSection(title: $0.name, items: items($0.tabs, prefix: $0.id)) }
+        let groups = model.tabGroups.map { PanelSection(title: $0.title, items: items($0.tabs, prefix: $0.id)) }
+        return (devices + groups).filter { !$0.items.isEmpty }
+    }
+
+    private func items(_ tabs: [SafariBookmark], prefix: String) -> [PanelItem] {
+        tabs.filter { tab in
+            query.isEmpty || tab.title.localizedCaseInsensitiveContains(query) || tab.url.absoluteString.localizedCaseInsensitiveContains(query)
+        }.map { tab in
+            PanelItem(id: prefix + "/" + tab.id, icon: runtime.favicons.image(for: tab.url),
+                      title: tab.title.isEmpty ? tab.url.absoluteString : tab.title, subtitle: tab.url.absoluteString,
+                      detail: tab.lastViewed.map(Self.when), url: tab.url,
+                      open: { open(tab.url, true) }, openInBackground: { open(tab.url, false) })
         }
     }
 
-    private func row(_ tab: SafariBookmark) -> some View {
-        HStack {
-            Text(tab.title.isEmpty ? tab.url.absoluteString : tab.title).lineLimit(1)
-            Spacer()
-            Text(tab.url.host() ?? "").foregroundStyle(.tertiary).lineLimit(1)
+    /// The time today, the day this week, else the date.
+    static func when(_ date: Date) -> String {
+        let calendar = Calendar.current, now = Date()
+        if calendar.isDate(date, inSameDayAs: now) { return date.formatted(date: .omitted, time: .shortened) }
+        if let week = calendar.date(byAdding: .day, value: -6, to: now), date > calendar.startOfDay(for: week) {
+            return date.formatted(.dateTime.weekday(.abbreviated))
         }
-        .contentShape(Rectangle())
-        .onTapGesture { open(tab.url); window.flags.remove(SafariFeature.cloudTabsFlag) }
+        return date.formatted(.dateTime.day().month(.abbreviated))
     }
 }

@@ -42,7 +42,13 @@ public final class SafariFeature: BrowserFeature {
     static let cloudTabsFlag = "safari.cloud-tabs"
 
     public convenience init(context: FeatureContext) {
-        self.init(context: context, access: SafariAccess(grants: context.dataDirectory.appendingPathComponent("Grants")))
+        let grants = context.dataDirectory.appendingPathComponent("Grants")
+        // A stand-in Safari home for running the app in tests: its folders count as picked, so nothing is asked.
+        if let home = ProcessInfo.processInfo.environment["BROWSER_SAFARI_HOME"] {
+            self.init(context: context, access: SafariAccess(grants: grants, home: URL(fileURLWithPath: home), choose: { _, url, _ in url }))
+        } else {
+            self.init(context: context, access: SafariAccess(grants: grants))
+        }
     }
 
     init(context: FeatureContext, access: SafariAccess) {
@@ -76,8 +82,14 @@ public final class SafariFeature: BrowserFeature {
                                },
                                delete: { self?.removeFavorite($0) })
         }
+        let runtime = context.runtime
         context.ui.contribute(.overlay, id: "safari.cloud-tabs", order: 75) { [weak self] window in
-            CloudTabsPanel(model: model, window: window, open: { self?.open($0, in: window, newTab: true) })
+            CloudTabsPanel(model: model, window: window, runtime: runtime, open: { self?.openCloudTab($0, in: window, select: $1) })
+        }
+        context.ui.contribute("sidebar.footer", id: "safari.cloud-tabs.button", order: 30) { window in
+            if !window.isPrivate, !model.devices.isEmpty || !model.tabGroups.isEmpty {
+                ChromeButton(systemImage: "icloud", help: "iCloud Tabs") { window.toggle(flag: Self.cloudTabsFlag) }
+            }
         }
         startSharing()
         backgroundSync.isPending = { [weak self] in self?.somethingWaits() ?? false }
@@ -217,6 +229,18 @@ public final class SafariFeature: BrowserFeature {
             context.runtime.navigate(tab, to: url)
         } else {
             context.runtime.openTab(url, in: window)
+        }
+    }
+
+    /// An iCloud tab: the tab here already showing it, else a new one (the blank one when the start page is up).
+    func openCloudTab(_ url: URL, in window: BrowserWindowState, select: Bool = true) {
+        let runtime = context.runtime
+        if let tab = runtime.tabs.tabs(matching: url, in: window.spaceID).first(where: { $0.isPrivate == window.isPrivate }) {
+            if select { runtime.select(tab.id, in: window) }
+        } else if select {
+            runtime.open(url, fillingBlankTabIn: window)
+        } else {
+            runtime.openTab(url, in: window, select: false)
         }
     }
 
