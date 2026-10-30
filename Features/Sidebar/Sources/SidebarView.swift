@@ -56,7 +56,10 @@ struct SidebarView: View {
     private var footer: some View {
         GlassGroup(spacing: 6) {
             FooterLayout {
-                HStack(spacing: Design.Space.block) { SlotHost(.sidebarFooter, window: window) }
+                HStack(spacing: Design.Space.block) {
+                    SidebarMenuButton(window: window)
+                    SlotHost(.sidebarFooter, window: window)
+                }
                 // Each in a stack, so the layout always gets its three parts, empty or not.
                 HStack(spacing: 0) { SlotHost(.sidebarFooterCenter, window: window) }
                 HStack(spacing: Design.Space.block) { SlotHost(.sidebarFooterTrailing, window: window) }
@@ -65,6 +68,40 @@ struct SidebarView: View {
         }
         .padding(.horizontal, Design.Grid.edge)
         .frame(height: Design.Size.control)
+    }
+}
+
+/// The footer's one leading button (as in Safari's and Oleksii's sidebars): a menu of new windows, what features list
+/// there (History, Archive, iCloud Tabs) and Settings, so the footer keeps room for the space switcher however many
+/// features are on. Their panels pop up above it.
+struct SidebarMenuButton: View {
+    @Environment(BrowserEnvironment.self) private var env
+    let window: BrowserWindowState
+
+    var body: some View {
+        let runtime = env.runtime
+        Menu {
+            if runtime.commands.isHandled("tabs.new-window") {
+                Button("New Window", systemImage: "macwindow.badge.plus") { try? runtime.commands.run("tabs.new-window", window: window) }
+                Divider()
+            }
+            SlotHost(.sidebarMenu, window: window)
+            Divider()
+            Button("Settings…", systemImage: "gearshape") { runtime.shell?.showSettings(paneID: nil) }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .medium))
+                .frame(width: Design.Size.control, height: Design.Size.control)
+                .contentShape(Circle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .foregroundStyle(.primary)
+        .glassControl(in: Circle())
+        .help("More")
+        .accessibilityLabel("More")
     }
 }
 

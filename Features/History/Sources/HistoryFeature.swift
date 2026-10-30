@@ -34,8 +34,8 @@ public final class HistoryFeature: BrowserFeature {
         context.ui.contribute(.overlay, id: "history.panel", order: 70) { window in
             HistoryPanelOverlay(window: window, store: store, runtime: runtime)
         }
-        context.ui.contribute("sidebar.footer", id: "history.button", order: 10) { window in
-            ChromeButton(systemImage: "clock", help: "History (⌘Y)") { window.toggle(flag: Self.panelFlag) }
+        context.ui.contribute("sidebar.menu", id: "history.menu", order: 10) { window in
+            Button("History", systemImage: "clock") { window.toggle(flag: Self.panelFlag) }
         }
         context.ui.contribute("start-page.extras", id: "history.frequent", order: 1) { window in
             FrequentSites(window: window, store: store, runtime: runtime)

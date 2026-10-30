@@ -10,8 +10,10 @@ public extension SlotID {
     static let sidebarAddress: SlotID = "sidebar.address"
     /// Above the space's tabs (e.g. Archive, Safari favorites).
     static let sidebarTop: SlotID = "sidebar.top"
-    /// Bottom bar, its leading end (History, Archive).
+    /// Bottom bar, its leading end, after the menu button.
     static let sidebarFooter: SlotID = "sidebar.footer"
+    /// The footer's menu (History, Archive, iCloud Tabs): buttons, and dividers between groups.
+    static let sidebarMenu: SlotID = "sidebar.menu"
     /// Bottom bar, on the sidebar's axis (the space switcher).
     static let sidebarFooterCenter: SlotID = "sidebar.footer.center"
     /// Bottom bar, its trailing end (Downloads).

@@ -99,9 +99,9 @@ public final class SafariFeature: BrowserFeature {
                              fold: { self?.setSidebarCollapsed($0) },
                              hide: { self?.context.settings.set("safari.sidebar-tabs", false) })
         }
-        context.ui.contribute("sidebar.footer", id: "safari.cloud-tabs.button", order: 30) { window in
+        context.ui.contribute("sidebar.menu", id: "safari.cloud-tabs.menu", order: 30) { window in
             if !window.isPrivate, !model.devices.isEmpty || !model.tabGroups.isEmpty {
-                ChromeButton(systemImage: "icloud", help: "iCloud Tabs") { window.toggle(flag: Self.cloudTabsFlag) }
+                Button("iCloud Tabs", systemImage: "icloud") { window.toggle(flag: Self.cloudTabsFlag) }
             }
         }
         startSharing()

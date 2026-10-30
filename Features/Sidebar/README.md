@@ -37,7 +37,11 @@ Hiding it (⌘S) gives an almost full-screen page; the left window edge reveals 
   every drop, and on a drag that ends elsewhere (Esc, released outside) once the mouse button is up.
 - `SwipeCatcher` turns two-finger horizontal scrolls into an interactive space pager with a spring.
 
-**Slots it hosts** — `sidebar.header`, `sidebar.address`, `sidebar.top`, `sidebar.footer`: other
+- The footer has one button at its leading end, ⋯, a menu (Safari's and Oleksii's sidebars): New Window, what features
+  put in `sidebar.menu` (History, Archive, iCloud Tabs), Settings. One button however many features are on, so the
+  space switcher keeps its place; their panels pop up above it.
+
+**Slots it hosts** — `sidebar.header`, `sidebar.address`, `sidebar.top`, `sidebar.footer`, `sidebar.menu`: other
 features put controls there without importing this module.
 
 **Commands & settings** — `feature.json` (⌘S toggle, ⌘⇧B focus mode, copy branch as Markdown). Drags and the row menus'

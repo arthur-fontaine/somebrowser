@@ -23,9 +23,9 @@ public final class ArchiveFeature: BrowserFeature {
         context.capabilities.contribute(OmniboxProvider.self, ArchiveOmnibox(feature: self))
         let store = self.store
         let runtime = context.runtime
-        context.ui.contribute("sidebar.footer", id: "archive.button", order: 20) { window in
+        context.ui.contribute("sidebar.menu", id: "archive.menu", order: 20) { window in
             if !store.items.isEmpty {
-                ChromeButton(systemImage: "archivebox", help: "Archive (\(store.items.count))") { window.toggle(flag: Self.panelFlag) }
+                Button("Archive", systemImage: "archivebox") { window.toggle(flag: Self.panelFlag) }
             }
         }
         context.ui.contribute(.overlay, id: "archive.panel", order: 70) { window in ArchivePanel(window: window, store: store, runtime: runtime) }

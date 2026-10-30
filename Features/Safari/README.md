@@ -60,7 +60,7 @@ when there's no iPhone), last viewed first, once per address.
 - The sidebar's `sidebar.top` shows up to three viewed in the last three days that aren't open here (`safari.sidebar-tabs`).
   One opened leaves the list, even once its page redirected elsewhere (`handedOff`). The header folds them, which is
   remembered (`SidebarCollapsed` in the data folder); its menu shows every iCloud tab or hides the block.
-- iCloud Tabs is a `ListPopover` above its footer button, as History and the archive are: each device's tabs with
+- iCloud Tabs (in the sidebar's ⋯ menu) is a `ListPopover` above the footer, as History and the archive are: each device's tabs with
   when they were last viewed, then Safari's Tab Groups, searchable. A tab already open here is selected, not opened again.
 
 **Status (macOS 27, real data, 2026-10-15)** — Reading: verified, including a favorite added on the iPhone (it
