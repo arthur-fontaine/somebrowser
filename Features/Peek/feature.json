@@ -11,6 +11,7 @@
   "settingsPage": "Tabs", "settingsOrder": 30,
   "settings": [
     { "key": "peek.trigger", "title": "Preview links with", "type": "choice", "default": "click", "options": ["click", "shift"],
-      "optionTitles": ["Click, from pinned tabs and favorites (⇧-Click opens a tab)", "⇧-Click (a click opens links as usual)"] }
+      "optionTitles": ["Click", "⇧-Click"],
+      "description": "Click: links from pinned tabs and favorites to another site; ⇧-Click opens a tab. ⇧-Click: any link; a click opens it as usual." }
   ]
 }
