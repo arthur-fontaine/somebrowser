@@ -77,7 +77,8 @@ struct LinkHoverBox: View {
             Spacer()
             HStack {
                 if let url = shown, runtime.settings.bool("tree-links.hoverBox") {
-                    let existing = runtime.tabs.tabs(matching: url).first
+                    // Another tab: a link to the page shown isn't open elsewhere (it said so of a preview just opened as a tab).
+                    let existing = runtime.tabs.tabs(matching: url).first { $0.id != window.selectedTabID }
                     HStack(spacing: 6) {
                         if existing != nil {
                             Image(systemName: "arrow.uturn.right.circle.fill").foregroundStyle(.tint)
