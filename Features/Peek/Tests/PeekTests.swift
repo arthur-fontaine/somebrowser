@@ -99,10 +99,10 @@ struct PeekTests {
         #expect(preview.isClosed)
     }
 
-    @Test func theControlsSitAboveThePageATileGutterInFromThePageCard() {
+    @Test func theControlsSitLevelWithTheAddressFieldAboveThePage() {
         let content = CGRect(x: 260, y: 8, width: 800, height: 760)
         let page = PeekCard.frame(in: CGSize(width: 1070, height: 783), content: content)
-        #expect(page.minX == 284 && page.width == 752 && page.maxY == 744)  // a tile gutter in from the page card
-        #expect(page.minY - PeekCard.rowSpace == 32)  // the row (36) and its gap (12) above
+        #expect(page.minX == 284 && page.width == 752 && page.maxY == 744)  // a tile gutter in from the page card's sides and bottom
+        #expect(page.minY - PeekCard.rowSpace == Design.Size.header)  // the row (36) at the header's foot, its gap (12) below
     }
 }

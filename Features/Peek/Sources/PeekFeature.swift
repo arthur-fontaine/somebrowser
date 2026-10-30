@@ -252,13 +252,14 @@ struct PeekCard: View {
             page
                 .clipShape(RoundedRectangle(cornerRadius: full ? window.cardRadius : Self.pageRadius, style: .continuous))
                 .opacity(phase == .landed ? 0 : 1)
-                // Growing into the tab, the glass goes and the page takes the whole page card.
+                // Growing into the tab, the rim closes and the glass takes the page card's corners on the same curve; it
+                // fades off the tab with the snapshot.
                 .padding(full ? 0 : Self.rim)
                 .frame(width: target.width, height: target.height)
                 .background {
                     Color.clear
-                        .glassSurface(in: RoundedRectangle(cornerRadius: Design.Radius.panel, style: .continuous))
-                        .opacity(full ? 0 : 1)
+                        .glassSurface(in: RoundedRectangle(cornerRadius: full ? window.cardRadius : Design.Radius.panel, style: .continuous))
+                        .opacity(phase == .landed ? 0 : 1)
                 }
                 .scaleEffect(scale, anchor: .center)
                 .offset(offset(card: card))
@@ -291,15 +292,17 @@ struct PeekCard: View {
         if let snapshot = session.snapshot {
             Image(nsImage: snapshot)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(Color(nsColor: Self.bottomColor(of: snapshot) ?? .textBackgroundColor))
+                .background(Color(nsColor: Self.bottomColor(of: snapshot) ?? .white))
                 .clipped()
         } else {
+            // White, as pages are (in Dark too: a dark card then a white page flashed on every open).
             VStack(spacing: Design.Space.block) {
                 SiteIcon(env.runtime.favicons.image(for: session.url)).frame(width: 32, height: 32)
                 Text(PeekControls.site(session.url)).font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(Color.white)
+            .environment(\.colorScheme, .light)
         }
     }
 
@@ -334,19 +337,20 @@ struct PeekCard: View {
     }
 
     /// The container at rest: inside the browser's page card (so becoming the tab grows it), a tile gutter in from its
-    /// edges, under the row (the same in the window when there's no page card yet).
+    /// sides and bottom, under the row (the same in the window when there's no page card yet). The row sits below the
+    /// header, level with the sidebar's address field, clear of the traffic lights.
     static func frame(in bounds: CGSize, content: CGRect) -> CGRect {
         let area = content.width > 200 && content.height > 200 ? content : CGRect(origin: .zero, size: bounds)
         let inset = Design.Space.tileGutter
-        let top = inset + rowSpace
+        let top = max(area.minY + inset, Design.Size.header) + rowSpace
         let width = min(area.width - inset * 2, 1100)
-        return CGRect(x: area.midX - width / 2, y: area.minY + top, width: width, height: area.height - top - inset)
+        return CGRect(x: area.midX - width / 2, y: top, width: width, height: area.maxY - inset - top)
     }
 }
 
-/// The controls above the page: glass pieces in one group, the site's capsule centered, Open as Tab and × as circles at
-/// the end. The capsule looks like the sidebar's address field but isn't one: the site alone, not editable, a click opens
-/// the tab. Drag the row down to put the preview away.
+/// The controls above the page: glass pieces in one group, the site's title centered, Open as Tab and × as circles at
+/// the end. The title is a label, not a field: the site's icon and host, hugging them. Drag the row down to put the
+/// preview away.
 struct PeekControls: View {
     @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
@@ -357,7 +361,7 @@ struct PeekControls: View {
         let state = session.engineTab.state
         let shown = state.url ?? session.url
         let openHelp = env.runtime.commands.shortcut(for: "peek.expand").map { "Open as Tab (\($0.displayString))" } ?? "Open as Tab"
-        GlassGroup(spacing: 6) {
+        GlassGroup(spacing: Design.Space.block) {
             ZStack {
                 HStack(spacing: Design.Space.block) {
                     Spacer(minLength: 0)
@@ -365,19 +369,18 @@ struct PeekControls: View {
                     ChromeButton(systemImage: "arrow.up.forward.square", help: openHelp) { model.expand(in: window) }
                     ChromeButton(systemImage: "xmark", help: "Close") { model.close(in: window) }
                 }
-                AddressCapsule(Self.site(shown)) {
+                HStack(spacing: Design.Grid.iconToText) {
                     SiteIcon(state.favicon ?? env.runtime.favicons.image(for: shown))
                         .frame(width: Design.Size.favicon, height: Design.Size.favicon)
-                } trailing: {
-                    FieldButton(help: "Reload") { session.engineTab.reload(bypassingCache: false) } label: {
-                        Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold))
-                    }
+                    Text(Self.site(shown)).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.middle)
                 }
-                .contentShape(Capsule())
-                .onTapGesture { model.expand(in: window) }
-                .help(openHelp)
-                .frame(maxWidth: 480)
-                .padding(.horizontal, 96)  // clear of the circles, so it stays centered on the page
+                .padding(.leading, Design.Grid.iconInset)
+                .padding(.trailing, Design.Space.capsuleTrailing)
+                .frame(height: Design.Size.control)
+                .glassSurface(in: Capsule())  // a label: glass that doesn't answer the pointer
+                .help(shown.absoluteString)
+                // Centered on the page, clear of the circles on both sides.
+                .padding(.horizontal, (Design.Size.control + Design.Space.block) * 2)
             }
         }
         .frame(height: Design.Size.control)
