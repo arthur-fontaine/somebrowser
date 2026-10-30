@@ -56,7 +56,7 @@ stored grants. Sync runs only once connected (`Grants/connected`): importing fro
 unset) and each device's type (`com.apple.iphone`…). `SafariModel.recentTabs` is the iPhone's tabs (every device's
 when there's no iPhone), last viewed first, once per address.
 - The start page has two sections, each movable on its own: "iCloud Favorites" (`safari.favorites`) and
-  "iPhone Tabs" (`safari.recent-tabs`, tiles like the favorites, Show All opening iCloud Tabs).
+  "iPhone Tabs" (`safari.recent-tabs`, tiles like the favorites; Show All lists the rest in place).
 - The sidebar's `sidebar.top` shows up to three viewed in the last three days that aren't open here (`safari.sidebar-tabs`).
   One opened leaves the list, even once its page redirected elsewhere (`handedOff`). The header folds them, which is
   remembered (`SidebarCollapsed` in the data folder); its menu shows every iCloud tab or hides the block.

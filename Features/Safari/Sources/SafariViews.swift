@@ -33,16 +33,20 @@ struct SafariFavoritesSection: View {
     }
 }
 
-/// Start page: the tabs last looked at on the iPhone, as tiles like the favorites; Show All opens iCloud Tabs.
+/// Start page: the tabs last looked at on the iPhone, as tiles like the favorites; Show All lists the rest in place.
 struct SafariRecentTabsSection: View {
     @Environment(BrowserEnvironment.self) private var env
     let model: SafariModel
     let window: BrowserWindowState
     let open: (URL, Bool) -> Void
     let openInNewWindow: (URL) -> Void
+    @State private var showsAll = false
+
+    static let shown = 8
 
     var body: some View {
-        let tabs = model.recentTabs.prefix(8)
+        let all = model.recentTabs
+        let tabs = all.prefix(showsAll ? all.count : Self.shown)
         if !tabs.isEmpty, !window.isPrivate {
             PageSection(model.recentTabsTitle) {
                 LazyVGrid(columns: SiteTile.columns, alignment: .leading, spacing: 16) {
@@ -62,7 +66,11 @@ struct SafariRecentTabsSection: View {
                 }
                 .animation(Design.Motion.layout, value: Array(tabs))
             } accessory: {
-                PageSectionLink("Show All") { window.toggle(flag: SafariFeature.cloudTabsFlag) }
+                if all.count > Self.shown {
+                    PageSectionLink(showsAll ? "Show Less" : "Show All") {
+                        withAnimation(Design.Motion.layout) { showsAll.toggle() }
+                    }
+                }
             }
         }
     }
