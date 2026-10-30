@@ -1,3 +1,4 @@
+import AppKit
 import BrowserCore
 import BrowserTesting
 import Foundation
@@ -8,7 +9,11 @@ import Testing
 struct PeekTests {
     func harness() throws -> (TestHarness, PeekFeature) {
         let h = try TestHarness(features: [PeekFeature.self], manifestDirectory: #filePath)
-        return (h, try #require(h.runtime.feature(PeekFeature.self)))
+        let feature = try #require(h.runtime.feature(PeekFeature.self))
+        feature.model.growDuration = 0.02
+        feature.model.expandDuration = 0.02
+        feature.model.closeDuration = 0.02
+        return (h, feature)
     }
 
     func click(_ tab: BrowserTab, to url: String, shift: Bool = false, h: TestHarness) -> NavigationPolicy {
@@ -40,8 +45,14 @@ struct PeekTests {
         let (h, feature) = try harness()
         let page = h.openTab("https://a.example")
         feature.model.open(URL(string: "https://b.example")!, in: h.window)
-        let preview = try #require(feature.model.session(for: h.window)?.engineTab)
+        let preview = try #require(feature.model.session(for: h.window)?.engineTab as? FakeEngineTab)
+        preview.snapshotImage = NSImage(size: NSSize(width: 10, height: 10))
         try h.run("peek.expand")
+        // The snapshot stands in while it grows into the page's place; then it's the tab.
+        #expect(feature.model.session(for: h.window)?.phase == .expanding)
+        #expect(feature.model.session(for: h.window)?.snapshot != nil)
+        #expect(h.selectedTab?.id == page.id)
+        try await Task.sleep(for: .milliseconds(100))
         #expect(feature.model.session(for: h.window) == nil)
         #expect(h.selectedTab?.engineTab === preview)
         #expect(h.runtime.tabs.parent(of: h.selectedTab!.id) == page.id)
@@ -55,6 +66,31 @@ struct PeekTests {
         let preview = try #require(feature.model.session(for: h.window)?.engineTab as? FakeEngineTab)
         try h.run("peek.close")
         try await Task.sleep(for: .milliseconds(500))
+        #expect(preview.isClosed)
+    }
+
+    @Test func growsBeforeThePageShowsFromTheClick() async throws {
+        let (h, feature) = try harness()
+        h.openTab("https://a.example")
+        feature.model.open(URL(string: "https://b.example")!, in: h.window, from: CGPoint(x: 300, y: 200))
+        #expect(feature.model.session(for: h.window)?.phase == .growing)
+        #expect(feature.model.session(for: h.window)?.origin == CGPoint(x: 300, y: 200))
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(feature.model.session(for: h.window)?.phase == .live)
+    }
+
+    @Test func withoutASnapshotTheBareCardLeaves() async throws {
+        let (h, feature) = try harness()
+        h.openTab("https://a.example")
+        feature.model.snapshotTimeout = 0.02
+        feature.model.open(URL(string: "https://b.example")!, in: h.window)
+        let preview = try #require(feature.model.session(for: h.window)?.engineTab as? FakeEngineTab)
+        preview.snapshotImage = nil
+        try h.run("peek.close")
+        try await Task.sleep(for: .milliseconds(15))
+        #expect(feature.model.session(for: h.window)?.phase == .closing)  // no snapshot: the bare card leaves
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(feature.model.session(for: h.window) == nil)
         #expect(preview.isClosed)
     }
 }
