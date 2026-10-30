@@ -213,6 +213,7 @@ struct OmniboxRow: View {
     let item: OmniboxItem
     let selected: Bool
     let isLast: Bool
+    @State private var hovering = false
 
     var body: some View {
         // The last row's bottom corners are concentric with the panel's.
@@ -232,7 +233,8 @@ struct OmniboxRow: View {
         .padding(.leading, CommandBarPanel.iconX - CommandBarPanel.inset)
         .padding(.trailing, 12)
         .frame(height: item.subtitle == nil ? 36 : 44)
-        .background(shape.fill(selected ? Design.Fill.selection : .clear))
+        .background(shape.fill(selected ? Design.Fill.selection : hovering ? Design.Fill.hover : .clear))
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
     }
 }
 

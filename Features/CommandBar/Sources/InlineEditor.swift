@@ -221,6 +221,7 @@ final class FieldEditorFit {
 struct InlineRow: View {
     let item: OmniboxItem
     let selected: Bool
+    @State private var hovering = false
 
     var body: some View {
         HStack(spacing: Design.Grid.iconToText) {
@@ -236,8 +237,10 @@ struct InlineRow: View {
         .padding(.leading, Design.Grid.iconInset - InlineEditor.rowInset)
         .padding(.trailing, 16 - InlineEditor.rowInset)
         .frame(height: item.subtitle == nil ? 36 : 44)
-        .background(selected ? Design.Fill.selection : .clear,
+        // The pointer washes a row, as everywhere else; only the arrows select (they also fill the field).
+        .background(selected ? Design.Fill.selection : hovering ? Design.Fill.hover : .clear,
                     in: RoundedRectangle(cornerRadius: InlineEditor.radius - InlineEditor.rowInset, style: .continuous))
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
     }
 }
 
