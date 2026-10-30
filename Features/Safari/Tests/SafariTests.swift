@@ -578,7 +578,8 @@ struct FeatureTests {
         #expect(try store.pendingChanges() == 1)
 
         let provider = SafariHistoryOmnibox(model: feature.model, runtime: h.runtime)
-        #expect(provider.items(for: "swift", in: h.window).first?.subtitle == "swift.org")
+        #expect(provider.items(for: "swift", in: h.window).first?.title == "swift.org")  // the site it names
+        #expect(provider.items(for: "swift", in: h.window).first { !$0.isTopHit }?.subtitle == "swift.org")
         #expect(provider.items(for: "SWIFT.ORG/", in: h.window).first?.subtitle == "swift.org")  // the address, any case
         #expect(provider.items(for: "zzz-nowhere", in: h.window).isEmpty)
 

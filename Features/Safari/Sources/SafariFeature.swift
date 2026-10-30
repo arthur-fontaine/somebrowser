@@ -329,8 +329,13 @@ final class SafariModel {
     var devices: [SafariDevice] = []
     var tabGroups: [SafariTabGroup] = []
     var history: [HistoryEntry] = [] {
-        didSet { historyText = history.map { Array(($0.title + "\n" + $0.url.absoluteString).lowercased().utf8) } }
+        didSet {
+            historyText = history.map { Array(($0.title + "\n" + $0.url.absoluteString).lowercased().utf8) }
+            historySites = TopHit.sites(from: history)
+        }
     }
+    /// The history's sites, for the command bar's top hit.
+    @ObservationIgnored private(set) var historySites: [TopHit.Site] = []
     /// Each entry's title and address, lowercased once: the command bar looks through all of them on every keystroke.
     @ObservationIgnored private(set) var historyText: [[UInt8]] = []
 
@@ -382,22 +387,25 @@ final class SafariHistoryOmnibox: OmniboxProvider {
     }
 
     func items(for query: String, in window: BrowserWindowState) -> [OmniboxItem] {
-        let needle = Array(query.lowercased().trimmingCharacters(in: .whitespaces).utf8)
-        guard needle.count >= 2 else { return [] }
         var out: [OmniboxItem] = []
+        let runtime = self.runtime
+        if let hit = TopHit.best(query.trimmingCharacters(in: .whitespaces), in: model.historySites) {
+            out.append(.topHit(hit.site.url, score: hit.score) { url, w in runtime.open(url, fillingBlankTabIn: w) })
+        }
+        let needle = Array(query.lowercased().trimmingCharacters(in: .whitespaces).utf8)
+        guard needle.count >= 2 else { return out }
         // Only text containing the query scores 0.6, so the rest is skipped by a byte search (20,000 pages: ~3 ms, where
         // scoring each took ~240 ms).
         for (i, text) in model.historyText.enumerated() where Self.contains(text, needle) {
             let entry = model.history[i]
             let score = max(FuzzyMatch.score(query, in: entry.title), FuzzyMatch.score(query, in: entry.url.absoluteString) * 0.9)
             guard score >= 0.6 else { continue }
-            let runtime = self.runtime
             out.append(OmniboxItem(id: "safari:" + entry.url.absoluteString, title: entry.title.isEmpty ? entry.url.absoluteString : entry.title,
                                    subtitle: entry.url.host(), icon: .favicon(entry.url), kind: "Safari", score: score * 0.6,
                                    fill: entry.url.absoluteString) { w in
                 runtime.openTab(entry.url, in: w)
             })
-            if out.count >= 5 { break }
+            if out.count >= 6 { break }
         }
         return out
     }
