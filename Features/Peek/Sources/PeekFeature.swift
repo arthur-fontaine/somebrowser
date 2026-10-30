@@ -339,8 +339,8 @@ struct PeekCard: View {
     }
 }
 
-/// The card's top: close at its start, Open as Tab at its end, the site (icon and host, as Arc's) in the middle. Washes
-/// under the pointer, no glass of its own (the card is the glass). Drag it down to put the preview away.
+/// The card's top: close at its start, Open as Tab at its end, the site (icon and host, as Arc's) in the middle. Its
+/// controls are fills, no glass of their own (the card is the glass). Drag it down to put the preview away.
 struct PeekToolbar: View {
     @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
@@ -352,9 +352,7 @@ struct PeekToolbar: View {
         let shown = state.url ?? url
         ZStack {
             HStack(spacing: Design.Space.block) {
-                FieldButton(help: "Close") { model.close(in: window) } label: {
-                    Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
-                }
+                PanelCloseButton { model.close(in: window) }
                 Spacer(minLength: 0)
                 OpenAsTabButton(help: env.runtime.commands.shortcut(for: "peek.expand").map { "Open as Tab (\($0.displayString))" } ?? "Open as Tab") {
                     model.expand(in: window)
@@ -389,23 +387,20 @@ struct PeekToolbar: View {
     }
 }
 
-/// A text button in the card's toolbar: a 28 pt capsule washed under the pointer, as the toolbar's other control.
+/// The card's action: text in a filled capsule, as Quick Look's "Open with…" (an icon of expanding arrows reads as Full
+/// Screen on a Mac).
 struct OpenAsTabButton: View {
     let help: String
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            Label("Open as Tab", systemImage: "arrow.up.left.and.arrow.down.right")
+            Text("Open as Tab")
                 .font(.system(size: 13))
                 .padding(.horizontal, Design.Space.divider)
                 .frame(height: Design.AddressField.control)
-                .background(Capsule().fill(hovering ? Design.Fill.hover : .clear))
-                .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
+        .buttonStyle(PanelControlStyle(Capsule()))
         .help(help)
     }
 }
