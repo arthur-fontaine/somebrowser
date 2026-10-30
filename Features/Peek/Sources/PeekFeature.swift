@@ -279,7 +279,9 @@ struct PeekCard: View {
     @ViewBuilder private var page: some View {
         ZStack {
             still
-            if session.phase == .live { PeekContent(engineTab: session.engineTab, runtime: model.runtime, isShown: !session.hidesPage) }
+            if session.phase == .live {
+                PeekContent(engineTab: session.engineTab, runtime: model.runtime, isShown: !session.hidesPage, cornerRadius: Self.pageRadius)
+            }
         }
     }
 
@@ -406,6 +408,9 @@ struct PeekContent: NSViewRepresentable {
     let runtime: BrowserRuntime
     /// False puts the page away (the card is about to move) while the view stays.
     var isShown = true
+    /// The page's corners: engines round its window to its container's layer (CEF's is a child window, which a SwiftUI
+    /// clip can't round; left unset it took the page card's, a dark sliver in each corner of the glass).
+    var cornerRadius: CGFloat
 
     final class Container: NSView {
         var viewport: EngineViewport?
@@ -416,6 +421,8 @@ struct PeekContent: NSViewRepresentable {
     func makeNSView(context: Context) -> Container {
         let v = Container()
         v.wantsLayer = true
+        v.layer?.cornerRadius = cornerRadius
+        v.layer?.cornerCurve = .continuous
         v.isShown = isShown
         DispatchQueue.main.async {
             let viewport = runtime.engine.makeViewport(in: v)
