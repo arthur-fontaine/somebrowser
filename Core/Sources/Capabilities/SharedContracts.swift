@@ -107,10 +107,12 @@ public struct OmniboxItem: Identifiable {
     /// What the field shows while this result is selected with the arrows (Chrome's): a suggestion's text, a page's
     /// address. Typing goes on from it. `nil` keeps what was typed.
     public var fill: String?
+    /// The site the query most likely names (`TopHit`), its score that one: the best sure one goes before the search.
+    public var isTopHit: Bool
     public var action: (BrowserWindowState) -> Void
 
     public init(id: String, title: String, subtitle: String? = nil, icon: Icon, kind: String, score: Double,
-                accessory: String? = nil, fill: String? = nil, action: @escaping (BrowserWindowState) -> Void) {
+                accessory: String? = nil, fill: String? = nil, isTopHit: Bool = false, action: @escaping (BrowserWindowState) -> Void) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
@@ -119,7 +121,15 @@ public struct OmniboxItem: Identifiable {
         self.score = score
         self.accessory = accessory
         self.fill = fill
+        self.isTopHit = isTopHit
         self.action = action
+    }
+
+    /// A site to open as the top hit for what was typed.
+    public static func topHit(_ url: URL, score: Double, open: @escaping (URL, BrowserWindowState) -> Void) -> OmniboxItem {
+        let host = url.host() ?? url.absoluteString
+        return OmniboxItem(id: "top:\(host)", title: host, subtitle: nil, icon: .favicon(url), kind: "Top Hit", score: score,
+                           fill: url.absoluteString, isTopHit: true) { open(url, $0) }
     }
 }
 
