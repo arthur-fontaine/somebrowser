@@ -96,10 +96,6 @@ public enum Design {
         public static let hairline = Color.primary.opacity(0.1)
         /// Under the text of a large glass panel, so it reads over any page (Spotlight's).
         public static let glassScrim = adaptive(light: .white.withAlphaComponent(0.10), dark: .black.withAlphaComponent(0.12))
-        /// A control on a panel at rest (`PanelControlStyle`): its shape shows before the pointer comes.
-        public static let control = adaptive(light: .black.withAlphaComponent(0.07), dark: .white.withAlphaComponent(0.09))
-        /// …and pressed.
-        public static let pressed = adaptive(light: .black.withAlphaComponent(0.14), dark: .white.withAlphaComponent(0.16))
         /// Over the page behind a floating card (a preview): it dims what the card is in front of.
         public static let scrim = adaptive(light: .black.withAlphaComponent(0.18), dark: .black.withAlphaComponent(0.35))
 

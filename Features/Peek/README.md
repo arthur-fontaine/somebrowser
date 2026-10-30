@@ -2,16 +2,12 @@
 
 **Purpose** — Radian Preview / Arc Peek: links from pinned tabs and favorites (or ⇧-click) open in a floating preview you can expand into a tab.
 
-**How it looks** — a glass panel (`Radius.panel`, as the app's floating panels), a tile gutter inside the page card,
-over a dimmed page (`Fill.scrim`). Its toolbar has no glass of its own: × and Open as Tab wash under the pointer, the
-site (icon and host, as Arc's) sits centered. Drag the toolbar down to put it away.
-
-**Styles** (`peek.style`, an experiment to compare): `card` (the default) as above; `floating`, Safari's iOS bar on a
-Mac: the page alone, a card as the browser's own (its radius and hairline shadow), under a row of glass controls 12 pt
-above it (× · the site · Open as Tab); `floating-circles`: the site, then Open as Tab (`arrow.up.forward.square`) and ×
-as circles. The site's capsule is Core's `AddressCapsule`, as the sidebar's address field looks, but it isn't one:
-the site alone, reload at its end, a click opens the tab. The row fades in once the page shows and lifts away as the
-page grows into the tab; dragging it down puts the preview away.
+**How it looks** — Safari's iOS bar, on a Mac: the page is a card as the browser's own (its radius and hairline shadow),
+a tile gutter inside the page card, over a dimmed page (`Fill.scrim`). A row of glass controls floats 12 pt above it:
+the site's capsule centered, then Open as Tab (`arrow.up.forward.square`; expanding arrows read as Full Screen) and ×
+as circles. The capsule is Core's `AddressCapsule`, as the sidebar's address field looks, but it isn't one: the site
+alone (icon and host, as Arc's), reload at its end, a click opens the tab. The row fades in once the page shows and
+lifts away as the page grows into the tab; drag it down to put the preview away.
 
 **How it moves** — the page is an engine page (a child window under CEF), which can't follow an animated frame or
 transform (AGENTS.md), so a stand-in moves and the page only ever sits still (`PeekModel.Phase`):

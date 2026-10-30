@@ -11,8 +11,6 @@
   "settingsPage": "Tabs", "settingsOrder": 30,
   "settings": [
     { "key": "peek.fromPinned", "title": "Preview links opened from pinned tabs and favorites", "type": "bool", "default": true },
-    { "key": "peek.shiftClick", "title": "⇧-click a link to preview it", "type": "bool", "default": true },
-    { "key": "peek.style", "title": "Preview style", "type": "choice", "default": "card", "options": ["card", "floating", "floating-circles"],
-      "optionTitles": ["Card", "Floating controls", "Floating circles"] }
+    { "key": "peek.shiftClick", "title": "⇧-click a link to preview it", "type": "bool", "default": true }
   ]
 }
