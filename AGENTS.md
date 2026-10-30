@@ -79,7 +79,7 @@ Launch with `BROWSER_DATA_DIR=<tmp>` (isolated profile and settings: `<tmp>/sett
 newline-delimited JSON: `{"op":"open","url":…}`, `{"op":"navigate","url":…}`, `{"op":"run","command":"tabs.close"}`,
 `{"op":"state"}` (tabs, windows, the app's memory footprint), `{"op":"eval","js":…}`, `{"op":"setting","key":…,"value":…}`,
 `{"op":"views"}`, `{"op":"documentStart","js":…,"prefix":…}`, `{"op":"key","key":"f","modifiers":["cmd"],"keyCode":3,"page":true}`
-(key windows only exist when the app is frontmost), `{"op":"click","x":…,"y":…}` (to the view hit-tested there),
+(key windows only exist when the app is frontmost), `{"op":"click","x":…,"y":…}` (to the view hit-tested there; `"modifiers":["shift"]` as the page sees them),
 `{"op":"hit","x":…,"y":…}` (which windows and views, Chromium's included, are under a point), `{"op":"clickTitle","title":…}` (clicks the
 window's control showing that text, a sidebar row…), `{"op":"appearance","value":"dark"}` (`light`, `system`), `{"op":"settings","pane":"tabs"}` (the Settings window on a page), `{"op":"peek","value":true}` (the hidden sidebar as a floating panel), `{"op":"fullscreen","value":true}` (native full screen, its own Space), `{"op":"quit"}`. `run` replies with the command's main-thread time.
 Any request may add `"private": true` (or `false`) to act on the first private (or normal) window, or `"flag": "…"` to act on the

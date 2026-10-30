@@ -235,12 +235,7 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
             DispatchQueue.main.async { [weak self] in self?.load(page) }
             return false
         }
-        var mods = NSEventModifierFlagsBox()
-        let flags = NSEvent.modifierFlags
-        if flags.contains(.command) { mods.insert(.command) }
-        if flags.contains(.shift) { mods.insert(.shift) }
-        if flags.contains(.option) { mods.insert(.option) }
-        switch engine.hooks.decide(NavigationAction(url: u, sourceTab: self, isMainFrame: true, userGesture: gesture, modifiers: mods,
+        switch engine.hooks.decide(NavigationAction(url: u, sourceTab: self, isMainFrame: true, userGesture: gesture, modifiers: Self.modifiers,
                                                     isFormSubmission: form)) {
         case .allow:
             // A site known to need protected media plays in WebKit: this tab becomes a WebKit page there.
@@ -258,17 +253,44 @@ final class CEFPage: NSObject, EngineTab, CEFTabDelegate {
         }
     }
 
+    func cefTab(_ tab: CEFTab, shouldOpen url: String, disposition: CEFDisposition, userGesture gesture: Bool) -> Bool {
+        guard let engine, let u = URL(string: url) else { return true }
+        switch engine.hooks.decide(NavigationAction(url: u, sourceTab: self, isMainFrame: true, userGesture: gesture, modifiers: Self.modifiers,
+                                                    disposition: Self.disposition(disposition))) {
+        case .allow: return true
+        case .cancel, .handled: return false
+        case .openInNewTab(let target):
+            let page = CEFPage(engine: engine)
+            page.attach(CEFTab(url: target.absoluteString, delegate: page, private: tab.isPrivate))
+            delegate?.engineTab(self, didOpen: page, url: target, disposition: .foregroundTab, userGesture: true)
+            return false
+        }
+    }
+
     func cefTab(_ tab: CEFTab, didOpen newTab: CEFTab, url: String?, disposition: CEFDisposition, userGesture gesture: Bool) {
         guard let engine else { newTab.close(); return }
         let page = CEFPage(engine: engine)
         page.attach(newTab)
-        let d: OpenDisposition = switch disposition {
+        delegate?.engineTab(self, didOpen: page, url: url.flatMap(URL.init(string:)), disposition: Self.disposition(disposition), userGesture: gesture)
+    }
+
+    static func disposition(_ d: CEFDisposition) -> OpenDisposition {
+        switch d {
         case .backgroundTab: .backgroundTab
         case .popup: .popup
         case .newWindow: .newWindow
         default: .foregroundTab
         }
-        delegate?.engineTab(self, didOpen: page, url: url.flatMap(URL.init(string:)), disposition: d, userGesture: gesture)
+    }
+
+    /// The keys held now: Chromium doesn't pass the click's, but a navigation decision comes on the click.
+    static var modifiers: NSEventModifierFlagsBox {
+        var mods = NSEventModifierFlagsBox()
+        let flags = NSEvent.modifierFlags
+        if flags.contains(.command) { mods.insert(.command) }
+        if flags.contains(.shift) { mods.insert(.shift) }
+        if flags.contains(.option) { mods.insert(.option) }
+        return mods
     }
 
     func cefTab(_ tab: CEFTab, message name: String, json: String, mainFrame: Bool, frameURL: String?) {

@@ -36,7 +36,7 @@ public final class SignInWithAppleFeature: BrowserFeature {
     }
 
     func policy(for action: NavigationAction) -> NavigationPolicy {
-        guard context.settings.bool("apple-signin.native"), action.isMainFrame, Self.isAuthorize(action.url), let tab = action.sourceTab else { return .allow }
+        guard context.settings.bool("apple-signin.native"), action.isMainFrame, action.disposition == nil, Self.isAuthorize(action.url), let tab = action.sourceTab else { return .allow }
         if passthrough.remove(action.url) != nil { return .allow }
         guard session == nil, provider.canHandle(action.url) else { return .allow }
         start(action.url, in: tab, userInitiated: action.userGesture)

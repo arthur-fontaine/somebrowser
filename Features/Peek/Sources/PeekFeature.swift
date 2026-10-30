@@ -34,8 +34,11 @@ public final class PeekFeature: BrowserFeature {
               let tab = context.tabs.allTabs.first(where: { $0.engineTab === source }),
               let window = context.windows.first(where: { $0.selectedTabID == tab.id }),
               model.session(for: window)?.engineTab !== source else { return nil }
-        if action.modifiers.contains(.shift) && context.settings.bool("peek.shiftClick") { return window }
-        guard context.settings.bool("peek.fromPinned"), context.tabs.isPinned(tab.id) || context.tabs.isFavorite(tab.id) else { return nil }
+        // Chromium opens a ⇧-click in a new window: that one is ours, other new tabs (⌘-click…) open as asked.
+        let shift = action.modifiers.contains(.shift) && !action.modifiers.contains(.command)
+        if shift, action.disposition == nil || action.disposition == .newWindow, context.settings.bool("peek.shiftClick") { return window }
+        guard action.disposition == nil, context.settings.bool("peek.fromPinned"),
+              context.tabs.isPinned(tab.id) || context.tabs.isFavorite(tab.id) else { return nil }
         let from = SiteSettingsStore.site(for: source.state.url), to = SiteSettingsStore.site(for: action.url)
         return from != nil && from != to ? window : nil
     }

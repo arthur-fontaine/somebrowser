@@ -638,9 +638,10 @@ public:
         // "Open Link in New Tab" and friends: becomes our own child tab.
         if (disposition == CEF_WOD_CURRENT_TAB) return false;
         CEFTab *tab = tab_;
-        CEFTab *opened = [[CEFTab alloc] initWithURL:NS(target_url) delegate:nil private:tab.isPrivate];
         CEFDisposition d = disposition == CEF_WOD_NEW_BACKGROUND_TAB ? CEFDispositionBackgroundTab
                          : disposition == CEF_WOD_NEW_WINDOW ? CEFDispositionNewWindow : CEFDispositionForegroundTab;
+        if (tab.delegate && ![tab.delegate cefTab:tab shouldOpen:NS(target_url) disposition:d userGesture:user_gesture]) return true;
+        CEFTab *opened = [[CEFTab alloc] initWithURL:NS(target_url) delegate:nil private:tab.isPrivate];
         [tab.delegate cefTab:tab didOpen:opened url:NS(target_url) disposition:d userGesture:user_gesture];
         return true;
     }

@@ -81,7 +81,8 @@ public final class EngineHooks {
 
     // MARK: Navigation
 
-    /// Main-frame navigation decisions (Sign in with Apple interception, link routing…). First non-`.allow` wins.
+    /// Main-frame navigation decisions (Sign in with Apple interception, link routing…), and links the page opens in a new
+    /// tab or window (`NavigationAction.disposition`). First non-`.allow` wins.
     public private(set) var navigationPolicies: [(NavigationAction) -> NavigationPolicy] = []
     public func addNavigationPolicy(_ policy: @escaping (NavigationAction) -> NavigationPolicy) {
         navigationPolicies.append(policy)
@@ -267,15 +268,19 @@ public struct NavigationAction {
     /// A form sent (a POST, a search, an upload): its data goes with this navigation only, so it can't be redone
     /// elsewhere (in a new tab, by URL).
     public var isFormSubmission: Bool
+    /// Where the page asks to open the link, when not in place: a ⇧-click is a new window to Chromium, a ⌘-click a
+    /// background tab. `.handled`/`.cancel` keep it from opening; `.openInNewTab` opens it as a tab instead.
+    public var disposition: OpenDisposition?
 
     public init(url: URL, sourceTab: EngineTab?, isMainFrame: Bool = true, userGesture: Bool = false, modifiers: NSEventModifierFlagsBox = .init(),
-                isFormSubmission: Bool = false) {
+                isFormSubmission: Bool = false, disposition: OpenDisposition? = nil) {
         self.url = url
         self.sourceTab = sourceTab
         self.isMainFrame = isMainFrame
         self.userGesture = userGesture
         self.modifiers = modifiers
         self.isFormSubmission = isFormSubmission
+        self.disposition = disposition
     }
 }
 

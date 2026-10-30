@@ -29,6 +29,15 @@ struct TreeLinksTests {
         #expect(h.engine.hooks.decide(upload) == .allow)
     }
 
+    /// A link the page already opens in a new tab or window (⌘-click) opens as asked: a ⌘-click stays in the background.
+    @Test func newTabsOpenAsAsked() throws {
+        let h = try harness()
+        let a = h.openTab("https://a.example/")
+        let open = NavigationAction(url: URL(string: "https://b.example/")!, sourceTab: a.engineTab, userGesture: true,
+                                    modifiers: [.command], disposition: .backgroundTab)
+        #expect(h.engine.hooks.decide(open) == .allow)
+    }
+
     /// Claude clicks in the tab it drives and reads what loads there.
     @Test func claudesTabsStayInPlace() throws {
         let h = try harness()

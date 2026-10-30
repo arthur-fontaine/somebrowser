@@ -41,6 +41,9 @@ typedef NS_ENUM(NSInteger, CEFDisposition) {
 - (BOOL)cefTab:(CEFTab *)tab shouldNavigateTo:(NSString *)url userGesture:(BOOL)gesture isRedirect:(BOOL)redirect form:(BOOL)form;
 /// Script to run in the main-frame document about to load at `url`, before the page's own scripts.
 - (nullable NSString *)cefTab:(CEFTab *)tab documentStartScriptFor:(NSString *)url;
+/// A link the page opens in a new tab or window (⌘-, ⇧-click, "Open Link in New Tab"), before it opens. NO when the
+/// browser took it (it opens nothing).
+- (BOOL)cefTab:(CEFTab *)tab shouldOpen:(NSString *)url disposition:(CEFDisposition)disposition userGesture:(BOOL)gesture;
 /// The page opened `newTab` (popup, target=_blank, ⌘-click, context menu "Open in New Tab").
 - (void)cefTab:(CEFTab *)tab didOpen:(CEFTab *)newTab url:(nullable NSString *)url disposition:(CEFDisposition)disposition userGesture:(BOOL)gesture;
 /// `window.__browser.post(name, body)`; `json` is `JSON.stringify(body)`. The sending frame is the browser

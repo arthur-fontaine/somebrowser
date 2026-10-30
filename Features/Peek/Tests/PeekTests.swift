@@ -18,9 +18,13 @@ struct PeekTests {
         return (h, feature)
     }
 
-    func click(_ tab: BrowserTab, to url: String, shift: Bool = false, h: TestHarness) -> NavigationPolicy {
-        h.engine.hooks.decide(NavigationAction(url: URL(string: url)!, sourceTab: tab.engineTab, isMainFrame: true,
-                                               userGesture: true, modifiers: shift ? [.shift] : []))
+    func click(_ tab: BrowserTab, to url: String, shift: Bool = false, command: Bool = false, opening: OpenDisposition? = nil,
+               h: TestHarness) -> NavigationPolicy {
+        var modifiers: NSEventModifierFlagsBox = []
+        if shift { modifiers.insert(.shift) }
+        if command { modifiers.insert(.command) }
+        return h.engine.hooks.decide(NavigationAction(url: URL(string: url)!, sourceTab: tab.engineTab, isMainFrame: true,
+                                                      userGesture: true, modifiers: modifiers, disposition: opening))
     }
 
     @Test func pinnedTabsPreviewOtherSites() async throws {
@@ -41,6 +45,20 @@ struct PeekTests {
         #expect(click(page, to: "https://b.example", shift: true, h: h) == .handled)
         try await Task.sleep(for: .milliseconds(50))
         #expect(feature.model.session(for: h.window)?.engineTab.state.url?.host() == "b.example")
+    }
+
+    /// Chromium doesn't navigate on a ⇧-click: it opens a new window, which the preview takes instead.
+    @Test func chromiumsShiftClickWindowBecomesThePreview() async throws {
+        let (h, feature) = try harness()
+        let mail = h.openTab("https://mail.example/inbox")
+        h.runtime.tabs.pin(mail.id, in: h.window.spaceID)
+        #expect(click(mail, to: "https://news.example", shift: true, opening: .newWindow, h: h) == .handled)
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(feature.model.session(for: h.window)?.engineTab.state.url?.host() == "news.example")
+        feature.model.close(in: h.window)
+        // ⌘-clicks open the tab they ask for, even from a pinned tab.
+        #expect(click(mail, to: "https://other.example", command: true, opening: .backgroundTab, h: h) == .allow)
+        #expect(click(mail, to: "https://other.example", shift: true, command: true, opening: .foregroundTab, h: h) == .allow)
     }
 
     @Test func expandAdoptsThePageAsAChildTab() async throws {

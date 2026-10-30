@@ -160,7 +160,7 @@ final class AutomationServer {
             }
             reply(["ok": true, "keyWindow": String(describing: type(of: target))])
         case "click":
-            // A left click in the page at (x, y) from its top-left (mouse routing tests).
+            // A left click in the page at (x, y) from its top-left (mouse routing tests), with `modifiers` as the page sees them.
             // In the engine's page window if it has one, else in the browser window over its web view (WebKit pages).
             let shellWindow = window.flatMap { shell?.nsWindow(for: $0) }
             let pageWindow = shellWindow?.childWindows?.last(where: { $0.identifier != ShellOverlay.windowIdentifier && $0.frame.width > 2 && $0.isVisible })
@@ -180,7 +180,8 @@ final class AutomationServer {
                 return reply(["ok": false, "error": "no view there"])
             }
             for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-                guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: Self.modifiers(req["modifiers"]),
+                                                     timestamp: ProcessInfo.processInfo.systemUptime,
                                                      windowNumber: page.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
                 else { continue }
                 if type == .leftMouseDown { target.mouseDown(with: event) } else { target.mouseUp(with: event) }

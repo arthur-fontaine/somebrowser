@@ -36,7 +36,8 @@ public final class TreeLinksFeature: BrowserFeature {
     /// its data can't be sent again from a new tab. Claude's tabs too: Claude follows its own clicks in the tab it
     /// drives, and a child tab would be one it doesn't know.
     func decide(_ action: NavigationAction) -> NavigationPolicy {
-        guard context.settings.bool("tree-links.enabled"), action.isMainFrame, action.userGesture, !action.isFormSubmission,
+        guard context.settings.bool("tree-links.enabled"), action.isMainFrame, action.disposition == nil, action.userGesture,
+              !action.isFormSubmission,
               ["http", "https"].contains(action.url.scheme ?? ""),
               let source = action.sourceTab, let current = source.state.url,
               let tab = context.tabs.allTabs.first(where: { $0.engineTab === source }), !tab.opensLinksInPlace,
