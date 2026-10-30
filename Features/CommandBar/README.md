@@ -10,6 +10,13 @@ page) show as their terms, which the arrows fill in to edit, and run with the cu
 **How it works** — `CommandBarModel` (pure, tested) ranks items with `FuzzyMatch`; the SwiftUI panel
 lives in the window `overlay` slot. ↑/↓ move, ↩ runs, Tab completes a site-search keyword, Esc closes.
 
+**Top hit** — when what's typed surely names a site, that site comes first, before the search, so ↩ opens it (Safari's
+Top Hit): "x" → x.com, "gmail" → mail.google.com. Core's `TopHit` matches the start of a site's domain, of one of its
+names (google in mail.google.com) or of a word of its pages' titles (Gmail), and weighs visits with a two-week
+half-life. History providers offer their best site (`OmniboxItem.isTopHit`); a short list of brands whose site has
+another name (gmail, gcal, twitter, yt…) works without history. One letter needs more visits; an address typed stays
+first. Results wash under the pointer; only the arrows select (they fill the field).
+
 **Two styles** (`command-bar.style`):
 - `inline` (default): the sidebar's address field grows into one glass panel, its top-left held and 480 pt wide over
   the page, as Spotlight's bar grows into its results; the results sit on the sidebar's grid. It's drawn in the
