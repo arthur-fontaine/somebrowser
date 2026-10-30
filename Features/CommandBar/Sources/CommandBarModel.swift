@@ -133,7 +133,7 @@ final class CommandBarModel {
         let q = s.typed.trimmingCharacters(in: .whitespacesAndNewlines)
         if q.isEmpty { return recentItems(window) }
 
-        let head = primaryItems(q, mode: s.mode)
+        var head = primaryItems(q, mode: s.mode)
         var items: [OmniboxItem] = []
         for (i, suggestion) in s.suggestions.enumerated() where suggestion.lowercased() != q.lowercased() {
             items.append(openItem(id: "suggest:\(suggestion)", title: suggestion, subtitle: nil, input: suggestion,
@@ -143,6 +143,10 @@ final class CommandBarModel {
         items += tabItems(q, window: window)
         for provider in runtime.capabilities.all(OmniboxProvider.self) { items += provider.items(for: q, in: window) }
         if runtime.settings.bool("command-bar.showActions") { items += actionItems(q) }
+
+        // A site it surely names goes first, before the search (Safari's Top Hit), unless an address was typed.
+        if let hit = topHit(q, among: items, mode: s.mode), search?.looksLikeURL(q) != true { head.insert(hit, at: 0) }
+        items.removeAll(where: \.isTopHit)
 
         // The primary results stay first; the rest by score, deduplicated by title+subtitle.
         var seen = Set(head.map { "\($0.title)|\($0.subtitle ?? "")" })
@@ -162,6 +166,17 @@ final class CommandBarModel {
         guard search.looksLikeURL(q), let url = search.url(for: q) else { return [searchItem] }
         return [openItem(id: "open", title: url.absoluteString.replacingOccurrences(of: "https://", with: ""),
                          subtitle: "Open address", input: q, icon: .favicon(url), kind: "Open", score: 2, mode: mode), searchItem]
+    }
+
+    /// The surest of the providers' top hits and a known brand's site (gmail), opened the way the bar opens addresses.
+    private func topHit(_ q: String, among items: [OmniboxItem], mode: Mode) -> OmniboxItem? {
+        var hits = items.filter(\.isTopHit)
+        if let url = TopHit.alias(for: q) { hits.append(.topHit(url, score: 1) { _, _ in }) }
+        guard let best = hits.filter({ TopHit.isConfident($0.score, query: q) }).max(by: { $0.score < $1.score }),
+              let url = best.fill.flatMap(URL.init(string:)) else { return nil }
+        var hit = best
+        hit.action = { [weak self] window in self?.open(url, in: window, mode: mode) }
+        return hit
     }
 
     /// `searching`: a search for `input` even if it looks like an address.

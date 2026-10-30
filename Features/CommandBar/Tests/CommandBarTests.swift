@@ -27,6 +27,14 @@ final class StubHistory: HistoryService {
     func importEntries(_ entries: [HistoryEntry]) {}
 }
 
+final class StubTopHits: OmniboxProvider {
+    let sites: [TopHit.Site]
+    init(_ entries: [HistoryEntry]) { sites = TopHit.sites(from: entries) }
+    func items(for query: String, in window: BrowserWindowState) -> [OmniboxItem] {
+        TopHit.best(query, in: sites).map { [.topHit($0.site.url, score: $0.score) { _, _ in }] } ?? []
+    }
+}
+
 final class StubNewTabPage: NewTabPageProvider {
     var page: URL?
     func newTabPage(in window: BrowserWindowState) -> URL? { page }
@@ -124,6 +132,25 @@ struct CommandBarTests {
         #expect(model.items(for: h.window).first?.kind == "Search")
         model.execute(h.window)
         #expect(h.selectedTab?.url?.host() == "search.example")
+    }
+
+    @Test func aSiteItSurelyNamesGoesBeforeTheSearch() throws {
+        let (h, model) = try harness()
+        h.runtime.capabilities.contribute(OmniboxProvider.self, StubTopHits([
+            HistoryEntry(url: URL(string: "https://x.com/home")!, title: "Home / X", lastVisit: Date(), visitCount: 20),
+        ]))
+        try h.run("command-bar.open")
+        model.setQuery("x", in: h.window)
+        #expect(model.items(for: h.window).map(\.kind).prefix(2) == ["Top Hit", "Search"])
+        model.setQuery("gmail", in: h.window)  // no history: a known brand
+        #expect(model.items(for: h.window).first?.title == "mail.google.com")
+        model.execute(h.window)
+        #expect(h.selectedTab?.url?.host() == "mail.google.com")
+        try h.run("command-bar.open")
+        model.setQuery("x.com", in: h.window)  // an address typed stays first
+        #expect(model.items(for: h.window).first?.kind == "Open")
+        model.setQuery("swift ui", in: h.window)
+        #expect(model.items(for: h.window).first?.kind == "Search")
     }
 
     @Test func editURLNavigatesTheCurrentTab() throws {
