@@ -97,7 +97,7 @@ struct AddressPill: View {
         let text = developer && !showFullURL ? url.map(AddressFormatter.developerDisplay) ?? "" : AddressFormatter.display(url, full: showFullURL)
         let warning = live.flatMap { AddressFormatter.symbol(for: $0.security) }
         // On the sidebar's grid: the leading symbol in the rows' icon column, the address on their title column.
-        AddressCapsule(text, placeholder: "Search or enter address") {
+        HStack(spacing: Design.Grid.iconToText) {
             Button { try? runtime.commands.run("site-controls.show", window: window) } label: {
                 // A blank tab has no site to control: the magnifier, as the editor that opens from here shows.
                 Image(systemName: url == nil ? "magnifyingglass" : developer ? "hammer.fill" : warning ?? "slider.horizontal.3")
@@ -109,10 +109,19 @@ struct AddressPill: View {
             .buttonStyle(.plain)
             .disabled(!runtime.commands.isHandled("site-controls.show") || url.map { SiteSettingsStore.site(for: $0) == nil } == true)
             .help(developer ? "Developer mode (⌃D)" : "Site Controls")
-        } trailing: {
+            Text(text.isEmpty ? "Search or enter address" : text)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(text.isEmpty ? .tertiary : .primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
             // Its trailing end: extensions, then reload (Navigation), as Safari puts them in its address field.
-            SlotHost(Self.trailingSlot, window: window)
+            HStack(spacing: 0) { SlotHost(Self.trailingSlot, window: window) }
         }
+        .padding(.leading, Design.Grid.iconInset)
+        .padding(.trailing, Design.AddressField.trailingInset)
+        .frame(height: Design.Size.control)
+        .glassControl(in: Capsule())
         // Edited in place by an editor drawn over it (the command bar's inline style), which grows from this frame.
         .opacity(window.isEditingAddress ? 0 : 1)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
