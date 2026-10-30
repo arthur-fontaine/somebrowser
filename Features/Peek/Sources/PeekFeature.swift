@@ -62,6 +62,8 @@ final class PeekModel {
         case live
         /// Its snapshot grows to the browser's page card; then it becomes the tab.
         case expanding
+        /// It's the tab: the snapshot over it fades away.
+        case landed
         /// Its snapshot shrinks away; then the page closes.
         case closing
     }
@@ -69,7 +71,12 @@ final class PeekModel {
     struct Session {
         let engineTab: EngineTab
         let sourceTabID: NodeID?
+        /// What it previews, for the stand-in (favicon and host) before the page says.
+        let url: URL
         var phase: Phase = .growing
+        /// The page put away while the card still stands: the snapshot under it shows, and the card moves a frame later,
+        /// once the page's window is surely gone (it lingered for a frame, a ghost over the moving card).
+        var hidesPage = false
         /// The click it grows from, in window coordinates (top-left origin); nil grows it from its center.
         var origin: CGPoint?
         var snapshot: NSImage?
@@ -80,9 +87,13 @@ final class PeekModel {
     var dragOffset: [UUID: CGFloat] = [:]
     /// The animations' lengths: each phase moves on by time, as SwiftUI's completions don't run in a window behind
     /// another app. Tests shorten them.
-    @ObservationIgnored var growDuration: TimeInterval = 0.42
-    @ObservationIgnored var expandDuration: TimeInterval = 0.38
-    @ObservationIgnored var closeDuration: TimeInterval = 0.24
+    @ObservationIgnored var growDuration = Design.Motion.growDuration
+    /// Less than the curve's length: it has visibly landed by then (it starts fast), and the snapshot fades over the tab.
+    @ObservationIgnored var expandDuration = Design.Motion.expandDuration * 0.75
+    @ObservationIgnored var closeDuration = Design.Motion.leaveDuration
+    @ObservationIgnored var fadeDuration: TimeInterval = 0.12
+    /// Between putting the page away and moving the card.
+    @ObservationIgnored var hideDelay: TimeInterval = 0.03
     /// How long a snapshot may take before the card moves without one (a heavy page can be slow to draw).
     @ObservationIgnored var snapshotTimeout: TimeInterval = 0.15
 
@@ -99,38 +110,45 @@ final class PeekModel {
         let delegate = PeekPageDelegate(window: window, runtime: runtime)
         page.delegate = delegate
         objc_setAssociatedObject(page, &PeekPageDelegate.key, delegate, .OBJC_ASSOCIATION_RETAIN)
-        sessions[window.id] = Session(engineTab: page, sourceTabID: window.selectedTabID, origin: origin)
-        after(growDuration, in: window, page: page) { [weak self] in self?.sessions[window.id]?.phase = .live }
+        sessions[window.id] = Session(engineTab: page, sourceTabID: window.selectedTabID, url: url, origin: origin)
+        after(growDuration, in: window, page: page) { [weak self] in
+            // Unless it was expanded or closed while growing.
+            if self?.sessions[window.id]?.phase == .growing { self?.sessions[window.id]?.phase = .live }
+        }
     }
 
     /// Becomes a real tab (child of the tab it came from) without reloading, growing into the page's place.
     func expand(in window: BrowserWindowState) {
         guard let s = sessions[window.id], s.phase == .growing || s.phase == .live else { return }
-        capture(s.engineTab) { [weak self] image in
-            guard let self, self.sessions[window.id]?.engineTab === s.engineTab else { return }
-            self.sessions[window.id]?.snapshot = image
-            self.sessions[window.id]?.phase = .expanding  // the page leaves the card on this turn; the snapshot stands in
-            self.dragOffset[window.id] = nil
-            self.after(self.expandDuration, in: window, page: s.engineTab) {
-                s.engineTab.delegate = nil
-                let placement: NewTabPlacement = s.sourceTabID.map { .childOf($0) } ?? .automatic
-                self.runtime.adopt(s.engineTab, in: window, placement: placement)
-                // The tab's page is under the snapshot now: it goes on the next turn, so nothing flashes between them.
-                DispatchQueue.main.async { self.sessions[window.id] = nil }
-            }
+        putAway(s, in: window, then: .expanding) {
+            s.engineTab.delegate = nil
+            let placement: NewTabPlacement = s.sourceTabID.map { .childOf($0) } ?? .automatic
+            self.runtime.adopt(s.engineTab, in: window, placement: placement)
+            // The tab's page is under the snapshot now: the snapshot fades off it.
+            self.sessions[window.id]?.phase = .landed
+            self.after(self.fadeDuration, in: window, page: s.engineTab) { self.sessions[window.id] = nil }
         }
     }
 
     func close(in window: BrowserWindowState) {
-        guard let s = sessions[window.id], s.phase != .closing, s.phase != .expanding else { return }
+        guard let s = sessions[window.id], s.phase == .growing || s.phase == .live else { return }
+        putAway(s, in: window, then: .closing) {
+            self.sessions[window.id] = nil
+            self.dragOffset[window.id] = nil
+            s.engineTab.close()
+        }
+    }
+
+    /// Snapshot, page away, then `phase` (the card moves), then `done` once it has moved.
+    private func putAway(_ s: Session, in window: BrowserWindowState, then phase: Phase, done: @escaping () -> Void) {
         capture(s.engineTab) { [weak self] image in
             guard let self, self.sessions[window.id]?.engineTab === s.engineTab else { return }
             self.sessions[window.id]?.snapshot = image
-            self.sessions[window.id]?.phase = .closing
-            self.after(self.closeDuration, in: window, page: s.engineTab) {
-                self.sessions[window.id] = nil
+            self.sessions[window.id]?.hidesPage = true
+            self.after(self.hideDelay, in: window, page: s.engineTab) {
+                self.sessions[window.id]?.phase = phase
                 self.dragOffset[window.id] = nil
-                s.engineTab.close()
+                self.after(phase == .closing ? self.closeDuration : self.expandDuration, in: window, page: s.engineTab, done)
             }
         }
     }
@@ -190,9 +208,11 @@ struct PeekOverlay: View {
     }
 }
 
-/// The preview card in each phase (`PeekModel.Phase`): the stand-in grows from the click, then the page shows; a
-/// snapshot grows to the page card (expand) or shrinks away (close).
+/// The preview card in each phase (`PeekModel.Phase`): a glass panel, as the app's floating panels are, holding its
+/// toolbar and the page (concentric inside it). The stand-in grows from the click, then the page shows; a snapshot grows
+/// to the page card (expand) or shrinks away (close).
 struct PeekCard: View {
+    @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
     let model: PeekModel
     let session: PeekModel.Session
@@ -201,34 +221,39 @@ struct PeekCard: View {
     /// Off until the card's first frame, so it grows from where it starts.
     @State private var arrived = false
 
-    static let toolbarHeight: CGFloat = 38
-    static let radius: CGFloat = 14
+    static let rim = Design.Space.block
+    static let pageRadius = Design.concentric(Design.Radius.panel, inset: rim)
 
     var body: some View {
         let drag = model.dragOffset[window.id] ?? 0
         let card = Self.frame(in: bounds, content: window.contentFrame)
-        let expanding = session.phase == .expanding
-        let closing = session.phase == .closing
-        let target = expanding && window.contentFrame != .zero ? window.contentFrame : card
+        let phase = session.phase
+        let full = phase == .expanding || phase == .landed  // in the page card's place: no rim, no toolbar
+        let target = full && window.contentFrame != .zero ? window.contentFrame : card
+        let rim = full ? 0 : Self.rim
         ZStack(alignment: .topLeading) {
-            Color.black.opacity(expanding || closing || !arrived ? 0 : 0.22 * (1 - min(1, drag / 400)))
+            Design.Fill.scrim
+                .opacity(phase == .growing || phase == .live ? (arrived ? 1 - min(1, drag / 400) : 0) : 0)
                 .contentShape(Rectangle())
                 .onTapGesture { model.close(in: window) }
             VStack(spacing: 0) {
-                PeekToolbar(window: window, model: model, state: session.engineTab.state)
-                    .frame(height: expanding ? 0 : Self.toolbarHeight, alignment: .bottom)
-                    .opacity(expanding ? 0 : 1)
+                PeekToolbar(window: window, model: model, state: session.engineTab.state, url: session.url)
+                    .frame(height: full ? 0 : Design.Size.control, alignment: .bottom)
+                    .opacity(full ? 0 : 1)
                     .clipped()
                 page
+                    .clipShape(RoundedRectangle(cornerRadius: full ? window.cardRadius : Self.pageRadius, style: .continuous))
+                    .opacity(phase == .landed ? 0 : 1)
             }
+            .padding([.horizontal, .bottom], rim)
             .frame(width: target.width, height: target.height)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: expanding ? window.cardRadius : Self.radius, style: .continuous))
-            .shadow(color: .black.opacity(expanding ? 0 : 0.35), radius: 30, y: 12)
+            .glassSurface(in: RoundedRectangle(cornerRadius: Design.Radius.panel, style: .continuous))
+            .opacity(full ? 0 : 1)  // the snapshot alone grows into the tab; the glass would show at its edges
+            .overlay(alignment: .topLeading) { if full { landing(in: target).transition(.identity) } }
             .scaleEffect(scale, anchor: .center)
             .offset(offset(card: card))
-            .opacity(arrived && !closing ? 1 : 0)
-            .offset(y: session.phase == .live ? max(0, drag) : 0)
+            .opacity(arrived && phase != .closing ? 1 : 0)
+            .offset(y: phase == .live ? max(0, drag) : 0)
             // Placed by layout, not an offset: the page's view (a child window under CEF) goes where the card is.
             .padding(.leading, target.minX)
             .padding(.top, target.minY)
@@ -239,78 +264,111 @@ struct PeekCard: View {
         .onAppear { DispatchQueue.main.async { arrived = true } }
     }
 
-    /// The live page only while the card stands still; its snapshot (or the bare card) while it moves.
+    /// The live page only while the card stands still, over its snapshot (shown once the page is put away); the
+    /// snapshot, or the stand-in, while the card moves.
     @ViewBuilder private var page: some View {
-        if session.phase == .live {
-            PeekContent(engineTab: session.engineTab, runtime: model.runtime)
-        } else if let snapshot = session.snapshot {
-            // Pinned top-left as the page lays out, so a change of width crops its end, not its start.
-            Image(nsImage: snapshot).resizable().aspectRatio(contentMode: .fill)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).clipped()
-        } else {
-            Color(nsColor: .textBackgroundColor)
+        ZStack {
+            still
+            if session.phase == .live { PeekContent(engineTab: session.engineTab, runtime: model.runtime, isShown: !session.hidesPage) }
         }
+    }
+
+    /// The page as a picture: its snapshot at its own size, pinned top-left as the page lays out (so the tab's page lands
+    /// where it was), or the site's icon and name while it loads, as Arc's preview does.
+    @ViewBuilder private var still: some View {
+        if let snapshot = session.snapshot {
+            Image(nsImage: snapshot)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Color(nsColor: Self.bottomColor(of: snapshot) ?? .textBackgroundColor))
+                .clipped()
+        } else {
+            VStack(spacing: Design.Space.block) {
+                SiteIcon(env.runtime.favicons.image(for: session.url)).frame(width: 32, height: 32)
+                Text(PeekToolbar.site(session.url)).font(.system(size: 13, weight: .medium)).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .textBackgroundColor))
+        }
+    }
+
+    /// The page's colour at its bottom edge: what continues it as the card grows taller than the snapshot.
+    static func bottomColor(of image: NSImage) -> NSColor? {
+        guard let rep = image.representations.first as? NSBitmapImageRep ?? image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            .map(NSBitmapImageRep.init(cgImage:)), rep.pixelsHigh > 1 else { return nil }
+        return rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh - 1)
+    }
+
+    /// Growing into the tab, then fading off it: the snapshot alone, on the page card's corners.
+    private func landing(in target: CGRect) -> some View {
+        still
+            .frame(width: target.width, height: target.height)
+            .clipShape(RoundedRectangle(cornerRadius: window.cardRadius, style: .continuous))
+            .opacity(session.phase == .landed ? 0 : 1)
     }
 
     /// Small at the click, full size once arrived; a little smaller as it closes.
     private var scale: CGFloat {
         if reduceMotion { return 1 }
-        if session.phase == .closing { return 0.94 }
+        if session.phase == .closing { return Design.Motion.panelExitScale }
         return arrived ? 1 : 0.12
     }
 
-    /// From the click to the card's place (its center, before it arrives); down a little as it closes.
+    /// From the click to the card's place (its center, before it arrives).
     private func offset(card: CGRect) -> CGSize {
-        if reduceMotion { return .zero }
-        if session.phase == .closing { return CGSize(width: 0, height: 24) }
-        guard !arrived, let origin = session.origin else { return .zero }
+        guard !reduceMotion, !arrived, let origin = session.origin else { return .zero }
         return CGSize(width: origin.x - card.midX, height: origin.y - card.midY)
     }
 
     private var animation: Animation {
         if reduceMotion { return Design.Motion.reduced }
         switch session.phase {
-        case .growing: return Design.Motion.grow
-        case .live: return Design.Motion.grow
+        case .growing, .live: return Design.Motion.grow
         case .expanding: return Design.Motion.expand
+        case .landed: return Design.Motion.panelExit
         case .closing: return Design.Motion.leave
         }
     }
 
-    /// The card at rest: inside the page card (so becoming the tab grows it), a little in from its sides and top, as
-    /// Arc's; centered in the window when there's no page card yet.
+    /// The card at rest: inside the page card (so becoming the tab grows it), a tile gutter in from its edges, as Arc's;
+    /// the same in the window when there's no page card yet.
     static func frame(in bounds: CGSize, content: CGRect) -> CGRect {
-        guard content.width > 200, content.height > 200 else {
-            let width = min(bounds.width - 120, 1100), height = bounds.height - 70
-            return CGRect(x: (bounds.width - width) / 2, y: (bounds.height - height) / 2 + 20, width: width, height: height)
-        }
-        let side = min(56, content.width * 0.06)
-        let width = min(content.width - side * 2, 1100)
-        return CGRect(x: content.midX - width / 2, y: content.minY + 28, width: width, height: content.height - 28 - 12)
+        let area = content.width > 200 && content.height > 200 ? content : CGRect(origin: .zero, size: bounds)
+        let inset = Design.Space.tileGutter
+        let width = min(area.width - inset * 2, 1100)
+        return CGRect(x: area.midX - width / 2, y: area.minY + inset, width: width, height: area.height - inset * 2)
     }
 }
 
+/// The card's top: close at its start, Open as Tab at its end, the site (icon and host, as Arc's) in the middle. Washes
+/// under the pointer, no glass of its own (the card is the glass). Drag it down to put the preview away.
 struct PeekToolbar: View {
+    @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
     let model: PeekModel
     let state: EngineTabState
+    let url: URL
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button { model.close(in: window) } label: { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)) }
-                .buttonStyle(.borderless).help("Close (Esc)")
-            Text(state.title.isEmpty ? (state.url?.host() ?? "") : state.title)
-                .font(.system(size: 12, weight: .medium)).lineLimit(1).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .overlay(alignment: .top) { Capsule().fill(.quaternary).frame(width: 36, height: 4).offset(y: -12) }
-            Button { model.expand(in: window) } label: {
-                Label("Open as Tab", systemImage: "arrow.up.left.and.arrow.down.right").font(.system(size: 12, weight: .medium))
+        let shown = state.url ?? url
+        ZStack {
+            HStack(spacing: Design.Space.block) {
+                FieldButton(help: "Close") { model.close(in: window) } label: {
+                    Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
+                }
+                Spacer(minLength: 0)
+                OpenAsTabButton(help: env.runtime.commands.shortcut(for: "peek.expand").map { "Open as Tab (\($0.displayString))" } ?? "Open as Tab") {
+                    model.expand(in: window)
+                }
             }
-            .buttonStyle(.borderless).help("Open as Tab (⌘O)")
+            HStack(spacing: Design.Grid.iconToText) {
+                SiteIcon(state.favicon ?? env.runtime.favicons.image(for: shown)).frame(width: Design.Size.favicon, height: Design.Size.favicon)
+                Text(Self.site(shown)).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            }
+            .padding(.horizontal, 140)  // clear of the buttons, so it stays centered on the card
+            .allowsHitTesting(false)
         }
-        .padding(.horizontal, 12)
-        .frame(height: 38)
-        .background(.bar)
+        .padding(.horizontal, Design.Space.segment)
+        .frame(height: Design.Size.control)
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 4).onChanged { v in
             model.dragOffset[window.id] = max(0, v.translation.height)
@@ -318,9 +376,37 @@ struct PeekToolbar: View {
             if v.translation.height > 140 || v.predictedEndTranslation.height > 400 {
                 model.close(in: window)
             } else {
-                withAnimation(.spring(duration: 0.35, bounce: 0.25)) { model.dragOffset[window.id] = 0 }
+                withAnimation(Design.Motion.toast) { model.dragOffset[window.id] = 0 }
             }
         })
+    }
+
+    /// The host without `www.`.
+    static func site(_ url: URL?) -> String {
+        var host = url?.host() ?? ""
+        if host.hasPrefix("www.") { host.removeFirst(4) }
+        return host
+    }
+}
+
+/// A text button in the card's toolbar: a 28 pt capsule washed under the pointer, as the toolbar's other control.
+struct OpenAsTabButton: View {
+    let help: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Label("Open as Tab", systemImage: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 13))
+                .padding(.horizontal, Design.Space.divider)
+                .frame(height: Design.AddressField.control)
+                .background(Capsule().fill(hovering ? Design.Fill.hover : .clear))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { h in withAnimation(Design.Motion.hover) { hovering = h } }
+        .help(help)
     }
 }
 
@@ -328,25 +414,31 @@ struct PeekToolbar: View {
 struct PeekContent: NSViewRepresentable {
     let engineTab: EngineTab
     let runtime: BrowserRuntime
+    /// False puts the page away (the card is about to move) while the view stays.
+    var isShown = true
 
     final class Container: NSView {
         var viewport: EngineViewport?
+        var isShown = true
         override func layout() { super.layout(); viewport?.layoutDidChange() }
     }
 
     func makeNSView(context: Context) -> Container {
         let v = Container()
         v.wantsLayer = true
+        v.isShown = isShown
         DispatchQueue.main.async {
             let viewport = runtime.engine.makeViewport(in: v)
             v.viewport = viewport
-            viewport.present(engineTab)
+            viewport.present(v.isShown ? engineTab : nil)
         }
         return v
     }
 
     func updateNSView(_ v: Container, context: Context) {
-        if v.viewport?.presentedTab !== engineTab { v.viewport?.present(engineTab) }
+        v.isShown = isShown
+        let wanted: EngineTab? = isShown ? engineTab : nil
+        if let viewport = v.viewport, viewport.presentedTab !== wanted { viewport.present(wanted) }
     }
 
     static func dismantleNSView(_ v: Container, coordinator: ()) {

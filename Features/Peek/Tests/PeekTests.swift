@@ -11,8 +11,10 @@ struct PeekTests {
         let h = try TestHarness(features: [PeekFeature.self], manifestDirectory: #filePath)
         let feature = try #require(h.runtime.feature(PeekFeature.self))
         feature.model.growDuration = 0.02
-        feature.model.expandDuration = 0.02
-        feature.model.closeDuration = 0.02
+        feature.model.expandDuration = 0.15
+        feature.model.closeDuration = 0.15
+        feature.model.fadeDuration = 0.02
+        feature.model.hideDelay = 0.01
         return (h, feature)
     }
 
@@ -48,11 +50,14 @@ struct PeekTests {
         let preview = try #require(feature.model.session(for: h.window)?.engineTab as? FakeEngineTab)
         preview.snapshotImage = NSImage(size: NSSize(width: 10, height: 10))
         try h.run("peek.expand")
-        // The snapshot stands in while it grows into the page's place; then it's the tab.
+        // The page is put away under its snapshot before the card moves; the snapshot grows into the page's place.
+        #expect(feature.model.session(for: h.window)?.hidesPage == true)
+        #expect(feature.model.session(for: h.window)?.phase != .expanding)
+        try await Task.sleep(for: .milliseconds(60))
         #expect(feature.model.session(for: h.window)?.phase == .expanding)
         #expect(feature.model.session(for: h.window)?.snapshot != nil)
         #expect(h.selectedTab?.id == page.id)
-        try await Task.sleep(for: .milliseconds(100))
+        try await Task.sleep(for: .milliseconds(300))
         #expect(feature.model.session(for: h.window) == nil)
         #expect(h.selectedTab?.engineTab === preview)
         #expect(h.runtime.tabs.parent(of: h.selectedTab!.id) == page.id)
@@ -87,9 +92,9 @@ struct PeekTests {
         let preview = try #require(feature.model.session(for: h.window)?.engineTab as? FakeEngineTab)
         preview.snapshotImage = nil
         try h.run("peek.close")
-        try await Task.sleep(for: .milliseconds(15))
-        #expect(feature.model.session(for: h.window)?.phase == .closing)  // no snapshot: the bare card leaves
-        try await Task.sleep(for: .milliseconds(150))
+        try await Task.sleep(for: .milliseconds(60))
+        #expect(feature.model.session(for: h.window)?.phase == .closing)  // no snapshot: the stand-in leaves
+        try await Task.sleep(for: .milliseconds(300))
         #expect(feature.model.session(for: h.window) == nil)
         #expect(preview.isClosed)
     }
