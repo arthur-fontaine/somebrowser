@@ -208,10 +208,17 @@ struct PeekOverlay: View {
     }
 }
 
-/// The preview card in each phase (`PeekModel.Phase`): a glass panel, as the app's floating panels are, holding its
-/// toolbar and the page (concentric inside it). The stand-in grows from the click, then the page shows; a snapshot grows
-/// to the page card (expand) or shrinks away (close).
+/// The preview card in each phase (`PeekModel.Phase`). The stand-in grows from the click, then the page shows; a snapshot
+/// grows to the page card (expand) or shrinks away (close). Its look is `peek.style`:
+/// - card: a glass panel, as the app's floating panels are, holding its toolbar and the page (concentric inside it);
+/// - floating: the page alone, a card like the browser's own, under a row of glass controls (Safari's iOS bar): ×, the
+///   site, Open as Tab; floating-circles: the site, then Open as Tab and × as circles.
 struct PeekCard: View {
+    enum Style: String {
+        case card, floating
+        case floatingCircles = "floating-circles"
+    }
+
     @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
     let model: PeekModel
@@ -223,31 +230,58 @@ struct PeekCard: View {
 
     static let rim = Design.Space.block
     static let pageRadius = Design.concentric(Design.Radius.panel, inset: rim)
+    /// The floating row's height and its gap to the page.
+    static let rowSpace = Design.Size.control + Design.Space.divider
+
+    var style: Style { Style(rawValue: model.runtime.settings.string("peek.style")) ?? .card }
 
     var body: some View {
         let drag = model.dragOffset[window.id] ?? 0
-        let card = Self.frame(in: bounds, content: window.contentFrame)
+        let floating = style != .card
+        let card = Self.frame(in: bounds, content: window.contentFrame, floating: floating)
         let phase = session.phase
         let full = phase == .expanding || phase == .landed  // in the page card's place: no rim, no toolbar
         let target = full && window.contentFrame != .zero ? window.contentFrame : card
-        let rim = full ? 0 : Self.rim
+        let rim = full || floating ? 0 : Self.rim
+        let rowShown = phase == .live
         ZStack(alignment: .topLeading) {
             Design.Fill.scrim
                 .opacity(phase == .growing || phase == .live ? (arrived ? 1 - min(1, drag / 400) : 0) : 0)
                 .contentShape(Rectangle())
                 .onTapGesture { model.close(in: window) }
+            if floating {
+                PeekFloatingRow(window: window, model: model, session: session, circles: style == .floatingCircles)
+                    .frame(width: card.width)
+                    .opacity(rowShown ? 1 : 0)
+                    .scaleEffect(rowShown || reduceMotion ? 1 : Design.Motion.panelEnterScale)
+                    .offset(y: (phase == .expanding || phase == .landed) && !reduceMotion ? -Design.Space.block : 0)
+                    .offset(y: phase == .live ? max(0, drag) : 0)
+                    .animation(reduceMotion ? Design.Motion.reduced : rowShown ? Design.Motion.panelSettle : Design.Motion.panelExit,
+                               value: rowShown)
+                    .padding(.leading, card.minX)
+                    .padding(.top, card.minY - Self.rowSpace)
+            }
             VStack(spacing: 0) {
-                PeekToolbar(window: window, model: model, state: session.engineTab.state, url: session.url)
-                    .frame(height: full ? 0 : Design.Size.control, alignment: .bottom)
-                    .opacity(full ? 0 : 1)
-                    .clipped()
+                if !floating {
+                    PeekToolbar(window: window, model: model, state: session.engineTab.state, url: session.url)
+                        .frame(height: full ? 0 : Design.Size.control, alignment: .bottom)
+                        .opacity(full ? 0 : 1)
+                        .clipped()
+                }
                 page
-                    .clipShape(RoundedRectangle(cornerRadius: full ? window.cardRadius : Self.pageRadius, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: full || floating ? window.cardRadius : Self.pageRadius, style: .continuous))
                     .opacity(phase == .landed ? 0 : 1)
             }
             .padding([.horizontal, .bottom], rim)
             .frame(width: target.width, height: target.height)
-            .glassSurface(in: RoundedRectangle(cornerRadius: Design.Radius.panel, style: .continuous))
+            .background {
+                // The floating page is a card as the browser's own (its radius and hairline shadow); the other a glass panel.
+                if floating {
+                    RoundedRectangle(cornerRadius: window.cardRadius, style: .continuous).fill(Color(nsColor: .textBackgroundColor))
+                        .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
+                }
+            }
+            .modifier(GlassCard(isOn: !floating))
             .opacity(full ? 0 : 1)  // the snapshot alone grows into the tab; the glass would show at its edges
             .overlay(alignment: .topLeading) { if full { landing(in: target).transition(.identity) } }
             .scaleEffect(scale, anchor: .center)
@@ -330,12 +364,76 @@ struct PeekCard: View {
     }
 
     /// The card at rest: inside the page card (so becoming the tab grows it), a tile gutter in from its edges, as Arc's;
-    /// the same in the window when there's no page card yet.
-    static func frame(in bounds: CGSize, content: CGRect) -> CGRect {
+    /// the same in the window when there's no page card yet. Floating, the row above takes its top.
+    static func frame(in bounds: CGSize, content: CGRect, floating: Bool = false) -> CGRect {
         let area = content.width > 200 && content.height > 200 ? content : CGRect(origin: .zero, size: bounds)
         let inset = Design.Space.tileGutter
+        let top = inset + (floating ? rowSpace : 0)
         let width = min(area.width - inset * 2, 1100)
-        return CGRect(x: area.midX - width / 2, y: area.minY + inset, width: width, height: area.height - inset * 2)
+        return CGRect(x: area.midX - width / 2, y: area.minY + top, width: width, height: area.height - top - inset)
+    }
+}
+
+private struct GlassCard: ViewModifier {
+    let isOn: Bool
+
+    func body(content: Content) -> some View {
+        if isOn { content.glassSurface(in: RoundedRectangle(cornerRadius: Design.Radius.panel, style: .continuous)) } else { content }
+    }
+}
+
+/// The floating style's controls, above the page (Safari's iOS bar, on a Mac): glass pieces in one group. The site's
+/// capsule looks like the sidebar's address field but isn't one: the site alone, not editable, a click opens the tab.
+struct PeekFloatingRow: View {
+    @Environment(BrowserEnvironment.self) private var env
+    let window: BrowserWindowState
+    let model: PeekModel
+    let session: PeekModel.Session
+    /// Open as Tab and × as circles at the end, rather than × at the start and Open as Tab in words.
+    let circles: Bool
+
+    var body: some View {
+        let state = session.engineTab.state
+        let shown = state.url ?? session.url
+        let openHelp = env.runtime.commands.shortcut(for: "peek.expand").map { "Open as Tab (\($0.displayString))" } ?? "Open as Tab"
+        GlassGroup(spacing: 6) {
+            ZStack {
+                HStack(spacing: Design.Space.block) {
+                    if !circles { ChromeButton(systemImage: "xmark", help: "Close") { model.close(in: window) } }
+                    Spacer(minLength: 0)
+                    if circles {
+                        ChromeButton(systemImage: "arrow.up.forward.square", help: openHelp) { model.expand(in: window) }
+                        ChromeButton(systemImage: "xmark", help: "Close") { model.close(in: window) }
+                    } else {
+                        Button { model.expand(in: window) } label: {
+                            Text("Open as Tab").font(.system(size: 13, weight: .medium))
+                                .padding(.horizontal, Design.Space.capsuleTrailing)
+                                .frame(height: Design.Size.control)
+                                .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .glassControl(in: Capsule())
+                        .help(openHelp)
+                    }
+                }
+                AddressCapsule(PeekToolbar.site(shown)) {
+                    SiteIcon(state.favicon ?? env.runtime.favicons.image(for: shown))
+                        .frame(width: Design.Size.favicon, height: Design.Size.favicon)
+                } trailing: {
+                    FieldButton(help: "Reload") { session.engineTab.reload(bypassingCache: false) } label: {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold))
+                    }
+                }
+                .contentShape(Capsule())
+                .onTapGesture { model.expand(in: window) }
+                .help(openHelp)
+                .frame(maxWidth: 480)
+                .padding(.horizontal, 128)  // clear of the ends, so it stays centered on the page
+            }
+        }
+        .frame(height: Design.Size.control)
+        .contentShape(Rectangle())
+        .gesture(PeekToolbar.dismissDrag(window: window, model: model))
     }
 }
 
@@ -368,7 +466,12 @@ struct PeekToolbar: View {
         .padding(.horizontal, Design.Space.segment)
         .frame(height: Design.Size.control)
         .contentShape(Rectangle())
-        .gesture(DragGesture(minimumDistance: 4).onChanged { v in
+        .gesture(Self.dismissDrag(window: window, model: model))
+    }
+
+    /// Dragged down far or fast enough, the preview goes; else it springs back.
+    static func dismissDrag(window: BrowserWindowState, model: PeekModel) -> some Gesture {
+        DragGesture(minimumDistance: 4).onChanged { v in
             model.dragOffset[window.id] = max(0, v.translation.height)
         }.onEnded { v in
             if v.translation.height > 140 || v.predictedEndTranslation.height > 400 {
@@ -376,7 +479,7 @@ struct PeekToolbar: View {
             } else {
                 withAnimation(Design.Motion.toast) { model.dragOffset[window.id] = 0 }
             }
-        })
+        }
     }
 
     /// The host without `www.`.

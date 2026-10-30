@@ -98,4 +98,13 @@ struct PeekTests {
         #expect(feature.model.session(for: h.window) == nil)
         #expect(preview.isClosed)
     }
+
+    @Test func floatingControlsSitAboveAPageInsetAsTheCardIs() {
+        let content = CGRect(x: 260, y: 8, width: 800, height: 760)
+        let card = PeekCard.frame(in: CGSize(width: 1070, height: 783), content: content)
+        let page = PeekCard.frame(in: CGSize(width: 1070, height: 783), content: content, floating: true)
+        #expect(card == CGRect(x: 284, y: 32, width: 752, height: 712))  // a tile gutter in from the page card
+        #expect(page.minX == card.minX && page.width == card.width && page.maxY == card.maxY)
+        #expect(page.minY - PeekCard.rowSpace == card.minY)  // the row (36) and its gap (12) take the top
+    }
 }
