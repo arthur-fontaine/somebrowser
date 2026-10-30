@@ -53,6 +53,11 @@ struct TabList: View {
                         } else if let h = model.hovered, rows.contains(where: { $0.id == h }) {
                             model.hovered = nil
                         }
+                    } middleClicked: { y in
+                        // A tab closes, as in other browsers; a folder isn't deleted by a stray click.
+                        guard let id = SidebarLogic.row(at: y, rows: rows, rowHeight: rowHeight, spacing: SidebarModel.rowSpacing)?.id,
+                              store.tab(id) != nil else { return }
+                        withAnimation(.spring(duration: 0.32, bounce: 0.12)) { env.runtime.sidebarHistory.close([id], includingDescendants: false) }
                     }
                 }
             }
@@ -65,13 +70,35 @@ struct TabList: View {
 /// SwiftUI's hover reports trailed the pointer by a fifth of a second. Rect-based, so it reports under the rows too.
 struct PointerTracker: NSViewRepresentable {
     let moved: (CGFloat?) -> Void
+    /// A middle click over the view, at that height.
+    var middleClicked: ((CGFloat) -> Void)? = nil
 
     func makeNSView(context: Context) -> TrackingView { TrackingView() }
-    func updateNSView(_ view: TrackingView, context: Context) { view.moved = moved }
+    func updateNSView(_ view: TrackingView, context: Context) {
+        view.moved = moved
+        view.middleClicked = middleClicked
+    }
 
     final class TrackingView: NSView {
         var moved: ((CGFloat?) -> Void)?
+        var middleClicked: ((CGFloat) -> Void)?
+        private var monitor: Any?
         override var isFlipped: Bool { true }
+
+        // Clicks pass through this view to the rows, so a middle click is caught on its way to the window.
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseUp) { [weak self] event in
+                guard let self, event.buttonNumber == 2, event.window === self.window, let middleClicked = self.middleClicked else { return event }
+                let p = self.convert(event.locationInWindow, from: nil)
+                guard self.visibleRect.contains(p) else { return event }
+                middleClicked(p.y)
+                return nil
+            }
+        }
 
         override func updateTrackingAreas() {
             super.updateTrackingAreas()
