@@ -1,6 +1,11 @@
 # Preview
 
-**Purpose** — Radian Preview / Arc Peek: links from pinned tabs and favorites (or ⇧-click) open in a floating preview you can expand into a tab.
+**Purpose** — Radian Preview / Arc Peek: links from pinned tabs and favorites (or ⇧-clicked, as set) open in a floating preview you can expand into a tab.
+
+**When** — a navigation policy, by `peek.trigger`: "click" previews a click from a pinned tab or favorite to another site
+and opens a ⇧-click as a tab; "shift" previews a ⇧-click on any link and leaves clicks alone. Chromium doesn't navigate on
+a ⇧-click but opens a new window: the policy sees it too (`NavigationAction.disposition`) and takes it instead. ⌘-clicks
+open the tab they ask for.
 
 **How it looks** — Safari's iOS bar, on a Mac: the page sits in a Liquid Glass container (`Radius.panel`, an 8 pt rim,
 the page concentric inside), a tile gutter inside the page card, over a dimmed page (`Fill.scrim`). A row of glass
@@ -24,8 +29,8 @@ more than 150 ms isn't waited for.
 - `peek.close` — Close Preview
 
 **Settings**
-- `peek.fromPinned` — Preview links opened from pinned tabs and favorites
-- `peek.shiftClick` — ⇧-click a link to preview it
+- `peek.trigger` — Preview links with: `click` (from pinned tabs and favorites; ⇧-click opens a tab) or `shift` (⇧-click
+  any link; a click opens it as usual)
 
 **Tests** — `./forkctl test peek`.
 

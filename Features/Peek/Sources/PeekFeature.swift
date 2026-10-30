@@ -13,12 +13,7 @@ public final class PeekFeature: BrowserFeature {
 
     public func activate() {
         let model = self.model
-        context.hooks.addNavigationPolicy { [weak self] action in
-            guard let self, let window = self.shouldPeek(action) else { return .allow }
-            let origin = self.clickPoint(in: window)
-            DispatchQueue.main.async { model.open(action.url, in: window, from: origin) }
-            return .handled
-        }
+        context.hooks.addNavigationPolicy { [weak self] action in self?.decide(action) ?? .allow }
         context.commands.handle("peek.expand", isEnabled: { inv in inv.window.map { model.session(for: $0) != nil } ?? false }) { inv in
             if let w = inv.window { model.expand(in: w) }
         }
@@ -28,19 +23,29 @@ public final class PeekFeature: BrowserFeature {
         context.ui.contribute(.overlay, id: "peek", order: 90) { window in PeekOverlay(window: window, model: model) }
     }
 
-    /// Links from pinned tabs/favorites to another site, or ⇧-clicks, go to the preview.
-    func shouldPeek(_ action: NavigationAction) -> BrowserWindowState? {
-        guard action.isMainFrame, action.userGesture, let source = action.sourceTab,
+    /// `peek.trigger`: a click previews links from pinned tabs and favorites to another site and a ⇧-click opens a tab
+    /// ("click"), or a ⇧-click previews any link and a click opens it as usual ("shift").
+    func decide(_ action: NavigationAction) -> NavigationPolicy {
+        guard action.isMainFrame, action.userGesture, !action.isFormSubmission, let source = action.sourceTab,
               let tab = context.tabs.allTabs.first(where: { $0.engineTab === source }),
               let window = context.windows.first(where: { $0.selectedTabID == tab.id }),
-              model.session(for: window)?.engineTab !== source else { return nil }
+              model.session(for: window)?.engineTab !== source else { return .allow }
         // Chromium opens a ⇧-click in a new window: that one is ours, other new tabs (⌘-click…) open as asked.
         let shift = action.modifiers.contains(.shift) && !action.modifiers.contains(.command)
-        if shift, action.disposition == nil || action.disposition == .newWindow, context.settings.bool("peek.shiftClick") { return window }
-        guard action.disposition == nil, context.settings.bool("peek.fromPinned"),
-              context.tabs.isPinned(tab.id) || context.tabs.isFavorite(tab.id) else { return nil }
+            && (action.disposition == nil || action.disposition == .newWindow)
+        if context.settings.string("peek.trigger") == "shift" {
+            return shift ? peek(action.url, in: window) : .allow
+        }
+        if shift { return .openInNewTab(action.url) }
+        guard action.disposition == nil, context.tabs.isPinned(tab.id) || context.tabs.isFavorite(tab.id) else { return .allow }
         let from = SiteSettingsStore.site(for: source.state.url), to = SiteSettingsStore.site(for: action.url)
-        return from != nil && from != to ? window : nil
+        return from != nil && from != to ? peek(action.url, in: window) : .allow
+    }
+
+    private func peek(_ url: URL, in window: BrowserWindowState) -> NavigationPolicy {
+        let origin = clickPoint(in: window)
+        DispatchQueue.main.async { [model] in model.open(url, in: window, from: origin) }
+        return .handled
     }
 
     /// Where the link was clicked, in window coordinates (top-left origin): the preview grows from there. The navigation

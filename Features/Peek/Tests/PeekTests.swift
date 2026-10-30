@@ -38,27 +38,47 @@ struct PeekTests {
         #expect(h.runtime.commands.canRun("peek.expand"))
     }
 
-    @Test func todayTabsNavigateUnlessShiftClicked() async throws {
-        let (h, feature) = try harness()
+    /// "click": a ⇧-click opens the link as a tab (Chromium would open a window).
+    @Test func byClickAShiftClickOpensATab() throws {
+        let (h, _) = try harness()
         let page = h.openTab("https://a.example")
-        #expect(click(page, to: "https://b.example", h: h) == .allow)
-        #expect(click(page, to: "https://b.example", shift: true, h: h) == .handled)
+        #expect(click(page, to: "https://b.example", h: h) == .allow)  // only pinned tabs and favorites preview
+        #expect(click(page, to: "https://b.example", shift: true, h: h) == .openInNewTab(URL(string: "https://b.example")!))
+        #expect(click(page, to: "https://b.example", shift: true, opening: .newWindow, h: h) == .openInNewTab(URL(string: "https://b.example")!))
+    }
+
+    /// "shift": a ⇧-click previews any link, a click opens it as usual, even from a pinned tab.
+    @Test func byShiftClickAnyLinkPreviews() async throws {
+        let (h, feature) = try harness()
+        h.runtime.settings.set("peek.trigger", .string("shift"))
+        let mail = h.openTab("https://mail.example/inbox")
+        h.runtime.tabs.pin(mail.id, in: h.window.spaceID)
+        #expect(click(mail, to: "https://news.example/story", h: h) == .allow)
+        let page = h.openTab("https://a.example")
+        #expect(click(page, to: "https://a.example/next", shift: true, h: h) == .handled)
         try await Task.sleep(for: .milliseconds(50))
-        #expect(feature.model.session(for: h.window)?.engineTab.state.url?.host() == "b.example")
+        #expect(feature.model.session(for: h.window)?.engineTab.state.url?.path() == "/next")
     }
 
     /// Chromium doesn't navigate on a ⇧-click: it opens a new window, which the preview takes instead.
     @Test func chromiumsShiftClickWindowBecomesThePreview() async throws {
         let (h, feature) = try harness()
-        let mail = h.openTab("https://mail.example/inbox")
-        h.runtime.tabs.pin(mail.id, in: h.window.spaceID)
-        #expect(click(mail, to: "https://news.example", shift: true, opening: .newWindow, h: h) == .handled)
+        h.runtime.settings.set("peek.trigger", .string("shift"))
+        let page = h.openTab("https://a.example")
+        #expect(click(page, to: "https://news.example", shift: true, opening: .newWindow, h: h) == .handled)
         try await Task.sleep(for: .milliseconds(50))
         #expect(feature.model.session(for: h.window)?.engineTab.state.url?.host() == "news.example")
         feature.model.close(in: h.window)
-        // ⌘-clicks open the tab they ask for, even from a pinned tab.
-        #expect(click(mail, to: "https://other.example", command: true, opening: .backgroundTab, h: h) == .allow)
-        #expect(click(mail, to: "https://other.example", shift: true, command: true, opening: .foregroundTab, h: h) == .allow)
+        // ⌘-clicks open the tab they ask for.
+        #expect(click(page, to: "https://other.example", command: true, opening: .backgroundTab, h: h) == .allow)
+        #expect(click(page, to: "https://other.example", shift: true, command: true, opening: .foregroundTab, h: h) == .allow)
+    }
+
+    @Test func pinnedTabsOpenNewTabsAsAsked() throws {
+        let (h, _) = try harness()
+        let mail = h.openTab("https://mail.example/inbox")
+        h.runtime.tabs.pin(mail.id, in: h.window.spaceID)
+        #expect(click(mail, to: "https://news.example", command: true, opening: .backgroundTab, h: h) == .allow)
     }
 
     @Test func expandAdoptsThePageAsAChildTab() async throws {

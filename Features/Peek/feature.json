@@ -1,7 +1,7 @@
 {
   "id": "peek",
   "name": "Preview",
-  "summary": "Radian Preview / Arc Peek: links from pinned tabs and favorites (or ⇧-click) open in a floating preview you can expand into a tab.",
+  "summary": "Radian Preview / Arc Peek: links from pinned tabs and favorites (or ⇧-clicked, as set) open in a floating preview you can expand into a tab.",
   "entry": "PeekFeature",
   "provides": ["peek"],
   "commands": [
@@ -10,7 +10,7 @@
   ],
   "settingsPage": "Tabs", "settingsOrder": 30,
   "settings": [
-    { "key": "peek.fromPinned", "title": "Preview links opened from pinned tabs and favorites", "type": "bool", "default": true },
-    { "key": "peek.shiftClick", "title": "⇧-click a link to preview it", "type": "bool", "default": true }
+    { "key": "peek.trigger", "title": "Preview links with", "type": "choice", "default": "click", "options": ["click", "shift"],
+      "optionTitles": ["Click, from pinned tabs and favorites (⇧-Click opens a tab)", "⇧-Click (a click opens links as usual)"] }
   ]
 }
