@@ -52,7 +52,9 @@ struct HistoryTests {
         let h = try harness()
         h.openTab("https://kittens.example/cute")
         let provider = try #require(h.runtime.capabilities.all(OmniboxProvider.self).first)
-        #expect(provider.items(for: "kitt", in: h.window).first?.kind == "History")
+        let items = provider.items(for: "kitt", in: h.window)
+        #expect(items.first?.isTopHit == true && items.first?.title == "kittens.example")  // the site it names
+        #expect(items.dropFirst().first?.kind == "History")
         try h.run("history.clear-all")
         #expect(provider.items(for: "kitt", in: h.window).isEmpty)
     }

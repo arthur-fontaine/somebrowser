@@ -120,6 +120,24 @@ final class HistoryStore: HistoryService {
             .map(\.0)
     }
 
+    /// The site `query` most likely names (`TopHit`): candidates whose host, or for three letters on title, holds it.
+    func topHit(for query: String, now: Date = Date()) -> (site: TopHit.Site, score: Double)? {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty, !q.contains(" "), !q.contains("%"), !q.contains("_") else { return nil }
+        let stmt = prepare("""
+        SELECT url, title, last_visit, visit_count FROM pages
+        WHERE host LIKE ?1 OR host LIKE ?2 OR host LIKE ?3 OR (?4 AND title LIKE ?5)
+        ORDER BY visit_count DESC LIMIT 2000
+        """) { s in
+            sqlite3_bind_text(s, 1, "\(q)%", -1, transient)
+            sqlite3_bind_text(s, 2, "www.\(q)%", -1, transient)
+            sqlite3_bind_text(s, 3, "%.\(q)%", -1, transient)
+            sqlite3_bind_int(s, 4, q.count >= 3 ? 1 : 0)
+            sqlite3_bind_text(s, 5, "%\(q)%", -1, transient)
+        }
+        return TopHit.best(q, in: TopHit.sites(from: rows(stmt)), now: now)
+    }
+
     /// Pages whose url starts with `prefix`, counted up to `limit`.
     private func prefixCount(_ prefix: String, upTo limit: Int) -> Int {
         let stmt = prepare("SELECT count(*) FROM (SELECT 1 FROM pages WHERE url >= ?1 AND url < ?2 LIMIT ?3)") { s in

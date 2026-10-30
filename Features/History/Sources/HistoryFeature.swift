@@ -53,10 +53,14 @@ final class HistoryOmnibox: OmniboxProvider {
     init(feature: HistoryFeature) { self.feature = feature }
 
     func items(for query: String, in window: BrowserWindowState) -> [OmniboxItem] {
-        guard let feature, query.count >= 2 else { return [] }
+        guard let feature else { return [] }
         let runtime = feature.context.runtime
+        let top = feature.store.topHit(for: query).map { hit in
+            OmniboxItem.topHit(hit.site.url, score: hit.score) { url, w in runtime.open(url, fillingBlankTabIn: w) }
+        }
+        guard query.count >= 2 else { return top.map { [$0] } ?? [] }
         let search = feature.context.capabilities.search
-        return feature.store.search(query, limit: 5).enumerated().map { i, e in
+        return (top.map { [$0] } ?? []) + feature.store.search(query, limit: 5).enumerated().map { i, e in
             // A past search, as one: its terms fill the field to be edited, and it runs with the current engine.
             if let search, let terms = search.searchTerms(inAnyEngine: e.url) {
                 return OmniboxItem(id: "history:\(e.url.absoluteString)", title: terms, icon: .system("magnifyingglass"), kind: "History",
