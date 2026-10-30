@@ -32,6 +32,10 @@ final class CommandBarModel {
 
     @ObservationIgnored let runtime: BrowserRuntime
     private(set) var sessions: [UUID: Session] = [:]
+    /// The clipboard's text and its change count (Paste and Go); tests swap it for one of their own.
+    @ObservationIgnored var clipboard: () -> (text: String?, changeCount: Int) = {
+        (NSPasteboard.general.string(forType: .string), NSPasteboard.general.changeCount)
+    }
 
     init(runtime: BrowserRuntime) { self.runtime = runtime }
 
@@ -122,7 +126,7 @@ final class CommandBarModel {
     func items(for window: BrowserWindowState) -> [OmniboxItem] {
         guard let s = sessions[window.id] else { return [] }
         let key = [s.typed, "\(s.mode)", s.suggestions.joined(separator: "\n"), "\(runtime.tabs.structureVersion)",
-                   "\(NSPasteboard.general.changeCount)", "\(runtime.settings.bool("command-bar.showActions"))"].joined(separator: "\u{1}")
+                   "\(clipboard().changeCount)", "\(runtime.settings.bool("command-bar.showActions"))"].joined(separator: "\u{1}")
         if let cached = cache[window.id], cached.key == key { return cached.items }
         let items = rankedItems(s, in: window)
         cache[window.id] = (key, items)
@@ -218,7 +222,7 @@ final class CommandBarModel {
     private func recentItems(_ window: BrowserWindowState) -> [OmniboxItem] {
         var items: [OmniboxItem] = []
         let mode = sessions[window.id]?.mode ?? .newTab
-        if let s = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
+        if let s = clipboard().text?.trimmingCharacters(in: .whitespacesAndNewlines),
            s.count < 2048, search?.looksLikeURL(s) == true, let url = search?.url(for: s) {
             items.append(OmniboxItem(id: "paste", title: "Paste and Go", subtitle: url.absoluteString, icon: .system("doc.on.clipboard"),
                                      kind: "Open", score: 2, fill: url.absoluteString) { [weak self] w in self?.open(url, in: w, mode: mode) })

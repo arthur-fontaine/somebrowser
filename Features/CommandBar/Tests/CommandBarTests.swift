@@ -116,6 +116,7 @@ struct CommandBarTests {
         h.runtime.capabilities.provide(HistoryService.self, history)
         h.activate()
         let model = try #require(h.runtime.feature(CommandBarFeature.self)?.model)
+        model.clipboard = { (nil, 0) }  // an address copied would add Paste and Go first
         try h.run("command-bar.open")
         let items = model.items(for: h.window)
         #expect(items.map(\.title) == ["cats", "Page"])
