@@ -5,8 +5,8 @@
 **How it looks** — Safari's iOS bar, on a Mac: the page sits in a Liquid Glass container (`Radius.panel`, an 8 pt rim,
 the page concentric inside), a tile gutter inside the page card, over a dimmed page (`Fill.scrim`). A row of glass
 controls floats 12 pt above it, at the header's foot (level with the sidebar's address field, clear of the traffic
-lights): the site's title centered (its icon and host, a label hugging them, not a field), then Open as Tab in words
-(a Mac's primary action is, as Quick Look's Open with…) and × as a circle. The row fades in once the page shows
+lights): the site's title centered (its icon and host, a label hugging them, not a field), then Open as Tab
+(`arrow.up.forward.square`; expanding arrows read as Full Screen) and × as circles. The row fades in once the page shows
 and lifts away as the page grows into the tab; drag it down to put the preview away.
 
 **How it moves** — the page is an engine page (a child window under CEF), which can't follow an animated frame or

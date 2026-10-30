@@ -348,16 +348,14 @@ struct PeekCard: View {
     }
 }
 
-/// The controls above the page: glass pieces in one group, the site's title centered, Open as Tab in words and × as a
-/// circle at the end. The title is a label, not a field: the site's icon and host, hugging them. Drag the row down to put the
+/// The controls above the page: glass pieces in one group, the site's title centered, Open as Tab and × as circles at
+/// the end. The title is a label, not a field: the site's icon and host, hugging them. Drag the row down to put the
 /// preview away.
 struct PeekControls: View {
     @Environment(BrowserEnvironment.self) private var env
     let window: BrowserWindowState
     let model: PeekModel
     let session: PeekModel.Session
-    /// The buttons' width at the end: the title keeps as clear of each side, so it stays centered on the page.
-    @State private var trailingWidth: CGFloat = 0
 
     var body: some View {
         let state = session.engineTab.state
@@ -367,8 +365,9 @@ struct PeekControls: View {
             ZStack {
                 HStack(spacing: Design.Space.block) {
                     Spacer(minLength: 0)
-                    trailing(openHelp: openHelp)
-                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { trailingWidth = $0 }
+                    // An arrow out of a square: expanding arrows would read as Full Screen on a Mac.
+                    ChromeButton(systemImage: "arrow.up.forward.square", help: openHelp) { model.expand(in: window) }
+                    ChromeButton(systemImage: "xmark", help: "Close") { model.close(in: window) }
                 }
                 HStack(spacing: Design.Grid.iconToText) {
                     SiteIcon(state.favicon ?? env.runtime.favicons.image(for: shown))
@@ -380,8 +379,8 @@ struct PeekControls: View {
                 .frame(height: Design.Size.control)
                 .glassSurface(in: Capsule())  // a label: glass that doesn't answer the pointer
                 .help(shown.absoluteString)
-                // Centered on the page, clear of the buttons on both sides.
-                .padding(.horizontal, trailingWidth + Design.Space.block)
+                // Centered on the page, clear of the circles on both sides.
+                .padding(.horizontal, (Design.Size.control + Design.Space.block) * 2)
             }
         }
         .frame(height: Design.Size.control)
@@ -396,22 +395,6 @@ struct PeekControls: View {
                 withAnimation(Design.Motion.toast) { model.dragOffset[window.id] = 0 }
             }
         })
-    }
-
-    /// The primary action in words, as a Mac's are (Quick Look's Open with…); × stays a circle.
-    private func trailing(openHelp: String) -> some View {
-        HStack(spacing: Design.Space.block) {
-            Button { model.expand(in: window) } label: {
-                Text("Open as Tab").font(.system(size: 13, weight: .medium))
-                    .padding(.horizontal, Design.Space.capsuleTrailing)
-                    .frame(height: Design.Size.control)
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .glassControl(in: Capsule())
-            .help(openHelp)
-            ChromeButton(systemImage: "xmark", help: "Close") { model.close(in: window) }
-        }
     }
 
     /// The host without `www.`.
