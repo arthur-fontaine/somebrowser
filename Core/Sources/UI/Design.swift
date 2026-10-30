@@ -97,7 +97,7 @@ public enum Design {
         /// Under the text of a large glass panel, so it reads over any page (Spotlight's).
         public static let glassScrim = adaptive(light: .white.withAlphaComponent(0.10), dark: .black.withAlphaComponent(0.12))
         /// Over the page behind a floating card (a preview): it dims what the card is in front of.
-        public static let scrim = adaptive(light: .black.withAlphaComponent(0.18), dark: .black.withAlphaComponent(0.35))
+        public static let scrim = adaptive(light: .black.withAlphaComponent(0.18), dark: .black.withAlphaComponent(0.50))
 
         static func adaptive(light: NSColor, dark: NSColor) -> Color {
             Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light })
