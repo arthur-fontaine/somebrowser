@@ -208,8 +208,8 @@ struct PeekOverlay: View {
     }
 }
 
-/// The preview in each phase (`PeekModel.Phase`): the page as a card like the browser's own, under a row of floating
-/// controls (Safari's iOS bar, on a Mac). The stand-in grows from the click, then the page shows; a snapshot grows to the
+/// The preview in each phase (`PeekModel.Phase`): the page in a Liquid Glass container (the app's floating panels'),
+/// under a row of floating controls (Safari's iOS bar, on a Mac). The stand-in grows from the click, then the page shows; a snapshot grows to the
 /// page card (expand) or shrinks away (close).
 struct PeekCard: View {
     @Environment(BrowserEnvironment.self) private var env
@@ -221,8 +221,11 @@ struct PeekCard: View {
     /// Off until the card's first frame, so it grows from where it starts.
     @State private var arrived = false
 
-    /// The row's height and its gap to the page.
+    /// The row's height and its gap to the container.
     static let rowSpace = Design.Size.control + Design.Space.divider
+    /// The glass around the page, and the page's corners concentric inside it.
+    static let rim = Design.Space.block
+    static let pageRadius = Design.concentric(Design.Radius.panel, inset: rim)
 
     var body: some View {
         let drag = model.dragOffset[window.id] ?? 0
@@ -247,13 +250,15 @@ struct PeekCard: View {
                 .padding(.leading, card.minX)
                 .padding(.top, card.minY - Self.rowSpace)
             page
-                .clipShape(RoundedRectangle(cornerRadius: window.cardRadius, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: full ? window.cardRadius : Self.pageRadius, style: .continuous))
                 .opacity(phase == .landed ? 0 : 1)
+                // Growing into the tab, the glass goes and the page takes the whole page card.
+                .padding(full ? 0 : Self.rim)
                 .frame(width: target.width, height: target.height)
-                // A card as the browser's own: its radius and hairline shadow.
                 .background {
-                    RoundedRectangle(cornerRadius: window.cardRadius, style: .continuous).fill(Color(nsColor: .textBackgroundColor))
-                        .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
+                    Color.clear
+                        .glassSurface(in: RoundedRectangle(cornerRadius: Design.Radius.panel, style: .continuous))
+                        .opacity(full ? 0 : 1)
                 }
                 .scaleEffect(scale, anchor: .center)
                 .offset(offset(card: card))
@@ -326,8 +331,8 @@ struct PeekCard: View {
         }
     }
 
-    /// The page at rest: inside the browser's page card (so becoming the tab grows it), a tile gutter in from its edges,
-    /// under the row (the same in the window when there's no page card yet).
+    /// The container at rest: inside the browser's page card (so becoming the tab grows it), a tile gutter in from its
+    /// edges, under the row (the same in the window when there's no page card yet).
     static func frame(in bounds: CGSize, content: CGRect) -> CGRect {
         let area = content.width > 200 && content.height > 200 ? content : CGRect(origin: .zero, size: bounds)
         let inset = Design.Space.tileGutter

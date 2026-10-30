@@ -2,8 +2,8 @@
 
 **Purpose** — Radian Preview / Arc Peek: links from pinned tabs and favorites (or ⇧-click) open in a floating preview you can expand into a tab.
 
-**How it looks** — Safari's iOS bar, on a Mac: the page is a card as the browser's own (its radius and hairline shadow),
-a tile gutter inside the page card, over a dimmed page (`Fill.scrim`). A row of glass controls floats 12 pt above it:
+**How it looks** — Safari's iOS bar, on a Mac: the page sits in a Liquid Glass container (`Radius.panel`, an 8 pt rim,
+the page concentric inside), a tile gutter inside the page card, over a dimmed page (`Fill.scrim`). A row of glass controls floats 12 pt above it:
 the site's capsule centered, then Open as Tab (`arrow.up.forward.square`; expanding arrows read as Full Screen) and ×
 as circles. The capsule is Core's `AddressCapsule`, as the sidebar's address field looks, but it isn't one: the site
 alone (icon and host, as Arc's), reload at its end, a click opens the tab. The row fades in once the page shows and
