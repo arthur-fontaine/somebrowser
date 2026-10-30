@@ -122,6 +122,10 @@ public enum Design {
         /// …and leaves with a 0.12 s fade, shrinking slightly.
         public static let panelExit = Animation.easeOut(duration: 0.12)
         public static let panelExitScale: CGFloat = 0.98
+        /// Something growing out of where it was clicked (a preview): a spring that overshoots a little.
+        public static let grow = Animation.spring(duration: 0.42, bounce: 0.16)
+        /// A preview growing into the page's place: no overshoot, it has to land on the page card.
+        public static let expand = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.38)
         /// Under Reduce Motion, everything is a short fade.
         public static let reduced = Animation.easeOut(duration: 0.15)
     }
