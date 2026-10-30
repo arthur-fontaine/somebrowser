@@ -96,6 +96,8 @@ public enum Design {
         public static let hairline = Color.primary.opacity(0.1)
         /// Under the text of a large glass panel, so it reads over any page (Spotlight's).
         public static let glassScrim = adaptive(light: .white.withAlphaComponent(0.10), dark: .black.withAlphaComponent(0.12))
+        /// Over the page behind a floating card (a preview): it dims what the card is in front of.
+        public static let scrim = adaptive(light: .black.withAlphaComponent(0.18), dark: .black.withAlphaComponent(0.35))
 
         static func adaptive(light: NSColor, dark: NSColor) -> Color {
             Color(nsColor: NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light })
@@ -123,9 +125,11 @@ public enum Design {
         public static let panelExit = Animation.easeOut(duration: 0.12)
         public static let panelExitScale: CGFloat = 0.98
         /// Something growing out of where it was clicked (a preview): a spring that overshoots a little.
-        public static let grow = Animation.spring(duration: 0.42, bounce: 0.16)
-        /// A preview growing into the page's place: no overshoot, it has to land on the page card.
-        public static let expand = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.38)
+        public static let growDuration: TimeInterval = 0.42
+        public static let grow = Animation.spring(duration: growDuration, bounce: 0.16)
+        /// A preview growing into the page's place: Spotlight's fast-start curve, no overshoot (it lands on the page card).
+        public static let expandDuration: TimeInterval = 0.34
+        public static let expand = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: expandDuration)
         /// Under Reduce Motion, everything is a short fade.
         public static let reduced = Animation.easeOut(duration: 0.15)
     }
